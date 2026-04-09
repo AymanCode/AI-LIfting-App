@@ -12,16 +12,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ayman.ecolift.R
 import com.ayman.ecolift.data.ExerciseRepository
+import com.ayman.ecolift.llm.LlmService
 import com.ayman.ecolift.ui.navigation.TodayScreen.Companion.totalSetCount
 
 @Composable
 fun TodayScreen(
     navController: NavController = rememberNavController(),
     exerciseRepository: ExerciseRepository,
+    setRepository: SetRepository,
     workoutRepository: WorkoutRepository,
-    setRepository: SetRepository
+    llmService: LlmService
 ) {
-    val viewModel by remember { ViewModelProvider(navController, TodayViewModel.Factory(exerciseRepository, workoutRepository, setRepository)).get(TodayViewModel::class.java) }
+    val viewModel by remember { ViewModelProvider(navController, TodayViewModel.Factory(exerciseRepository, setRepository, workoutRepository)).get(TodayViewModel::class.java) }
     val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
@@ -34,6 +36,12 @@ fun TodayScreen(
                     }
                     TextButton(onClick = { viewModel.endWorkout() }) {
                         Text("End", fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = { llmService.init() },
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Text("LLM TEST")
                     }
                 }
             )
