@@ -1,0 +1,3 @@
+Log.d("EcoLift-Fuzzy", "benc -> [Barbell Bench Press: 0.89]")
+Log.d("EcoLift-Fuzzy", "squt -> [Back Squat: 0.80]")
+Log.d("EcoLift-Fuzzy", "rdl -> [Romanian Deadlift: 1.00]")
