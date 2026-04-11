@@ -11,7 +11,7 @@ interface WorkoutDao {
     suspend fun insert(workout: Workout): Long
 
     @Query("UPDATE workout SET endedAt = :endedAt WHERE id = :id")
-    suspend fun update(workout: Workout)
+    suspend fun updateEndedAt(id: Long, endedAt: Long)
 
     @Query("SELECT * FROM workout WHERE id = :id")
     suspend fun getById(id: Long): Workout?
