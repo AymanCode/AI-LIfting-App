@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.Flow
 
 class SetRepository(private val db: AppDatabase) {
     suspend fun logSet(workoutId: Long, exerciseId: Long, weightLb: Double, reps: Int): Long {
-        val nextSetOrder = db.workoutSetDao().getSetsForWorkout(workoutId).size + 1
+        val nextSetOrder = db.workoutSetDao().countForWorkout(workoutId) + 1
         val set = WorkoutSet(
             workoutId = workoutId,
             exerciseId = exerciseId,
@@ -18,7 +18,7 @@ class SetRepository(private val db: AppDatabase) {
     }
 
     suspend fun deleteSet(id: Long) {
-        db.workoutSetDao().delete(id)
+        db.workoutSetDao().deleteById(id)
     }
 
     fun getSetsForWorkout(workoutId: Long): Flow<List<WorkoutSet>> = db.workoutSetDao().getSetsForWorkout(workoutId)

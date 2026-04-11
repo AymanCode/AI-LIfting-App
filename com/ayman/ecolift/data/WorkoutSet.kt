@@ -17,7 +17,7 @@ import androidx.room.Index
     indices = [Index("exerciseId")]
 )
 data class WorkoutSet(
-    @PrimaryKey(autoGenerate = true) val id: Long,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val workoutId: Long,
     val exerciseId: Long,
     val setOrder: Int,

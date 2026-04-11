@@ -16,6 +16,9 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercise WHERE canonicalName = :name")
     suspend fun getByExactCanonicalName(name: String): Exercise?
 
-    @Query("SELECT * FROM exercise ORDER BY max(loggedAt) DESC LIMIT :limit")
+    @Query("SELECT * FROM exercise WHERE id = :id")
+    suspend fun getById(id: Long): Exercise?
+
+    @Query("SELECT * FROM exercise ORDER BY createdAt DESC LIMIT :limit")
     suspend fun getRecentlyUsed(limit: Int): List<Exercise>
 }

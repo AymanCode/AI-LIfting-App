@@ -5,6 +5,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 
 @Composable
 fun HistoryScreen(navController: NavController = rememberNavController()) {
@@ -12,22 +14,22 @@ fun HistoryScreen(navController: NavController = rememberNavController()) {
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Dumbbell, contentDescription = "Today") },
                     label = { Text("Today") },
                     selected = navController.currentDestination?.route == "today",
-                    onClick = { navController.navigate("today") }
+                    onClick = { navController.navigate("today") },
+                    icon = { Text("T") }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Clock, contentDescription = "History") },
                     label = { Text("History") },
                     selected = navController.currentDestination?.route == "history",
-                    onClick = { navController.navigate("history") }
+                    onClick = { navController.navigate("history") },
+                    icon = { Text("H") }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.ChartBar, contentDescription = "Progress") },
                     label = { Text("Progress") },
                     selected = navController.currentDestination?.route == "progress",
-                    onClick = { navController.navigate("progress") }
+                    onClick = { navController.navigate("progress") },
+                    icon = { Text("P") }
                 )
             }
         }
