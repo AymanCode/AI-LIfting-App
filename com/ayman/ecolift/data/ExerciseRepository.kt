@@ -13,8 +13,8 @@ class ExerciseRepository(private val db: AppDatabase) {
             existing
         } else {
             val exercise = Exercise(canonicalName = capitalized, aliases = "")
-            db.exerciseDao().insert(exercise)
-            exercise
+            val insertedId = db.exerciseDao().insert(exercise)
+            exercise.copy(id = insertedId)
         }
     }
 
@@ -23,4 +23,12 @@ class ExerciseRepository(private val db: AppDatabase) {
     suspend fun getById(id: Long): Exercise? = db.exerciseDao().getById(id)
 
     suspend fun getRecentlyUsed(limit: Int = 5): List<Exercise> = db.exerciseDao().getRecentlyUsed(limit)
+
+    suspend fun match(query: String, exercises: List<Exercise>, threshold: Double = 0.7, limit: Int = 3): List<Exercise> {
+        return com.ayman.ecolift.data.match(query, exercises, threshold, limit)
+    }
+
+    suspend fun matchOne(query: String, exercises: List<Exercise>, threshold: Double = 0.6): Exercise? {
+        return com.ayman.ecolift.data.matchOne(query, exercises, threshold)
+    }
 }

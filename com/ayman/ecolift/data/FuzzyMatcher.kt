@@ -47,19 +47,14 @@ fun match(query: String, exercises: List<Exercise>, threshold: Double = 0.7, lim
     return exercises.map { exercise ->
         val canonicalScore = jaroWinkler(lowerCaseQuery, exercise.canonicalName)
         val aliasScores = exercise.aliases.split(",").mapNotNull { it.trim().lowercase() }.map { jaroWinkler(lowerCaseQuery, it) }
-        Exercise(canonicalScore = canonicalScore, aliasScores = aliasScores)
-    }.filter { it.canonicalScore >= threshold || it.aliasScores.any { it >= threshold } }
-        .sortedByDescending { it.canonicalScore + it.aliasScores.maxOrNull() ?: 0.0 }
+        val bestAliasScore = if (aliasScores.isEmpty()) 0.0 else maxOf(*aliasScores.toTypedArray())
+        Pair(exercise, maxOf(canonicalScore, bestAliasScore))
+    }.filter { (_, score) -> score >= threshold }
+        .sortedByDescending { (_, score) -> score }
         .take(limit)
+        .map { it.first }
 }
 
 fun matchOne(query: String, exercises: List<Exercise>, threshold: Double = 0.6): Exercise? {
-    val lowerCaseQuery = query.lowercase()
-    return exercises.map { exercise ->
-        val canonicalScore = jaroWinkler(lowerCaseQuery, exercise.canonicalName)
-        val aliasScores = exercise.aliases.split(",").mapNotNull { it.trim().lowercase() }.map { jaroWinkler(lowerCaseQuery, it) }
-        Exercise(canonicalScore = canonicalScore, aliasScores = aliasScores)
-    }.filter { it.canonicalScore >= threshold || it.aliasScores.any { it >= threshold } }
-        .sortedByDescending { it.canonicalScore + it.aliasScores.maxOrNull() ?: 0.0 }
-        .firstOrNull()
+    return match(query, exercises, threshold, 1).firstOrNull()
 }

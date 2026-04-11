@@ -1,0 +1,21 @@
+# Aider
+.aider*
+.env
+
+# Gradle
+.gradle/
+.gradle-user-home/
+build/
+*.class
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+local.properties
+
+# Tools
+.tools/
+
+# OS
+.DS_Store
+Thumbs.db
