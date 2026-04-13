@@ -8,13 +8,15 @@ data class CycleSlotUi(
     val label: String,
     val shortLabel: String,
     val isExpected: Boolean = false,
+    val isSelected: Boolean = false,
 )
 
 data class LogSetUi(
     val id: Long,
+    val exerciseId: Long,
     val setNumber: Int,
-    val weightLbs: Int,
-    val reps: Int,
+    val weightLbs: Int?,
+    val reps: Int?,
     val isBodyweight: Boolean,
     val completed: Boolean,
 )
@@ -22,6 +24,7 @@ data class LogSetUi(
 data class LogExerciseUi(
     val exerciseId: Long,
     val name: String,
+    val muscleGroups: String = "CHEST · TRICEPS",
     val lastSessionHint: String?,
     val sets: List<LogSetUi>,
     val estimated1RM: Int = 0,
@@ -57,6 +60,7 @@ data class ProgressPointUi(
     val estimated1RM: Float,
     val maxWeight: Int,
     val maxReps: Int,
+    val reps: Int = 0, // Added for tooltip
 )
 
 data class ProgressExerciseUi(
@@ -64,11 +68,17 @@ data class ProgressExerciseUi(
     val name: String,
     val sessions: Int,
     val lastSessionDate: String,
+    val lastSessionSummary: String, // e.g. "165 x 7"
+    val changePercentage: Float, // % change last 30 days
     val trend: List<Int>, // Last few volumes for sparkline
 )
 
 enum class TimeframeFilter {
-    THREE_MONTHS, YTD, ALL_TIME
+    ONE_MONTH, THREE_MONTHS, SIX_MONTHS, ONE_YEAR, ALL_TIME
+}
+
+enum class ProgressMetric {
+    ESTIMATED_1RM, WEIGHT, VOLUME
 }
 
 data class ProgressUiState(
@@ -78,12 +88,24 @@ data class ProgressUiState(
     val isBodyweight: Boolean = false,
     val chartPoints: List<ProgressPointUi> = emptyList(),
     val timeframe: TimeframeFilter = TimeframeFilter.THREE_MONTHS,
+    val selectedMetric: ProgressMetric = ProgressMetric.ESTIMATED_1RM,
+    val stats: ProgressStatsUi? = null
+)
+
+data class ProgressStatsUi(
+    val currentPr: String,
+    val currentPrDelta: Float,
+    val est1Rm: String,
+    val est1RmDelta: Float,
+    val totalVolume: String,
+    val volumeDelta: Float,
+    val workoutCount: Int,
+    val workoutCountDelta: Int
 )
 
 data class SplitUiState(
     val isActive: Boolean = false,
-    val numTypes: Int = 3,
-    val previewSlots: List<String> = emptyList(),
+    val slots: List<CycleSlotUi> = emptyList(),
 )
 
 fun cycleTypeLabel(type: Int): String = "Session ${type + 1}"

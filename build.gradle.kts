@@ -1,8 +1,9 @@
 plugins {
-    id("com.android.application") version "8.13.2"
-    kotlin("android") version "2.0.0"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.0.0"
-    id("com.google.devtools.ksp") version "2.0.0-1.0.21"
+    id("com.android.application") version "9.1.0"
+    kotlin("android") version "2.2.10"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.2.10"
+    id("com.google.devtools.ksp") version "2.3.2"
+    kotlin("plugin.serialization") version "2.0.0"
 }
 
 android {
@@ -26,6 +27,9 @@ android {
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        }
     }
 
     buildTypes {
@@ -53,6 +57,7 @@ android {
 }
 
 ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
     arg("room.generateKotlin", "true")
 }
 
@@ -70,11 +75,15 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.navigation:navigation-compose:2.8.9")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
+    implementation("androidx.room:room-runtime:2.7.1")
+    implementation("androidx.room:room-ktx:2.7.1")
+    ksp("androidx.room:room-compiler:2.7.1")
     implementation("com.google.mediapipe:tasks-genai:0.10.14")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation("org.mockito:mockito-core:5.11.0")
+    testImplementation("androidx.arch.core:core-testing:2.2.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }

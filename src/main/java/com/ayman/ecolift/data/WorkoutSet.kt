@@ -25,8 +25,8 @@ data class WorkoutSet(
     val exerciseId: Long,
     val date: String,
     val setNumber: Int,
-    val weightLbs: Int,
-    val reps: Int,
+    val weightLbs: Int? = null,
+    val reps: Int? = null,
     val isBodyweight: Boolean = false,
     val completed: Boolean = false,
     val restTimeSeconds: Int? = null, // Track how long you rested BEFORE this set

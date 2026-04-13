@@ -22,6 +22,30 @@ interface WorkoutDayDao {
     @Query(
         """
         SELECT MAX(cycleSlotOccurrence) FROM workout_day
+        WHERE cycleSlotId = :slotId AND date < :beforeDate
+        """
+    )
+    suspend fun getMaxOccurrenceForSlotBefore(beforeDate: String, slotId: Long): Int?
+
+    @Query(
+        """
+        SELECT * FROM workout_day
+        WHERE cycleSlotId = :slotId
+          AND cycleSlotOccurrence = :occurrence
+          AND date < :beforeDate
+        ORDER BY date DESC
+        LIMIT 1
+        """
+    )
+    suspend fun getPreviousOccurrenceForSlot(
+        slotId: Long,
+        occurrence: Int,
+        beforeDate: String,
+    ): WorkoutDay?
+
+    @Query(
+        """
+        SELECT MAX(cycleSlotOccurrence) FROM workout_day
         WHERE cycleSlotType = :slotType AND date < :beforeDate
         """
     )

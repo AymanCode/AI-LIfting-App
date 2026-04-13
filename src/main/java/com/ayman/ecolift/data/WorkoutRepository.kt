@@ -10,6 +10,18 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     fun observeAllWorkoutDays(): Flow<List<WorkoutDay>> = db.workoutDayDao().observeAll()
 
+    fun observeCycleSlots(): Flow<List<CycleSlot>> = db.cycleSlotDao().observeAll()
+
+    suspend fun getCycleSlots(): List<CycleSlot> = db.cycleSlotDao().getAll()
+
+    suspend fun addCycleSlot(name: String) {
+        db.cycleSlotDao().upsert(CycleSlot(name = name))
+    }
+
+    suspend fun deleteCycleSlot(id: Long) {
+        db.cycleSlotDao().delete(id)
+    }
+
     suspend fun getCycle(): Cycle = db.cycleDao().getCycle() ?: Cycle()
 
     suspend fun saveCycle(isActive: Boolean, numTypes: Int) {
@@ -22,11 +34,11 @@ class WorkoutRepository(private val db: AppDatabase) {
         )
     }
 
-    suspend fun assignCycleSlot(date: String, slotType: Int, alternativeFor: String? = null): WorkoutDay {
-        val occurrence = (db.workoutDayDao().getMaxOccurrenceBefore(date, slotType) ?: 0) + 1
+    suspend fun assignCycleSlot(date: String, slotId: Long, alternativeFor: String? = null): WorkoutDay {
+        val occurrence = (db.workoutDayDao().getMaxOccurrenceForSlotBefore(date, slotId) ?: 0) + 1
         val day = WorkoutDay(
             date = date,
-            cycleSlotType = slotType,
+            cycleSlotId = slotId,
             cycleSlotOccurrence = occurrence,
             alternativeForDate = alternativeFor
         )
@@ -34,11 +46,9 @@ class WorkoutRepository(private val db: AppDatabase) {
         return day
     }
 
-    suspend fun getPreviousOccurrenceDay(date: String, slotType: Int, occurrence: Int): WorkoutDay? {
-        if (occurrence <= 0) {
-            return null
-        }
-        return db.workoutDayDao().getPreviousOccurrence(slotType, occurrence, date)
+    suspend fun getPreviousOccurrenceDayForSlot(date: String, slotId: Long, occurrence: Int): WorkoutDay? {
+        if (occurrence <= 0) return null
+        return db.workoutDayDao().getPreviousOccurrenceForSlot(slotId, occurrence, date)
     }
 
     suspend fun getWorkoutDay(date: String): WorkoutDay? = db.workoutDayDao().getByDate(date)
