@@ -11,6 +11,9 @@ interface WorkoutSetDao {
     @Insert
     suspend fun insert(set: WorkoutSet): Long
 
+    @androidx.room.Upsert
+    suspend fun upsert(set: WorkoutSet): Long
+
     @Update
     suspend fun update(set: WorkoutSet)
 
@@ -19,9 +22,6 @@ interface WorkoutSetDao {
 
     @Query("SELECT * FROM workout_set ORDER BY date ASC, exerciseId ASC, setNumber ASC")
     fun observeAll(): Flow<List<WorkoutSet>>
-
-    @Query("SELECT * FROM workout_set ORDER BY date ASC, exerciseId ASC, setNumber ASC")
-    suspend fun observeAllSnapshot(): List<WorkoutSet>
 
     @Query("SELECT * FROM workout_set WHERE date = :date ORDER BY exerciseId ASC, setNumber ASC")
     fun observeForDate(date: String): Flow<List<WorkoutSet>>

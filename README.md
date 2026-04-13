@@ -1,73 +1,38 @@
-# EcoLift
+# EcoLift 🏋️‍♂️
 
-A workout tracking Android app built with Kotlin, Jetpack Compose, and Room.
+A local-first, high-efficiency lifting app designed for the gym floor. Built with Kotlin, Jetpack Compose, and Room.
 
-## What it does
+## Core Features
 
-EcoLift lets you log, review, and track your strength training progress:
+- **🚀 Instant Logging**: Add exercises with fuzzy search (Jaro-Winkler) and quick-add chips.
+- **🔄 Dynamic Cycle Tracking**: Automatically loads your previous session's weight/reps based on your workout split (e.g., Push/Pull/Legs).
+- **📈 Progress Visualization**: Track Personal Bests (PBs) and estimated 1RMs inline as you lift.
+- **⏱️ Smart Rest Timer**: Auto-starting rest timer that stays visible while you log your next set.
+- **🤖 IronMind AI (Beta)**: On-device LLM (Gemma 2B) for hands-free workout logging and equipment alternatives.
+- **🛡️ Local-First**: No cloud, no account, no tracking. Your data stays on your device.
 
-- **Today** - Start a workout session, log sets (exercise, weight, reps)
-- **History** - Browse past workout sessions by date
-- **Progress** - View stats like total workouts and best lifts
-
-### Smart exercise matching
-
-Exercise names are fuzzy-matched using the Jaro-Winkler algorithm, so typing "bench pres" still finds "Bench Press". Exercises support aliases for common name variations.
+## What's New (v4.0)
+- **Inline Editing**: Tap any exercise name to rename it instantly.
+- **Database Migrations**: Safe migration from v3 to v4 with `restTimeSeconds` support.
+- **UI Isolation**: AI engine is lazy-loaded to keep the main log snappy and crash-free.
 
 ## Architecture
 
-```
-src/main/java/com/ayman/ecolift/
-├── data/
-│   ├── Exercise.kt          # Exercise entity (name, aliases, timestamps)
-│   ├── Workout.kt           # Workout session entity (date, start/end time)
-│   ├── WorkoutSet.kt        # Individual set (exercise, weight, reps)
-│   ├── *Dao.kt              # Room DAOs for each entity
-│   ├── *Repository.kt       # Business logic layer
-│   ├── FuzzyMatcher.kt      # Jaro-Winkler fuzzy name matching
-│   └── AppDatabase.kt       # Room database singleton
-└── ui/
-    ├── MainActivity.kt       # Entry point, sets up theme and navigation
-    ├── navigation/
-    │   ├── AppNavigation.kt  # NavHost with today/history/progress routes
-    │   ├── TodayScreen.kt    # Current workout logging screen
-    │   ├── HistoryScreen.kt  # Past workouts list screen
-    │   └── ProgressScreen.kt # Stats and progress screen
-    └── theme/
-        ├── DarkTheme.kt      # Dark color scheme
-        ├── Typography.kt     # Font styles
-        └── Shapes.kt         # Corner radius definitions
-```
+- **UI**: Jetpack Compose + Material 3 (Material Icons Extended)
+- **Database**: Room DB (v4) with safe migrations.
+- **AI**: MediaPipe LLM Inference (Gemma 2B).
+- **Pattern**: MVVM with StateFlow and Repository pattern.
 
-## Tech stack
+## AI Setup (IronMind Agent)
+IronMind uses an on-device LLM to process natural language. 
+1. Go to the **IronMind** tab.
+2. If the model is missing, use the **"Select Model File"** button to load a `gemma.bin` file (Gemma 2B / 4-bit quantized).
+3. Once loaded, you can type or speak commands like *"Log 3 sets of bench at 225"* or *"What's a good alternative for the leg press?"*
 
-| Layer | Library |
-|-------|---------|
-| UI | Jetpack Compose + Material 3 |
-| Navigation | Navigation Compose |
-| Database | Room (SQLite) with KSP |
-| Async | Kotlin Coroutines + Flow |
-| Build | Gradle 8.0.2, Kotlin 1.8.21 |
-| Min SDK | 26 (Android 8.0) |
-| Target SDK | 34 (Android 14) |
+## Development
+- **Min SDK**: 26 (Android 8.0)
+- **Target SDK**: 34 (Android 14)
+- **Build System**: Gradle 8.0.2
 
-## Building
-
-1. Install [Android Studio](https://developer.android.com/studio) (includes JDK 17 and Android SDK)
-2. Open this project folder in Android Studio
-3. Let Gradle sync complete
-4. Run on an emulator or physical device (API 26+)
-
-## Data model
-
-Three Room entities with foreign key relationships:
-
-- **Exercise** - canonical name + comma-separated aliases
-- **Workout** - one per day, tracks session start/end time via epoch day
-- **WorkoutSet** - belongs to a workout, links to an exercise, stores weight (lbs), reps, and order
-
-Deleting a workout cascades to delete its sets.
-
-## Development notes
-
-This project was built in a single day using a local LLM (qwen2.5-coder) via [aider](https://aider.chat), with Claude Code as the orchestrator for testing and project structure.
+---
+*Developed as a "Day 1" project using local LLMs (Qwen 2.5 Coder) and Claude Code.*

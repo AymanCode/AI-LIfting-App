@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(aider --version)",
+      "Bash(aider --model openai/qwen2.5-coder-7b-instruct --api-base http://127.0.0.1:1234/v1 --api-key dummy --no-auto-commits --no-git --yes src/main/java/com/ayman/ecolift/data/Exercise.kt)",
+      "Bash(aider --help)",
+      "Bash(aider --model openai/qwen2.5-coder-7b-instruct --openai-api-base http://127.0.0.1:1234/v1 --openai-api-key dummy --no-auto-commits --no-git --yes-always --message \"In Exercise.kt, change val id: Long to val id: Long = 0 so Room autoGenerate works when creating Exercise instances without specifying an id.\" src/main/java/com/ayman/ecolift/data/Exercise.kt)",
+      "Bash(aider --model openai/qwen2.5-coder-7b-instruct --openai-api-base http://127.0.0.1:1234/v1 --openai-api-key dummy --no-auto-commits --no-git --yes-always --message \"All Color values need the 0xFF alpha prefix or they will be transparent. Change Color\\(0x0F0F10\\) to Color\\(0xFF0F0F10\\), Color\\(0x1A1A1D\\) to Color\\(0xFF1A1A1D\\), Color\\(0xE8E8EA\\) to Color\\(0xFFE8E8EA\\), Color\\(0x00C2A8\\) to Color\\(0xFF00C2A8\\)\" src/main/java/com/ayman/ecolift/ui/theme/DarkTheme.kt)",
+      "Bash(aider --model openai/qwen2.5-coder-7b-instruct --openai-api-base http://127.0.0.1:1234/v1 --openai-api-key dummy --no-auto-commits --no-git --yes-always --message \"Fix two bugs in createExercise\\(\\): 1\\) getByExactCanonicalName queries by lowerCase but stores capitalized so lookups never match existing exercises. Query by capitalized instead. 2\\) Replace deprecated it.capitalize\\(\\) with it.replaceFirstChar { c -> c.uppercase\\(\\) }. Also remove the unused imports for RoomDatabase and Flow.\" src/main/java/com/ayman/ecolift/data/ExerciseRepository.kt)",
+      "Bash(winget list:*)",
+      "Bash(powershell.exe -Command \"Get-Command studio64 -ErrorAction SilentlyContinue; \\(Get-ItemProperty 'HKLM:\\\\SOFTWARE\\\\Android Studio' -ErrorAction SilentlyContinue\\); \\(Get-ItemProperty 'HKCU:\\\\SOFTWARE\\\\Android Studio' -ErrorAction SilentlyContinue\\)\")",
+      "Read(//c/Program Files/Android/Android Studio/bin/**)",
+      "Read(//c/Program Files/Android/Android Studio/jbr/bin/**)",
+      "Bash(export JAVA_HOME=\"C:/Program Files/Android/Android Studio/jbr\")",
+      "Bash(export PATH=\"$JAVA_HOME/bin:$PATH\")",
+      "Bash(java -version)",
+      "Bash(\"C:/Program Files/Android/Android Studio/jbr/bin/java.exe\" -version)",
+      "Bash(JAVA_HOME=\"C:/Program Files/Android/Android Studio/jbr\" ANDROID_SDK_ROOT=\"C:/Users/ayman/AppData/Local/Android/Sdk\" ./gradlew assembleDebug)",
+      "Bash(curl -L \"https://github.com/gradle/gradle/raw/v8.0.2/gradle/wrapper/gradle-wrapper.jar\" -o \"c:/Users/ayman/OneDrive/Documents/Lifting app/gradle/wrapper/gradle-wrapper.jar\")",
+      "Bash(aider --model openai/qwen2.5-coder-7b-instruct --openai-api-base http://127.0.0.1:1234/v1 --openai-api-key dummy --no-auto-commits --no-git --yes-always --message \"The build is failing with 'Unknown Kotlin JVM target: 21'. The JDK being used is Java 21 but the KSP plugin version 1.8.21-1.0.11 does not support JVM target 21. Fix this by changing the jvmTarget in kotlinOptions from VERSION_17.toString\\(\\) to \\\\\"17\\\\\" explicitly, and also add this to the kotlin block to force it: tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>\\(\\).configureEach { kotlinOptions { jvmTarget = \\\\\"17\\\\\" } }\" build.gradle.kts)",
+      "Bash(JAVA_HOME=\"C:/Program Files/Android/Android Studio/jbr\" ANDROID_SDK_ROOT=\"C:/Users/ayman/AppData/Local/Android/Sdk\" ./gradlew clean assembleDebug)",
+      "Bash(export ANDROID_SDK_ROOT=\"C:/Users/ayman/AppData/Local/Android/Sdk\")",
+      "Bash(./gradlew assembleDebug)",
+      "Bash(aider --model openai/qwen2.5-coder-7b-instruct --openai-api-base http://127.0.0.1:1234/v1 --openai-api-key dummy --no-auto-commits --no-git --yes-always --message 'Update all Compose and related library versions to be compatible with Kotlin 2.0 and AGP 8.9.0. Use these exact versions::*)",
+      "Bash(aider --model openai/qwen2.5-coder-7b-instruct --openai-api-base http://127.0.0.1:1234/v1 --openai-api-key dummy --no-auto-commits --no-git --yes-always --message 'Fix the plugins and dependencies block. The entire build.gradle.kts should be exactly this::*)",
+      "Bash(aider --model openai/qwen2.5-coder-7b-instruct --openai-api-base http://127.0.0.1:1234/v1 --openai-api-key dummy --no-auto-commits --no-git --yes-always --message \"In the plugins block, change id\\(\\\\\"com.google.devtools.ksp\\\\\"\\) version to \\\\\"2.0.0-1.0.21\\\\\"\" build.gradle.kts)",
+      "Bash(aider --model openai/qwen2.5-coder-7b-instruct --openai-api-base http://127.0.0.1:1234/v1 --openai-api-key dummy --no-auto-commits --no-git --yes-always --message 'Rewrite TodayScreen.kt completely. Remove all hardcoded sample data. The screen should::*)"
+    ]
+  }
+}

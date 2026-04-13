@@ -22,4 +22,21 @@ interface ExerciseDao {
 
     @Query("SELECT * FROM exercise WHERE id = :id")
     suspend fun getById(id: Long): Exercise?
+
+    @androidx.room.Upsert
+    suspend fun upsert(exercise: Exercise): Long
+
+    @Query("DELETE FROM exercise WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @androidx.room.Transaction
+    suspend fun deleteExerciseWithLogs(exerciseId: Long) {
+        deleteById(exerciseId)
+    }
+
+    @Query("DELETE FROM workout_set")
+    suspend fun deleteAllSets()
+
+    @Query("DELETE FROM exercise")
+    suspend fun deleteAllExercises()
 }
