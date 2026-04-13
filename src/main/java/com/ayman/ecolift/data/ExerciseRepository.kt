@@ -60,6 +60,10 @@ class ExerciseRepository(private val db: AppDatabase) {
             db.exerciseDao().upsert(exercise.copy(name = normalized))
         }
     }
+
+    suspend fun deleteExercise(id: Long) {
+        db.exerciseDao().deleteExerciseWithLogs(id)
+    }
 }
 
 data class ExerciseSuggestion(

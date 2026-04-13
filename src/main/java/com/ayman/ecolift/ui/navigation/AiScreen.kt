@@ -85,7 +85,8 @@ fun AiScreen(viewModel: AiViewModel = viewModel()) {
                     }
                 }
             )
-        }
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
         Column(
             modifier = Modifier

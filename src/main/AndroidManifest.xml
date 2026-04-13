@@ -6,6 +6,7 @@
         android:allowBackup="true"
         android:supportsRtl="true"
         android:label="EcoLift"
+        android:largeHeap="true"
         android:theme="@style/Theme.EcoLift">
         <activity
             android:name=".ui.MainActivity"

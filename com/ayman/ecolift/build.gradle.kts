@@ -45,7 +45,10 @@ android {
         implementation("androidx.lifecycle:lifecycle-runtime-compose:2.6.1")
         implementation("androidx.navigation:navigation-compose:2.5.3")
         implementation("com.vico:vico-compose-material3:0.8.0")
-        implementation("ai.google.media.pipe.tasks.genai:tasks-genai-android:0.4.0")
+        
+        // UPGRADED MediaPipe to the latest stable version
+        implementation("com.google.mediapipe:tasks-genai:0.10.33")
+
         implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1")
         implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
 

@@ -1,10 +1,14 @@
 package com.ayman.ecolift.ui.navigation
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -16,6 +20,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -36,6 +42,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -61,6 +68,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ayman.ecolift.ui.theme.AccentTeal
+import com.ayman.ecolift.ui.theme.AccentTeal12
+import com.ayman.ecolift.ui.theme.AccentTeal15
+import com.ayman.ecolift.ui.theme.AccentTeal20
+import com.ayman.ecolift.ui.theme.AccentTeal35
+import com.ayman.ecolift.ui.theme.BackgroundElevated
+import com.ayman.ecolift.ui.theme.BackgroundPrimary
+import com.ayman.ecolift.ui.theme.BackgroundSubtle
+import com.ayman.ecolift.ui.theme.BackgroundSurface
+import com.ayman.ecolift.ui.theme.BorderDefault
+import com.ayman.ecolift.ui.theme.BorderSubtle
+import com.ayman.ecolift.ui.theme.ChevronColor
+import com.ayman.ecolift.ui.theme.MuscleGroupTag
+import com.ayman.ecolift.ui.theme.SearchIcon
+import com.ayman.ecolift.ui.theme.SearchPlaceholder
+import com.ayman.ecolift.ui.theme.TextInactive
+import com.ayman.ecolift.ui.theme.TextMuted
+import com.ayman.ecolift.ui.theme.TextPrimary
+import com.ayman.ecolift.ui.theme.TextSecondary
 import com.ayman.ecolift.ui.viewmodel.CycleSlotUi
 import com.ayman.ecolift.ui.viewmodel.ExerciseChipUi
 import com.ayman.ecolift.ui.viewmodel.LogExerciseUi
@@ -72,13 +98,15 @@ import com.ayman.ecolift.ui.viewmodel.LogViewModel
 fun TodayScreen(viewModel: LogViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+    ) {
         // ── Main Content ─────────────────────────────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .imePadding(),
+                .statusBarsPadding(),
         ) {
             DateHeader(
                 label = uiState.currentDateLabel,
@@ -161,12 +189,12 @@ fun TodayScreen(viewModel: LogViewModel = viewModel()) {
                         onRepsChange = viewModel::updateReps,
                         onToggleBodyweight = viewModel::toggleBodyweight,
                         onToggleCompleted = viewModel::toggleCompleted,
-                        onDeleteSet = viewModel::deleteSet,
+                        onDeleteSet = { setId -> viewModel.deleteSet(setId) },
                         onUpdateName = viewModel::updateExerciseName,
                     )
                 }
 
-                item { Spacer(Modifier.height(80.dp)) }
+                item { Spacer(Modifier.height(100.dp)) }
             }
         }
 
@@ -177,7 +205,7 @@ fun TodayScreen(viewModel: LogViewModel = viewModel()) {
                 onCancel = viewModel::cancelRestTimer,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 16.dp)
+                    .padding(bottom = 80.dp)
             )
         }
     }
@@ -232,29 +260,47 @@ private fun DateHeader(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = BackgroundPrimary,
+        shadowElevation = 0.dp
     ) {
-        IconButton(onClick = onPrevious) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous day")
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = label, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            if (slotLabel != null) {
-                Text(
-                    text = slotLabel,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onPrevious) {
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = "Previous day",
+                    tint = ChevronColor
                 )
             }
-        }
-        IconButton(onClick = onNext) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next day")
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.headlineMedium
+                )
+                Text(
+                    text = slotLabel ?: "NO CYCLE SLOT",
+                    style = TextStyle(
+                        fontSize = 10.sp,
+                        color = if (slotLabel != null) AccentTeal else TextInactive,
+                        fontWeight = FontWeight.W800,
+                        letterSpacing = 0.08.sp
+                    )
+                )
+            }
+            IconButton(onClick = onNext) {
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Next day",
+                    tint = ChevronColor
+                )
+            }
         }
     }
 }
@@ -279,16 +325,31 @@ private fun AddExerciseBar(
         OutlinedTextField(
             value = input,
             onValueChange = onInputChange,
-            placeholder = { Text("Search or type new exercise…") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            placeholder = { 
+                Text(
+                    "Search or add exercise...", 
+                    color = SearchPlaceholder,
+                    fontSize = 13.sp
+                ) 
+            },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = SearchIcon) },
             trailingIcon = {
                 if (input.isNotBlank()) {
-                    TextButton(onClick = onAdd) { Text("Add") }
+                    TextButton(onClick = onAdd) { Text("Add", color = AccentTeal) }
                 }
             },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.5.dp, AccentTeal20, RoundedCornerShape(14.dp)),
+            shape = RoundedCornerShape(14.dp),
             singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = BackgroundSurface,
+                unfocusedContainerColor = BackgroundSurface,
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
+                cursorColor = AccentTeal
+            )
         )
 
         if (suggestions.isNotEmpty()) {
@@ -308,31 +369,6 @@ private fun AddExerciseBar(
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             style = MaterialTheme.typography.bodyMedium,
                         )
-                    }
-                }
-            }
-        } else if (quickAdd.isNotEmpty() && input.isBlank()) {
-            @OptIn(ExperimentalLayoutApi::class)
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                quickAdd.forEach { exercise ->
-                    Surface(
-                        onClick = { onSuggestionClick(exercise.name) },
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Text(text = exercise.name, style = MaterialTheme.typography.labelMedium)
-                        }
                     }
                 }
             }
@@ -388,32 +424,69 @@ private fun PendingReviewBanner(
 @Composable
 private fun CyclePickerCard(
     options: List<CycleSlotUi>,
-    onSelect: (Int) -> Unit,
+    onSelect: (Long) -> Unit,
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(text = "What are you hitting today?", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Text(
-                text = "Select a slot — the matching prior session is pre-loaded.",
+                text = "What are you hitting today?",
+                style = MaterialTheme.typography.titleSmall
+            )
+            Text(
+                text = "Select a slot to pre-load your last session",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = TextSecondary,
             )
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 options.forEach { option ->
+                    val isExpected = option.isExpected
+                    val isSelected = option.isSelected
                     FilterChip(
-                        selected = option.isExpected,
-                        onClick = { onSelect(option.type) },
-                        label = { Text(if (option.isExpected) "${option.label} ✦" else option.label) },
+                        selected = isSelected,
+                        onClick = { onSelect(option.type.toLong()) },
+                        label = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = option.label.uppercase(),
+                                    style = TextStyle(
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.W800,
+                                        color = if (isSelected) Color.White else if (isExpected) AccentTeal else TextInactive
+                                    )
+                                )
+                                Text(
+                                    text = if (isSelected) "SELECTED" else if (isExpected) "Expected ✦" else "Slot",
+                                    style = TextStyle(
+                                        fontSize = 9.sp,
+                                        color = if (isSelected) Color.White.copy(alpha = 0.7f) else if (isExpected) AccentTeal.copy(alpha = 0.5f) else BorderSubtle
+                                    )
+                                )
+                            }
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = if (isSelected) AccentTeal else if (isExpected) AccentTeal12 else BackgroundElevated,
+                            selectedContainerColor = AccentTeal,
+                            labelColor = if (isSelected) Color.White else if (isExpected) AccentTeal else TextInactive,
+                            selectedLabelColor = Color.White
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = if (isSelected) AccentTeal else if (isExpected) AccentTeal else BorderSubtle,
+                            selectedBorderColor = AccentTeal,
+                            borderWidth = 1.5.dp,
+                            selectedBorderWidth = 1.5.dp
+                        )
                     )
                 }
             }
@@ -440,26 +513,25 @@ private fun ExerciseCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    var isEditingName by remember { mutableStateOf(false) }
-                    var editedName by remember { mutableStateOf(exercise.name) }
+                    var isEditingName by remember(exercise.name) { mutableStateOf(false) }
+                    var editedName by remember(exercise.name) { mutableStateOf(exercise.name) }
 
                     if (isEditingName) {
                         OutlinedTextField(
                             value = editedName,
                             onValueChange = { editedName = it },
                             modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
-                            textStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Bold, fontSize = 18.sp),
+                            textStyle = MaterialTheme.typography.titleLarge,
                             singleLine = true,
                             trailingIcon = {
                                 IconButton(onClick = {
@@ -468,59 +540,48 @@ private fun ExerciseCard(
                                         isEditingName = false
                                     }
                                 }) {
-                                    Icon(Icons.Default.Check, contentDescription = "Save", tint = MaterialTheme.colorScheme.primary)
+                                    Icon(Icons.Default.Check, contentDescription = "Save", tint = AccentTeal)
                                 }
                             },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                focusedBorderColor = AccentTeal,
                                 unfocusedBorderColor = Color.Transparent
                             )
                         )
                     } else {
                         Text(
                             text = exercise.name,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
+                            style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier.clickable { isEditingName = true }
                         )
                     }
 
-                    if (exercise.lastSessionHint != null) {
-                        Text(
-                            text = "Last: ${exercise.lastSessionHint}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Text(
+                        text = exercise.muscleGroups,
+                        style = TextStyle(
+                            fontSize = 9.sp,
+                            color = MuscleGroupTag,
+                            fontWeight = FontWeight.W400,
+                            letterSpacing = 0.06.sp
                         )
-                    }
+                    )
                 }
                 
-                // Est. 1RM Badge
-                if (exercise.estimated1RM > 0) {
-                    Column(horizontalAlignment = Alignment.End) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (exercise.isNewPB) MaterialTheme.colorScheme.tertiaryContainer 
-                                    else MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier.padding(bottom = 2.dp)
-                        ) {
-                            Text(
-                                text = "Est. 1RM: ${exercise.estimated1RM}",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (exercise.isNewPB) MaterialTheme.colorScheme.onTertiaryContainer 
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        if (exercise.isNewPB) {
-                            Text(
-                                text = "NEW PB! ✦",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.tertiary,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                        }
-                    }
+                Surface(
+                    onClick = onAddSet,
+                    shape = RoundedCornerShape(8.dp),
+                    color = AccentTeal12,
+                    border = BorderStroke(1.dp, AccentTeal35)
+                ) {
+                    Text(
+                        "+ SET",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = TextStyle(
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.W800,
+                            color = AccentTeal
+                        )
+                    )
                 }
             }
 
@@ -538,12 +599,6 @@ private fun ExerciseCard(
                     onDelete = { onDeleteSet(set.id) },
                 )
             }
-
-            TextButton(onClick = onAddSet, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("Add Set")
-            }
         }
     }
 }
@@ -556,9 +611,9 @@ private fun SetColumnHeader() {
             .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        HeaderCell("Set", Modifier.weight(1f))
-        HeaderCell("Lbs", Modifier.weight(2.2f))
-        HeaderCell("Reps", Modifier.weight(2f))
+        HeaderCell("SET", Modifier.weight(1f))
+        HeaderCell("LBS", Modifier.weight(2.2f))
+        HeaderCell("REPS", Modifier.weight(2f))
         HeaderCell("BW", Modifier.weight(1f))
         HeaderCell("✓", Modifier.weight(1f))
         Spacer(Modifier.weight(0.6f))
@@ -571,8 +626,12 @@ private fun HeaderCell(text: String, modifier: Modifier) {
         text = text,
         modifier = modifier,
         textAlign = TextAlign.Center,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = TextStyle(
+            fontSize = 8.sp,
+            fontWeight = FontWeight.W700,
+            color = TextMuted,
+            letterSpacing = 0.06.sp
+        )
     )
 }
 
@@ -589,31 +648,31 @@ private fun SetRow(
     onToggleCompleted: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    val rowBg = if (set.completed)
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-    else
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(rowBg)
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = set.setNumber.toString(),
-            modifier = Modifier.weight(1f),
-            textAlign = TextAlign.Center,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(30.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (set.completed) AccentTeal15 else BackgroundElevated),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = set.setNumber.toString(),
+                fontWeight = FontWeight.SemiBold,
+                color = if (set.completed) AccentTeal else TextSecondary,
+            )
+        }
 
         val weightDisplay = when {
-            set.isBodyweight && set.weightLbs == 0 -> "BW"
-            set.isBodyweight -> "BW+${set.weightLbs}"
-            else -> set.weightLbs.toString()
+            set.isBodyweight && (set.weightLbs ?: 0) == 0 -> "BW"
+            set.isBodyweight -> "BW+${set.weightLbs ?: 0}"
+            else -> set.weightLbs?.toString() ?: ""
         }
         NumberInputBox(
             modifier = Modifier.weight(2.2f),
@@ -628,20 +687,13 @@ private fun SetRow(
 
         NumberInputBox(
             modifier = Modifier.weight(2f),
-            displayValue = set.reps.toString(),
+            displayValue = set.reps?.toString() ?: "",
             editable = true,
             onValueChange = onRepsChange,
             onDecrease = { onRepsStep(-1) },
             onIncrease = { onRepsStep(1) },
             onLongDecrease = { onRepsStep(-5) },
             onLongIncrease = { onRepsStep(5) },
-        )
-
-        SmallToggle(
-            modifier = Modifier.weight(1f),
-            active = set.isBodyweight,
-            label = "BW",
-            onClick = onToggleBodyweight,
         )
 
         Box(
@@ -653,19 +705,38 @@ private fun SetRow(
             Box(
                 modifier = Modifier
                     .size(30.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(
-                        if (set.completed) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant,
-                    )
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (set.isBodyweight) AccentTeal12 else BackgroundElevated)
+                    .clickable(onClick = onToggleBodyweight),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "BW",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (set.isBodyweight) AccentTeal else TextSecondary
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 4.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (set.completed) AccentTeal12 else BackgroundElevated)
                     .clickable(onClick = onToggleCompleted),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = "Done",
-                    tint = if (set.completed) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    tint = if (set.completed) AccentTeal else TextSecondary,
                     modifier = Modifier.size(18.dp),
                 )
             }
@@ -674,13 +745,16 @@ private fun SetRow(
         Box(
             modifier = Modifier
                 .weight(0.6f)
+                .size(30.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(BackgroundElevated)
                 .clickable(onClick = onDelete),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = "×",
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                fontSize = 20.sp,
+                color = TextSecondary,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
             )
         }
@@ -701,15 +775,15 @@ private fun NumberInputBox(
     onLongDecrease: () -> Unit,
     onLongIncrease: () -> Unit,
 ) {
-    val onSurface = MaterialTheme.colorScheme.onSurface
     var hasFocused by remember(displayValue) { mutableStateOf(false) }
 
     Row(
         modifier = modifier
             .padding(horizontal = 3.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 2.dp, vertical = 4.dp),
+            .height(30.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(BackgroundElevated)
+            .padding(horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -722,7 +796,7 @@ private fun NumberInputBox(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text("−", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("−", fontSize = 11.sp, fontWeight = FontWeight.W300, color = MuscleGroupTag)
         }
         
         if (editable) {
@@ -732,17 +806,17 @@ private fun NumberInputBox(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 textStyle = TextStyle(
                     textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = onSurface,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 13.sp,
+                    color = TextPrimary,
                 ),
-                cursorBrush = SolidColor(onSurface),
+                cursorBrush = SolidColor(TextPrimary),
                 modifier = Modifier
                     .weight(1f)
                     .onFocusChanged { focusState ->
                         if (focusState.isFocused && !hasFocused) {
                             hasFocused = true
-                            if (displayValue == "0") onValueChange("")
+                            if (displayValue == "0" || displayValue == "") onValueChange("")
                         }
                     },
                 singleLine = true,
@@ -752,8 +826,9 @@ private fun NumberInputBox(
                 text = displayValue,
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
+                fontWeight = FontWeight.W800,
+                fontSize = 13.sp,
+                color = TextPrimary
             )
         }
 
@@ -766,7 +841,7 @@ private fun NumberInputBox(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text("+", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("+", fontSize = 11.sp, fontWeight = FontWeight.W700, color = AccentTeal)
         }
     }
 }

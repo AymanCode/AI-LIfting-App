@@ -11,6 +11,9 @@ interface WorkoutSetDao {
     @Insert
     suspend fun insert(set: WorkoutSet): Long
 
+    @androidx.room.Upsert
+    suspend fun upsert(set: WorkoutSet): Long
+
     @Update
     suspend fun update(set: WorkoutSet)
 

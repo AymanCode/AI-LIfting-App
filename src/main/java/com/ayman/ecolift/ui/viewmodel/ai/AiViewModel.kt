@@ -50,32 +50,39 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<AiUiState> = _uiState.asStateFlow()
 
     init {
-        // Auto-attempt start if model might be there
+        // Attempt to initialize the local GenAI model via AICore
         startAi()
     }
 
     private fun checkModelPresence() {
         viewModelScope.launch {
             val isLoaded = agent.isInitialized()
-            val modelFile = File(context.filesDir, "gemma.bin")
             _uiState.value = _uiState.value.copy(
                 isModelLoaded = isLoaded,
-                modelPathHint = modelFile.absolutePath,
                 messages = if (isLoaded && _uiState.value.messages.isEmpty()) {
                     listOf(AiMessage("IronMind is active. How can I help?", false))
-                } else _uiState.value.messages
+                } else _uiState.value.messages,
+                errorMessage = if (isLoaded) null else _uiState.value.errorMessage
             )
         }
     }
 
     fun startAi() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isThinking = true)
+            _uiState.value = _uiState.value.copy(isThinking = true, errorMessage = null)
             try {
-                agent.initialize()
-                checkModelPresence()
+                val success = withContext(Dispatchers.IO) {
+                    agent.initialize()
+                }
+                if (success) {
+                    checkModelPresence()
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        errorMessage = "IronMind Engine could not be initialized. Ensure AICore is updated on this device."
+                    )
+                }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(errorMessage = "Inference Error: ${e.message}")
+                _uiState.value = _uiState.value.copy(errorMessage = "Initialization Error: ${e.message}")
             } finally {
                 _uiState.value = _uiState.value.copy(isThinking = false)
             }
@@ -85,24 +92,37 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     fun importModel(uri: Uri) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isThinking = true, errorMessage = null)
-            val success = withContext(Dispatchers.IO) {
+            val result = withContext(Dispatchers.IO) {
                 try {
                     val destination = File(context.filesDir, "gemma.bin")
+                    
+                    // Check disk space
+                    val freeSpace = context.filesDir.usableSpace
+                    if (freeSpace < 3_000_000_000L) { // ~3GB
+                        return@withContext "Not enough storage space. Need at least 3GB free."
+                    }
+
                     context.contentResolver.openInputStream(uri)?.use { input ->
                         destination.outputStream().use { output ->
-                            input.copyTo(output)
+                            val buffer = ByteArray(1024 * 1024) // 1MB buffer
+                            var bytesRead: Int
+                            while (input.read(buffer).also { bytesRead = it } != -1) {
+                                output.write(buffer, 0, bytesRead)
+                            }
                         }
                     }
-                    true
+                    if (destination.exists() && destination.length() > 0) "SUCCESS" 
+                    else "File copy resulted in 0 bytes."
                 } catch (e: Exception) {
                     e.printStackTrace()
-                    false
+                    e.localizedMessage ?: "Unknown copy error"
                 }
             }
-            if (success) {
+            
+            if (result == "SUCCESS") {
                 startAi()
             } else {
-                _uiState.value = _uiState.value.copy(errorMessage = "Failed to copy model. Ensure you have ~1.5GB of free space.")
+                _uiState.value = _uiState.value.copy(errorMessage = "Import Error: $result")
             }
             _uiState.value = _uiState.value.copy(isThinking = false)
         }
@@ -132,21 +152,21 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         )
 
         viewModelScope.launch {
-            // Fetch recent context
-            val today = LocalDate.now().toString()
-            val recentSets = setRepository.getSetsForDate(today)
-            val contextData = if (recentSets.isNotEmpty()) {
-                val dataStrings = recentSets.map { set ->
-                    val ex = exerciseRepository.getById(set.exerciseId)?.name ?: "Unknown"
-                    "- $ex: ${set.weightLbs} lbs x ${set.reps}"
-                }
-                "Today's Log:\n" + dataStrings.joinToString("\n")
+            val response = agent.processWorkoutInput(input)
+            if (response != null) {
+                // Handle the structured WorkoutLog output
+                val aiMsg = AiMessage("Extracted: ${response.exercise} (${response.sets}x${response.reps} @ ${response.weight}lbs)", false)
+                _uiState.value = _uiState.value.copy(
+                    messages = _uiState.value.messages + aiMsg,
+                    isThinking = false
+                )
             } else {
-                "No workouts logged today yet."
+                val errorMsg = AiMessage("I couldn't parse that workout. Try something like 'Bench press 3 sets of 10 at 135'.", false)
+                _uiState.value = _uiState.value.copy(
+                    messages = _uiState.value.messages + errorMsg,
+                    isThinking = false
+                )
             }
-
-            val response = agent.processInput(input, contextData)
-            parseResponse(response)
         }
     }
 
@@ -219,8 +239,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         ?: currentEx?.let { setRepository.getMostRecentBeforeDate(it.id, LocalDate.now().toString()) }
 
                     if (lastSet != null) {
-                        val weight = lastSet.weightLbs
-                        val reps = lastSet.reps
+                        val weight = lastSet.weightLbs ?: 0
+                        val reps = lastSet.reps ?: 0
                         val estimated1RM = weight * (1 + reps / 30f)
                         // Machines usually feel ~15% lighter/heavier depending on pulley. 
                         // We suggest starting at 80% of estimated 1RM for safety on a new machine.
@@ -258,17 +278,24 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     if (sessionIndex != -1) {
                         val type = sessionIndex - 1
                         val today = LocalDate.now().toString()
-                        val assignedDay = workoutRepository.assignCycleSlot(today, type)
                         
-                        // Clone previous if exists
-                        val previousOccurrence = (assignedDay.cycleSlotOccurrence ?: 1) - 1
-                        if (previousOccurrence > 0) {
-                            val previousDay = workoutRepository.getPreviousOccurrenceDay(today, type, previousOccurrence)
-                            if (previousDay != null) {
-                                setRepository.cloneDay(previousDay.date, today)
+                        // AI-specific logic still uses indices, we need to map to slotId
+                        val slots = workoutRepository.getCycleSlots()
+                        val slot = slots.getOrNull(type)
+                        
+                        if (slot != null) {
+                            val assignedDay = workoutRepository.assignCycleSlot(today, slot.id)
+                            
+                            // Clone previous if exists
+                            val previousOccurrence = (assignedDay.cycleSlotOccurrence ?: 1) - 1
+                            if (previousOccurrence > 0) {
+                                val previousDay = workoutRepository.getPreviousOccurrenceDayForSlot(today, slot.id, previousOccurrence)
+                                if (previousDay != null) {
+                                    setRepository.cloneDay(previousDay.date, today)
+                                }
                             }
-                        }
-                        "Split updated. Today is now Session $sessionIndex."
+                            "Split updated. Today is now ${slot.name}."
+                        } else "Workout type #$sessionIndex not found in your split settings."
                     } else "Invalid session index."
                 }
                 "calculate_1rm" -> {
