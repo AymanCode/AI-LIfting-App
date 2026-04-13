@@ -1,7 +1,6 @@
 package com.ayman.ecolift.data
 
 import java.time.LocalDate
-import java.time.DayOfWeek
 import java.time.format.DateTimeFormatter
 
 object WorkoutDates {
@@ -12,12 +11,6 @@ object WorkoutDates {
 
     fun addDays(date: String, delta: Long): String =
         LocalDate.parse(date).plusDays(delta).toString()
-
-    fun startOfWeek(date: String): String {
-        return LocalDate.parse(date)
-            .with(DayOfWeek.MONDAY)
-            .toString()
-    }
 
     fun formatHeader(date: String): String {
         return if (date == today()) {

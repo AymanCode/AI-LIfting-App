@@ -10,50 +10,46 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     fun observeAllWorkoutDays(): Flow<List<WorkoutDay>> = db.workoutDayDao().observeAll()
 
+    fun observeCycleSlots(): Flow<List<CycleSlot>> = db.cycleSlotDao().observeAll()
+
+    suspend fun getCycleSlots(): List<CycleSlot> = db.cycleSlotDao().getAll()
+
+    suspend fun addCycleSlot(name: String) {
+        db.cycleSlotDao().upsert(CycleSlot(name = name))
+    }
+
+    suspend fun deleteCycleSlot(id: Long) {
+        db.cycleSlotDao().delete(id)
+    }
+
     suspend fun getCycle(): Cycle = db.cycleDao().getCycle() ?: Cycle()
 
-    suspend fun getWorkoutDay(date: String): WorkoutDay? = db.workoutDayDao().getByDate(date)
-
     suspend fun saveCycle(isActive: Boolean, numTypes: Int) {
-        val existing = db.cycleDao().getCycle() ?: Cycle()
         db.cycleDao().upsert(
             Cycle(
                 id = 1,
                 isActive = isActive,
                 numTypes = numTypes.coerceAtLeast(1),
-                nextSessionType = existing.nextSessionType?.takeIf { it in 0 until numTypes.coerceAtLeast(1) },
             )
         )
     }
 
-    suspend fun assignCycleSlot(date: String, slotType: Int): WorkoutDay {
-        val occurrence = (db.workoutDayDao().getMaxOccurrenceBefore(date, slotType) ?: 0) + 1
+    suspend fun assignCycleSlot(date: String, slotId: Long, alternativeFor: String? = null): WorkoutDay {
+        val occurrence = (db.workoutDayDao().getMaxOccurrenceForSlotBefore(date, slotId) ?: 0) + 1
         val day = WorkoutDay(
             date = date,
-            cycleSlotType = slotType,
+            cycleSlotId = slotId,
             cycleSlotOccurrence = occurrence,
+            alternativeForDate = alternativeFor
         )
         db.workoutDayDao().upsert(day)
-        val cycle = db.cycleDao().getCycle()
-        if (cycle?.nextSessionType != null) {
-            db.cycleDao().upsert(cycle.copy(nextSessionType = null))
-        }
         return day
     }
 
-    suspend fun getPreviousOccurrenceDay(date: String, slotType: Int, occurrence: Int): WorkoutDay? {
-        if (occurrence <= 0) {
-            return null
-        }
-        return db.workoutDayDao().getPreviousOccurrence(slotType, occurrence, date)
+    suspend fun getPreviousOccurrenceDayForSlot(date: String, slotId: Long, occurrence: Int): WorkoutDay? {
+        if (occurrence <= 0) return null
+        return db.workoutDayDao().getPreviousOccurrenceForSlot(slotId, occurrence, date)
     }
 
-    suspend fun getLatestAssignedDayBefore(date: String, slotType: Int): WorkoutDay? {
-        return db.workoutDayDao().getLatestAssignedBeforeDate(slotType, date)
-    }
-
-    suspend fun setNextSessionType(slotType: Int?) {
-        val current = db.cycleDao().getCycle() ?: Cycle()
-        db.cycleDao().upsert(current.copy(nextSessionType = slotType))
-    }
+    suspend fun getWorkoutDay(date: String): WorkoutDay? = db.workoutDayDao().getByDate(date)
 }

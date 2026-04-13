@@ -7,7 +7,7 @@ import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.WorkoutRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -15,20 +15,26 @@ class SplitViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getInstance(application)
     private val workoutRepository = WorkoutRepository(database)
 
-    val uiState: StateFlow<SplitUiState> = workoutRepository.cycle
-        .map { cycle ->
-            SplitUiState(
-                isActive = cycle.isActive,
-                numTypes = cycle.numTypes,
-                nextSessionLabel = cycle.nextSessionType?.let(::cycleTypeLabel),
-                previewSlots = buildPreview(cycle.numTypes),
-            )
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = SplitUiState(),
+    val uiState: StateFlow<SplitUiState> = combine(
+        workoutRepository.cycle,
+        workoutRepository.observeCycleSlots()
+    ) { cycle, slots ->
+        SplitUiState(
+            isActive = cycle.isActive,
+            slots = slots.map { slot ->
+                CycleSlotUi(
+                    type = slot.id.toInt(),
+                    occurrence = 0,
+                    label = slot.name,
+                    shortLabel = slot.name,
+                )
+            }
         )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = SplitUiState(),
+    )
 
     fun toggleActive() {
         viewModelScope.launch {
@@ -37,18 +43,16 @@ class SplitViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setNumTypes(numTypes: Int) {
+    fun addSlot(name: String) {
+        if (name.isBlank()) return
         viewModelScope.launch {
-            val cycle = workoutRepository.getCycle()
-            workoutRepository.saveCycle(cycle.isActive, numTypes.coerceAtLeast(1))
+            workoutRepository.addCycleSlot(name)
         }
     }
 
-    private fun buildPreview(numTypes: Int): List<String> {
-        return (0 until maxOf(numTypes * 2, 6)).map { index ->
-            val type = index % numTypes
-            val occurrence = (index / numTypes) + 1
-            cycleTypeShortLabel(type, occurrence)
+    fun deleteSlot(id: Long) {
+        viewModelScope.launch {
+            workoutRepository.deleteCycleSlot(id)
         }
     }
 }

@@ -53,6 +53,17 @@ class ExerciseRepository(private val db: AppDatabase) {
                 word.replaceFirstChar { first -> first.uppercase() }
             }
     }
+
+    suspend fun updateName(id: Long, newName: String) {
+        val normalized = normalizeName(newName)
+        db.exerciseDao().getById(id)?.let { exercise ->
+            db.exerciseDao().upsert(exercise.copy(name = normalized))
+        }
+    }
+
+    suspend fun deleteExercise(id: Long) {
+        db.exerciseDao().deleteExerciseWithLogs(id)
+    }
 }
 
 data class ExerciseSuggestion(

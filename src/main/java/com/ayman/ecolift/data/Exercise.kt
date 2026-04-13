@@ -11,5 +11,7 @@ import androidx.room.PrimaryKey
 data class Exercise(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
+    val muscleGroups: String = "CHEST · TRICEPS",
+    val isBodyweight: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
 )

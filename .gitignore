@@ -12,13 +12,9 @@ build/
 .idea/
 *.iml
 local.properties
-.android/
-.kotlin/
-.claude/
 
 # Tools
 .tools/
-*.hprof
 
 # OS
 .DS_Store
