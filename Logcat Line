@@ -1,1 +1,0 @@
-Log.d("EcoLift", "DB initialized, exercises count = $count")

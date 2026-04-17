@@ -8,17 +8,22 @@ import com.ayman.ecolift.data.ExerciseRepository
 import com.ayman.ecolift.data.SetRepository
 import com.ayman.ecolift.data.WorkoutDates
 import com.ayman.ecolift.data.WorkoutSet
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.Locale
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ProgressViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getInstance(application)
-    private val exerciseRepository = ExerciseRepository(database)
+    private val exerciseRepository = ExerciseRepository(database.exerciseDao())
     private val setRepository = SetRepository(database)
 
     private val selectedExerciseId = MutableStateFlow<Long?>(null)
@@ -27,122 +32,153 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     
     private val userBodyWeight = 180 
 
-    val uiState: StateFlow<ProgressUiState> = combine(
-        exerciseRepository.exercises,
-        setRepository.allSets,
+    private val _exerciseList = MutableStateFlow<List<ProgressExerciseUi>>(emptyList())
+    
+    init {
+        viewModelScope.launch {
+            combine(
+                exerciseRepository.exercises,
+                setRepository.observeExerciseProgressSummaries()
+            ) { _, summaries ->
+                val now = LocalDate.now()
+                val thirtyDaysAgo = now.minusDays(30)
+                val sixtyDaysAgo = now.minusDays(60)
+
+                val last30Volumes = setRepository.getVolumesSince(thirtyDaysAgo.toString()).associateBy { it.exerciseId }
+                val prev60Volumes = setRepository.getVolumesSince(sixtyDaysAgo.toString()).associateBy { it.exerciseId }
+                val lastSessionSetsByDate = setRepository
+                    .getSetsForDates(summaries.map { it.lastSessionDate }.distinct())
+                    .groupBy { it.date }
+
+                summaries.map { summary ->
+                    val last30Vol = last30Volumes[summary.exerciseId]?.volume?.toInt() ?: 0
+                    val total60Vol = prev60Volumes[summary.exerciseId]?.volume?.toInt() ?: 0
+                    val prev30Vol = total60Vol - last30Vol
+                    val change = if (prev30Vol > 0) (last30Vol - prev30Vol).toFloat() / prev30Vol else 0f
+
+                    val trend = setRepository.getVolumeHistory(summary.exerciseId, 10).map { it.volume.toInt() }.reversed()
+                    val lastSets = lastSessionSetsByDate[summary.lastSessionDate].orEmpty()
+                        .filter { it.exerciseId == summary.exerciseId }
+                    val lastSet = lastSets.maxByOrNull { it.weightLbs ?: 0 }
+
+                    ProgressExerciseUi(
+                        exerciseId = summary.exerciseId,
+                        name = summary.exerciseName,
+                        sessions = summary.sessionCount,
+                        lastSessionDate = WorkoutDates.formatAxis(summary.lastSessionDate),
+                        lastSessionSummary = if (lastSet != null) "${lastSet.weightLbs ?: 0} x ${lastSet.reps ?: 0}" else "No sets",
+                        changePercentage = change * 100,
+                        trend = trend
+                    )
+                }.sortedBy { it.name }
+            }.collect {
+                _exerciseList.value = it
+            }
+        }
+    }
+
+    private val detailState = combine(
         selectedExerciseId,
         timeframe,
         selectedMetric
-    ) { exercises, allSets, selectedId, filter, metric ->
-        val now = LocalDate.now()
-        val thirtyDaysAgo = now.minusDays(30)
-        val sixtyDaysAgo = now.minusDays(60)
-
-        val exercisesWithSets = exercises
-            .mapNotNull { exercise ->
-                val exerciseSets = allSets.filter { it.exerciseId == exercise.id }
-                if (exerciseSets.isEmpty()) {
-                    null
-                } else {
-                    val sortedSets = exerciseSets.sortedByDescending { it.date }
-                    val lastSet = sortedSets.first()
-                    val sessions = exerciseSets.map { it.date }.distinct()
-                    
-                    val last30DaysSets = exerciseSets.filter { LocalDate.parse(it.date).isAfter(thirtyDaysAgo) }
-                    val prev30DaysSets = exerciseSets.filter { 
-                        val d = LocalDate.parse(it.date)
-                        d.isAfter(sixtyDaysAgo) && d.isBefore(thirtyDaysAgo.plusDays(1))
+    ) { id, filter, metric ->
+        Triple(id, filter, metric)
+    }.flatMapLatest { (id: Long?, filter: TimeframeFilter, _: ProgressMetric) ->
+        if (id == null) {
+            MutableStateFlow<DetailData?>(null)
+        } else {
+            val now = LocalDate.now()
+            val sinceDate = when (filter) {
+                TimeframeFilter.ONE_MONTH -> now.minusMonths(1)
+                TimeframeFilter.THREE_MONTHS -> now.minusMonths(3)
+                TimeframeFilter.SIX_MONTHS -> now.minusMonths(6)
+                TimeframeFilter.ONE_YEAR -> now.minusYears(1)
+                TimeframeFilter.ALL_TIME -> LocalDate.of(2000, 1, 1)
+            }
+            
+            combine(
+                exerciseRepository.exercises,
+                flow<List<WorkoutSet>> { emit(setRepository.getSetsSince(id, sinceDate.toString())) }
+            ) { exercises: List<com.ayman.ecolift.data.Exercise>, filteredSets: List<WorkoutSet> ->
+                val exercise = exercises.find { it.id == id }
+                val isBodyweight = exercise?.isBodyweight ?: false
+                
+                val chartPoints = filteredSets
+                    .groupBy { it.date }
+                    .toSortedMap()
+                    .map { (date, sets) ->
+                        val maxSet = sets.maxByOrNull { it.weightLbs ?: 0 } ?: sets.first()
+                        ProgressPointUi(
+                            date = date,
+                            label = WorkoutDates.formatAxis(date),
+                            volume = calculateSessionVolume(sets, isBodyweight),
+                            estimated1RM = calc1RM(maxSet.weightLbs ?: 0, maxSet.reps ?: 0, isBodyweight),
+                            maxWeight = sets.maxOf { it.weightLbs ?: 0 },
+                            maxReps = sets.maxOf { it.reps ?: 0 },
+                            reps = maxSet.reps ?: 0
+                        )
                     }
-                    
-                    val last30Volume = calculateSessionVolume(last30DaysSets, exercise.isBodyweight)
-                    val prev30Volume = calculateSessionVolume(prev30DaysSets, exercise.isBodyweight)
-                    val change = if (prev30Volume > 0) (last30Volume - prev30Volume).toFloat() / prev30Volume else 0f
 
-                    ProgressExerciseUi(
-                        exerciseId = exercise.id,
-                        name = exercise.name,
-                        sessions = sessions.size,
-                        lastSessionDate = WorkoutDates.formatAxis(lastSet.date),
-                        lastSessionSummary = "${lastSet.weightLbs ?: 0} x ${lastSet.reps ?: 0}",
-                        changePercentage = change * 100,
-                        trend = sessions.take(10).reversed().map { date ->
-                            calculateSessionVolume(exerciseSets.filter { it.date == date }, exercise.isBodyweight)
-                        }
-                    )
+                // Stats calculation (last 30 vs prev 30)
+                val thirtyDaysAgo = now.minusDays(30)
+                val sixtyDaysAgo = now.minusDays(60)
+                
+                // We need more data for stats than the filtered timeframe might provide
+                val allExerciseSets = setRepository.getRecentHistoryForExercise(id, sixtyDaysAgo.toString()) 
+                
+                val last30Sets = allExerciseSets.filter { LocalDate.parse(it.date).isAfter(thirtyDaysAgo) }
+                val prev30Sets = allExerciseSets.filter { 
+                    val d = LocalDate.parse(it.date)
+                    d.isAfter(sixtyDaysAgo) && d.isBefore(thirtyDaysAgo.plusDays(1))
                 }
-            }
-            .sortedBy { it.name }
 
-        val selectedExercise = exercises.find { it.id == selectedId }
-        val isBodyweight = selectedExercise?.isBodyweight ?: false
+                val currentPr = allExerciseSets.maxOfOrNull { it.weightLbs ?: 0 } ?: 0
+                val prevPr = allExerciseSets.filter { LocalDate.parse(it.date).isBefore(thirtyDaysAgo) }.maxOfOrNull { it.weightLbs ?: 0 } ?: currentPr
+                
+                val latestSets = last30Sets.groupBy { it.date }.values.lastOrNull() ?: emptyList()
+                val latestMaxSet = latestSets.maxByOrNull { it.weightLbs ?: 0 }
+                val current1RM = latestMaxSet?.let { calc1RM(it.weightLbs ?: 0, it.reps ?: 0, isBodyweight) } ?: 0f
+                
+                val prevMaxSet = prev30Sets.maxByOrNull { it.weightLbs ?: 0 }
+                val prev1RM = prevMaxSet?.let { calc1RM(it.weightLbs ?: 0, it.reps ?: 0, isBodyweight) } ?: current1RM
 
-        val filteredSets = allSets.filter { it.exerciseId == selectedId }
-            .filter { set ->
-                val setDate = LocalDate.parse(set.date)
-                when (filter) {
-                    TimeframeFilter.ONE_MONTH -> setDate.isAfter(now.minusMonths(1))
-                    TimeframeFilter.THREE_MONTHS -> setDate.isAfter(now.minusMonths(3))
-                    TimeframeFilter.SIX_MONTHS -> setDate.isAfter(now.minusMonths(6))
-                    TimeframeFilter.ONE_YEAR -> setDate.isAfter(now.minusYears(1))
-                    TimeframeFilter.ALL_TIME -> true
-                }
-            }
+                val stats = ProgressStatsUi(
+                    currentPr = "$currentPr",
+                    currentPrDelta = if (prevPr > 0) (currentPr - prevPr).toFloat() / prevPr * 100 else 0f,
+                    est1Rm = String.format(Locale.US, "%.1f", current1RM),
+                    est1RmDelta = if (prev1RM > 0) (current1RM - prev1RM) / prev1RM * 100 else 0f,
+                    totalVolume = formatVolume(calculateSessionVolume(last30Sets, isBodyweight)),
+                    volumeDelta = calculateVolumeDelta(last30Sets, prev30Sets, isBodyweight),
+                    workoutCount = last30Sets.map { it.date }.distinct().size,
+                    workoutCountDelta = last30Sets.map { it.date }.distinct().size - prev30Sets.map { it.date }.distinct().size
+                )
 
-        val chartPoints = if (selectedId == null) emptyList() else filteredSets
-            .groupBy { it.date }
-            .toSortedMap()
-            .map { (date, sets) ->
-                val maxSet = sets.maxByOrNull { it.weightLbs ?: 0 } ?: sets.first()
-                ProgressPointUi(
-                    date = date,
-                    label = WorkoutDates.formatAxis(date),
-                    volume = calculateSessionVolume(sets, isBodyweight),
-                    estimated1RM = calc1RM(maxSet.weightLbs ?: 0, maxSet.reps ?: 0, isBodyweight),
-                    maxWeight = sets.maxOf { it.weightLbs ?: 0 },
-                    maxReps = sets.maxOf { it.reps ?: 0 },
-                    reps = maxSet.reps ?: 0
+                DetailData(
+                    exerciseName = exercise?.name.orEmpty(),
+                    isBodyweight = isBodyweight,
+                    chartPoints = chartPoints,
+                    stats = stats
                 )
             }
+        }
+    }
 
-        val stats = if (selectedId != null) {
-            val allExerciseSets = allSets.filter { it.exerciseId == selectedId }
-            val last30Sets = allExerciseSets.filter { LocalDate.parse(it.date).isAfter(thirtyDaysAgo) }
-            val prev30Sets = allExerciseSets.filter { 
-                val d = LocalDate.parse(it.date)
-                d.isAfter(sixtyDaysAgo) && d.isBefore(thirtyDaysAgo.plusDays(1))
-            }
-
-            val currentPr = allExerciseSets.maxOfOrNull { it.weightLbs ?: 0 } ?: 0
-            val prevPr = allExerciseSets.filter { LocalDate.parse(it.date).isBefore(thirtyDaysAgo) }.maxOfOrNull { it.weightLbs ?: 0 } ?: currentPr
-            
-            val latestSets = last30Sets.groupBy { it.date }.values.lastOrNull() ?: emptyList()
-            val latestMaxSet = latestSets.maxByOrNull { it.weightLbs ?: 0 }
-            val current1RM = latestMaxSet?.let { calc1RM(it.weightLbs ?: 0, it.reps ?: 0, isBodyweight) } ?: 0f
-            
-            val prevMaxSet = prev30Sets.maxByOrNull { it.weightLbs ?: 0 }
-            val prev1RM = prevMaxSet?.let { calc1RM(it.weightLbs ?: 0, it.reps ?: 0, isBodyweight) } ?: current1RM
-
-            ProgressStatsUi(
-                currentPr = "$currentPr",
-                currentPrDelta = if (prevPr > 0) (currentPr - prevPr).toFloat() / prevPr * 100 else 0f,
-                est1Rm = String.format(Locale.US, "%.1f", current1RM),
-                est1RmDelta = if (prev1RM > 0) (current1RM - prev1RM) / prev1RM * 100 else 0f,
-                totalVolume = formatVolume(calculateSessionVolume(last30Sets, isBodyweight)),
-                volumeDelta = calculateVolumeDelta(last30Sets, prev30Sets, isBodyweight),
-                workoutCount = last30Sets.map { it.date }.distinct().size,
-                workoutCountDelta = last30Sets.map { it.date }.distinct().size - prev30Sets.map { it.date }.distinct().size
-            )
-        } else null
-
+    val uiState: StateFlow<ProgressUiState> = combine(
+        _exerciseList,
+        selectedExerciseId,
+        timeframe,
+        selectedMetric,
+        detailState
+    ) { exercises: List<ProgressExerciseUi>, selectedId: Long?, filter: TimeframeFilter, metric: ProgressMetric, detail: DetailData? ->
         ProgressUiState(
-            exercises = exercisesWithSets,
+            exercises = exercises,
             selectedExerciseId = selectedId,
-            selectedExerciseName = selectedExercise?.name.orEmpty(),
-            isBodyweight = isBodyweight,
-            chartPoints = chartPoints,
+            selectedExerciseName = detail?.exerciseName.orEmpty(),
+            isBodyweight = detail?.isBodyweight ?: false,
+            chartPoints = detail?.chartPoints ?: emptyList(),
             timeframe = filter,
             selectedMetric = metric,
-            stats = stats
+            stats = detail?.stats
         )
     }.stateIn(
         scope = viewModelScope,
@@ -178,3 +214,10 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     fun setTimeframe(filter: TimeframeFilter) { timeframe.value = filter }
     fun setMetric(metric: ProgressMetric) { selectedMetric.value = metric }
 }
+
+private data class DetailData(
+    val exerciseName: String,
+    val isBodyweight: Boolean,
+    val chartPoints: List<ProgressPointUi>,
+    val stats: ProgressStatsUi
+)

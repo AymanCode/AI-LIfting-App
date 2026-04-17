@@ -20,8 +20,8 @@ interface WorkoutSetDao {
     @Query("DELETE FROM workout_set WHERE id = :id")
     suspend fun deleteById(id: Long)
 
-    @Query("SELECT * FROM workout_set ORDER BY date ASC, exerciseId ASC, setNumber ASC")
-    fun observeAll(): Flow<List<WorkoutSet>>
+    @Query("SELECT * FROM workout_set")
+    suspend fun getAll(): List<WorkoutSet>
 
     @Query("SELECT * FROM workout_set WHERE date = :date ORDER BY exerciseId ASC, setNumber ASC")
     fun observeForDate(date: String): Flow<List<WorkoutSet>>
@@ -67,6 +67,122 @@ interface WorkoutSetDao {
     )
     suspend fun getHistoryBeforeDate(exerciseId: Long, beforeDate: String): List<WorkoutSet>
 
+    @Query(
+        """
+        SELECT 
+            e.id as exerciseId, 
+            e.name as exerciseName,
+            e.isBodyweight as isBodyweight,
+            COUNT(DISTINCT s.date) as sessionCount,
+            MAX(s.date) as lastSessionDate
+        FROM exercise e
+        JOIN workout_set s ON e.id = s.exerciseId
+        GROUP BY e.id
+        """
+    )
+    fun observeExerciseProgressSummaries(): Flow<List<ExerciseProgressSummary>>
+
+    @Query(
+        """
+        SELECT date, SUM(weightLbs * reps) as volume
+        FROM workout_set
+        WHERE exerciseId = :exerciseId
+        GROUP BY date
+        ORDER BY date DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun getVolumeHistory(exerciseId: Long, limit: Int): List<DateVolume>
+
+    @Query(
+        """
+        SELECT exerciseId, SUM(weightLbs * reps) as volume
+        FROM workout_set
+        WHERE date >= :sinceDate
+        GROUP BY exerciseId
+        """
+    )
+    suspend fun getVolumesSince(sinceDate: String): List<ExerciseVolume>
+
     @Query("SELECT * FROM workout_set WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): WorkoutSet?
+
+    @Query("UPDATE workout_set SET date = :newDate WHERE date = :oldDate")
+    suspend fun updateDate(oldDate: String, newDate: String)
+
+    @Query("SELECT MAX(date) FROM workout_set WHERE date < :beforeDate")
+    suspend fun getLastSessionDate(beforeDate: String): String?
+
+    @Query("SELECT * FROM workout_set WHERE date = :date")
+    suspend fun getSetsByDate(date: String): List<WorkoutSet>
+
+    @Query(
+        """
+        SELECT * FROM workout_set
+        WHERE date IN (:dates)
+        ORDER BY date DESC, exerciseId ASC, setNumber ASC
+        """
+    )
+    suspend fun getForDates(dates: List<String>): List<WorkoutSet>
+
+    @Query(
+        """
+        SELECT * FROM workout_set 
+        WHERE exerciseId = :exerciseId AND date < :beforeDate
+        ORDER BY date DESC
+        LIMIT 100
+        """
+    )
+    suspend fun getRecentHistoryForExercise(exerciseId: Long, beforeDate: String): List<WorkoutSet>
+
+    @Query(
+        """
+        SELECT MAX(weightLbs) FROM workout_set
+        WHERE exerciseId = :exerciseId AND date < :beforeDate
+    """
+    )
+    suspend fun getMaxWeightBeforeDate(exerciseId: Long, beforeDate: String): Int?
+
+    @Query(
+        """
+        SELECT * FROM workout_set
+        WHERE exerciseId = :exerciseId AND date >= :sinceDate
+        ORDER BY date ASC
+        """
+    )
+    suspend fun getSetsSince(exerciseId: Long, sinceDate: String): List<WorkoutSet>
+    @Query(
+        """
+        SELECT exerciseId, MAX(weightLbs) as maxWeight
+        FROM workout_set
+        GROUP BY exerciseId
+        """
+    )
+    suspend fun getAllTimeMaxWeights(): List<ExerciseMaxWeight>
+
+    @Query(
+        """
+        SELECT exerciseId, MAX(weightLbs) as maxWeight
+        FROM workout_set
+        WHERE exerciseId IN (:exerciseIds)
+        GROUP BY exerciseId
+        """
+    )
+    suspend fun getMaxWeightsForExercises(exerciseIds: List<Long>): List<ExerciseMaxWeight>
 }
+
+data class ExerciseVolume(val exerciseId: Long, val volume: Long)
+data class ExerciseMaxWeight(val exerciseId: Long, val maxWeight: Int)
+
+data class ExerciseProgressSummary(
+    val exerciseId: Long,
+    val exerciseName: String,
+    val isBodyweight: Boolean,
+    val sessionCount: Int,
+    val lastSessionDate: String
+)
+
+data class DateVolume(
+    val date: String,
+    val volume: Long
+)

@@ -23,6 +23,23 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercise WHERE id = :id")
     suspend fun getById(id: Long): Exercise?
 
+    @Query("SELECT * FROM exercise WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<Long>): List<Exercise>
+
+    @Query(
+        """
+        SELECT * FROM exercise
+        WHERE name LIKE :query || '%'
+           OR name LIKE '% ' || :query || '%'
+        ORDER BY name ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun searchByName(query: String, limit: Int): List<Exercise>
+
+    @Query("UPDATE exercise SET name = :newName WHERE id = :id")
+    suspend fun updateName(id: Long, newName: String)
+
     @androidx.room.Upsert
     suspend fun upsert(exercise: Exercise): Long
 

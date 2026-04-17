@@ -2,7 +2,9 @@ package com.ayman.ecolift.ai
 
 import android.content.Context
 import com.ayman.ecolift.data.AppDatabase
+import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.data.WorkoutDates
+import com.ayman.ecolift.data.WorkoutSet
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -20,16 +22,23 @@ class GymContextManifestRepository(
 
     suspend fun buildManifest(today: String = WorkoutDates.today()): JSONObject {
         val cycle = db.cycleDao().getCycle()
-        val workoutDays = db.workoutDayDao().observeAllSnapshot()
-        val exercises = db.exerciseDao().getAll().associateBy { it.id }
-        val allSets = db.workoutSetDao().observeAllSnapshot()
-        val splitPosition = currentSplitPosition(today, cycle?.numTypes ?: 0, cycle?.nextSessionType, workoutDays)
-        val nextThree = nextWorkouts(today, cycle?.numTypes ?: 0, cycle?.nextSessionType, workoutDays, allSets, exercises)
-        val plateaued = plateauedLifts(allSets, exercises)
+        val cycleSlots = db.cycleSlotDao().getAll()
+        val slotOrder = cycleSlots.mapIndexed { index, slot -> slot.id to index }.toMap()
+        val workoutDays = db.workoutDayDao().getAll().map { day ->
+            ResolvedWorkoutDay(
+                date = day.date,
+                slotType = day.cycleSlotType ?: day.cycleSlotId?.let(slotOrder::get),
+                occurrence = day.cycleSlotOccurrence,
+            )
+        }
+        val exercisesById = db.exerciseDao().getAll().associateBy(Exercise::id)
+        val setsByDate = db.workoutSetDao().getAll().groupBy(WorkoutSet::date)
+        val numTypes = cycle?.numTypes ?: cycleSlots.size
+
         return JSONObject()
-            .put("currentSplitPosition", splitPosition)
-            .put("next3Workouts", JSONArray(nextThree))
-            .put("topPlateauedLifts", JSONArray(plateaued))
+            .put("currentSplitPosition", currentSplitPosition(today, numTypes, cycle?.nextSessionType, workoutDays))
+            .put("next3Workouts", JSONArray(nextWorkouts(today, numTypes, cycle?.nextSessionType, workoutDays, setsByDate, exercisesById)))
+            .put("topPlateauedLifts", JSONArray(plateauedLifts(setsByDate, exercisesById)))
     }
 
     suspend fun readManifestText(today: String = WorkoutDates.today()): String {
@@ -46,18 +55,18 @@ class GymContextManifestRepository(
         today: String,
         numTypes: Int,
         nextSessionType: Int?,
-        workoutDays: List<com.ayman.ecolift.data.WorkoutDay>,
+        workoutDays: List<ResolvedWorkoutDay>,
     ): JSONObject {
         val todayDay = workoutDays.firstOrNull { it.date == today }
+        val lastAssigned = workoutDays
+            .asSequence()
+            .filter { it.date < today && it.slotType != null }
+            .maxByOrNull { it.date }
         val nextType = when {
-            todayDay?.cycleSlotType != null -> todayDay.cycleSlotType
+            todayDay?.slotType != null -> todayDay.slotType
             nextSessionType != null -> nextSessionType
-            numTypes > 0 -> {
-                val last = workoutDays
-                    .filter { it.date < today && it.cycleSlotType != null }
-                    .maxByOrNull { it.date }
-                if (last?.cycleSlotType != null) (last.cycleSlotType + 1) % numTypes else 0
-            }
+            numTypes > 0 && lastAssigned?.slotType != null -> (lastAssigned.slotType + 1) % numTypes
+            numTypes > 0 -> 0
             else -> null
         }
         return JSONObject()
@@ -69,56 +78,80 @@ class GymContextManifestRepository(
         today: String,
         numTypes: Int,
         nextSessionType: Int?,
-        workoutDays: List<com.ayman.ecolift.data.WorkoutDay>,
-        allSets: List<com.ayman.ecolift.data.WorkoutSet>,
-        exercises: Map<Long, com.ayman.ecolift.data.Exercise>,
+        workoutDays: List<ResolvedWorkoutDay>,
+        setsByDate: Map<String, List<WorkoutSet>>,
+        exercises: Map<Long, Exercise>,
     ): List<JSONObject> {
-        if (numTypes <= 0) return emptyList()
-        val startType = nextSessionType ?: run {
-            val last = workoutDays
-                .filter { it.date < today && it.cycleSlotType != null }
-                .maxByOrNull { it.date }
-            if (last?.cycleSlotType != null) (last.cycleSlotType + 1) % numTypes else 0
+        if (numTypes <= 0) {
+            return emptyList()
         }
+
+        val lastAssigned = workoutDays
+            .asSequence()
+            .filter { it.date < today && it.slotType != null }
+            .maxByOrNull { it.date }
+        val latestDayBySlot = workoutDays
+            .asSequence()
+            .filter { it.date < today && it.slotType != null }
+            .groupBy { it.slotType!! }
+            .mapValues { (_, days) -> days.maxByOrNull { it.date } }
+        val startType = nextSessionType
+            ?: lastAssigned?.slotType?.let { (it + 1) % numTypes }
+            ?: 0
+
         return (0 until 3).map { offset ->
             val slotType = (startType + offset) % numTypes
-            val label = "Day ${('A' + slotType)}"
-            val latestDay = workoutDays
-                .filter { it.cycleSlotType == slotType && it.date < today }
-                .maxByOrNull { it.date }
-            val exerciseList = latestDay?.let { day ->
-                allSets.filter { it.date == day.date }
-                    .mapNotNull { exercises[it.exerciseId]?.name }
-                    .distinct()
-                    .take(4)
-            }.orEmpty()
+            val previewExercises = latestDayBySlot[slotType]
+                ?.let { day ->
+                    setsByDate[day.date].orEmpty()
+                        .asSequence()
+                        .mapNotNull { set -> exercises[set.exerciseId]?.name }
+                        .distinct()
+                        .take(4)
+                        .toList()
+                }
+                .orEmpty()
             JSONObject()
-                .put("slot", label)
-                .put("previewExercises", JSONArray(exerciseList))
+                .put("slot", "Day ${('A' + slotType)}")
+                .put("previewExercises", JSONArray(previewExercises))
         }
     }
 
     private fun plateauedLifts(
-        allSets: List<com.ayman.ecolift.data.WorkoutSet>,
-        exercises: Map<Long, com.ayman.ecolift.data.Exercise>,
+        setsByDate: Map<String, List<WorkoutSet>>,
+        exercises: Map<Long, Exercise>,
     ): List<JSONObject> {
-        return allSets
-            .groupBy { it.exerciseId }
-            .mapNotNull { (exerciseId, sets) ->
-                val sessionMaxes = sets.groupBy { it.date }
-                    .toSortedMap()
-                    .values
-                    .map { daySets -> daySets.maxOf { it.weightLbs } }
-                if (sessionMaxes.size < 3) return@mapNotNull null
-                val recent = sessionMaxes.takeLast(3)
-                val plateaued = recent.last() <= recent.first()
-                if (!plateaued) return@mapNotNull null
-                val name = exercises[exerciseId]?.name ?: return@mapNotNull null
-                JSONObject()
-                    .put("exercise", name)
-                    .put("recentMax", recent.last())
-                    .put("sessionsWithoutIncrease", recent.size)
+        val setsByExercise = linkedMapOf<Long, MutableList<WorkoutSet>>()
+        for (dateSets in setsByDate.values) {
+            for (set in dateSets) {
+                setsByExercise.getOrPut(set.exerciseId) { mutableListOf() }.add(set)
             }
-            .take(5)
+        }
+
+        return setsByExercise.mapNotNull { (exerciseId, sets) ->
+            val sessionMaxes = sets
+                .groupBy { it.date }
+                .toSortedMap()
+                .values
+                .mapNotNull { daySets -> daySets.maxOfOrNull { it.weightLbs ?: 0 }?.takeIf { it > 0 } }
+            if (sessionMaxes.size < 3) {
+                return@mapNotNull null
+            }
+            val recent = sessionMaxes.takeLast(3)
+            if (recent.last() > recent.first()) {
+                return@mapNotNull null
+            }
+            val name = exercises[exerciseId]?.name ?: return@mapNotNull null
+            JSONObject()
+                .put("exercise", name)
+                .put("recentMax", recent.last())
+                .put("sessionsWithoutIncrease", recent.size)
+        }.take(5)
     }
 }
+
+private data class ResolvedWorkoutDay(
+    val date: String,
+    val slotType: Int?,
+    val occurrence: Int?,
+)

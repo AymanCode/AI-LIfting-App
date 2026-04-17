@@ -21,4 +21,9 @@ object WorkoutDates {
     }
 
     fun formatAxis(date: String): String = LocalDate.parse(date).format(shortFormatter)
+
+    fun startOfWeek(date: String): String {
+        val ld = LocalDate.parse(date)
+        return ld.minusDays(ld.dayOfWeek.value.toLong() % 7).toString()
+    }
 }

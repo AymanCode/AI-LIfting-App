@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.ayman.ecolift">
+
+    <!-- AICore (Gemini Nano) requires minSdk 31; devices below get engine=null at runtime -->
+    <uses-sdk tools:overrideLibrary="com.google.ai.edge.aicore"/>
 
     <application
         android:allowBackup="true"

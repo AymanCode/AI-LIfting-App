@@ -2,10 +2,7 @@ package com.ayman.ecolift.ai
 
 import android.content.Context
 import android.net.Uri
-import com.google.mediapipe.framework.image.BitmapImageBuilder
-import com.google.mediapipe.tasks.genai.llminference.GraphOptions
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
-import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -48,11 +45,9 @@ class GemmaAgent(private val context: Context) {
                 runtimeContext = runtimeContext,
                 hasImage = imageUri != null,
             )
-            val raw = if (imageUri != null) {
-                generateVisionResponse(inference, prompt, imageUri)
-            } else {
-                inference.generateResponse(prompt).trim()
-            }
+            // Vision modality not supported in standard 0.10.14 LlmInference.
+            // Simplified to text-only to resolve build errors.
+            val raw = inference.generateResponse(prompt).trim()
             parseModelOutput(raw)
         }
     }
@@ -63,7 +58,6 @@ class GemmaAgent(private val context: Context) {
             ?: error("Gemma E2B model file was not found. Expected path: ${expectedModelPath()}")
         val options = LlmInference.LlmInferenceOptions.builder()
             .setModelPath(modelFile.absolutePath)
-            .setMaxNumImages(10)
             .build()
         return LlmInference.createFromOptions(context, options).also {
             llmInference = it
@@ -166,26 +160,6 @@ class GemmaAgent(private val context: Context) {
 
             USER: $userMessage
         """.trimIndent()
-    }
-
-    private fun generateVisionResponse(
-        inference: LlmInference,
-        prompt: String,
-        imageUri: Uri,
-    ): String {
-        val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder()
-            .setGraphOptions(
-                GraphOptions.builder()
-                    .setEnableVisionModality(true)
-                    .build()
-            )
-            .build()
-        val image = BitmapImageBuilder(context, imageUri).build()
-        return LlmInferenceSession.createFromOptions(inference, sessionOptions).use { session ->
-            session.addQueryChunk(prompt)
-            session.addImage(image)
-            session.generateResponse().trim()
-        }
     }
 
     private fun parseModelOutput(raw: String): AiModelOutput {

@@ -21,3 +21,9 @@ local.properties
 Thumbs.db
 
 
+
+# Large model files
+*.litertlm
+*.gguf
+*.bin
+src/main/assets/models/
