@@ -14,11 +14,10 @@ import java.io.File
 class IronMindAgent(private val context: Context) {
 
     private var llmInference: LlmInference? = null
-    private val json = Json { ignoreUnknownKeys = true }
 
-    // Path where you should push the model file via ADB:
-    // adb push model.bin /data/local/tmp/ironmind_model.bin
-    private val modelPath = "/data/local/tmp/ironmind_model.bin"
+    // Path where the model is stored (e.g., imported from user download)
+    private val modelName = "gemma.bin"
+    private val modelPath = File(context.filesDir, modelName).absolutePath
 
     private val systemPrompt = """
         You are 'IronMind'. Extract exercise data from text.
@@ -30,7 +29,7 @@ class IronMindAgent(private val context: Context) {
         try {
             val file = File(modelPath)
             if (!file.exists()) {
-                android.util.Log.e("IronMind", "Model file not found at $modelPath. Please use 'adb push' to upload it.")
+                android.util.Log.e("IronMind", "Model file not found at $modelPath. Ensure it has been imported.")
                 return@withContext false
             }
 
@@ -51,19 +50,14 @@ class IronMindAgent(private val context: Context) {
 
     fun isInitialized(): Boolean = llmInference != null
 
-    suspend fun processWorkoutInput(input: String): WorkoutLog? = withContext(Dispatchers.Default) {
+    suspend fun generateRawInference(input: String): String? = withContext(Dispatchers.Default) {
         val inference = llmInference ?: return@withContext null
         
         try {
             val prompt = "$systemPrompt\n\nInput: $input\nOutput:"
-            val result = inference.generateResponse(prompt)
-            
-            val cleanJson = result.substringAfter("{").substringBeforeLast("}")
-            val jsonString = "{$cleanJson}"
-            
-            json.decodeFromString<WorkoutLog>(jsonString)
+            inference.generateResponse(prompt)
         } catch (e: Exception) {
-            android.util.Log.e("IronMind", "Parsing error", e)
+            android.util.Log.e("IronMind", "Inference error", e)
             null
         }
     }

@@ -35,7 +35,7 @@ import org.json.JSONObject
 
 class AiViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getInstance(application)
-    private val exerciseRepository = ExerciseRepository(database)
+    private val exerciseRepository = ExerciseRepository(database.exerciseDao())
     private val workoutRepository = WorkoutRepository(database)
     private val setRepository = SetRepository(database)
     private val tempSessionSwapRepository = TempSessionSwapRepository(database)
@@ -71,7 +71,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     private val currentDay = workoutRepository.observeWorkoutDay(today)
     private val currentSets = setRepository.observeSetsForDate(today)
     private val workoutDays = workoutRepository.observeAllWorkoutDays()
-    private val allSets = setRepository.allSets
 
     private val coreRuntimeSnapshot = combine(
         workoutRepository.cycle,
@@ -106,8 +105,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     private val runtimeSnapshot: StateFlow<AiRuntimeContext> = combine(
         coreRuntimeSnapshot,
         workoutDays,
-        allSets,
-    ) { core, workoutDays, allSets ->
+    ) { core, workoutDays ->
         AiRuntimeContext(
             today = today,
             cycleActive = core.cycle.isActive,
@@ -117,14 +115,13 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             currentSessionSummary = core.currentSessionSummary,
             pendingReviewCount = core.pendingReviewCount,
             availableExercises = core.exercises.map { it.name },
-            lastSessionJson = buildLastSessionJson(today, workoutDays, allSets, core.exercises),
+            lastSessionJson = buildLastSessionJson(today, workoutDays, core.exercises),
             currentTargetSessionJson = buildCurrentTargetSessionJson(
                 today = today,
                 cycle = core.cycle,
                 currentDay = core.currentDay,
                 currentSets = core.currentSets,
                 workoutDays = workoutDays,
-                allSets = allSets,
                 exercises = core.exercises,
             ),
             manifestJson = manifestRepository.buildManifest(today).toString(),
@@ -370,34 +367,29 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun buildLastSessionJson(
+    private suspend fun buildLastSessionJson(
         today: String,
         workoutDays: List<WorkoutDay>,
-        allSets: List<WorkoutSet>,
         exercises: List<Exercise>,
     ): String {
-        val lastDate = allSets.asSequence()
-            .map(WorkoutSet::date)
-            .filter { it < today }
-            .maxOrNull()
-            ?: return "{}"
+        val lastDate = setRepository.getLastSessionDate(today) ?: return "{}"
+        val sets = setRepository.getSetsByDate(lastDate)
         val lastDay = workoutDays.firstOrNull { it.date == lastDate }
         return buildSessionJson(
             date = lastDate,
             slotType = lastDay?.cycleSlotType,
             slotOccurrence = lastDay?.cycleSlotOccurrence,
-            setsForDate = allSets.filter { it.date == lastDate },
+            setsForDate = sets,
             exercises = exercises,
         ).toString()
     }
 
-    private fun buildCurrentTargetSessionJson(
+    private suspend fun buildCurrentTargetSessionJson(
         today: String,
         cycle: Cycle,
         currentDay: WorkoutDay?,
         currentSets: List<WorkoutSet>,
         workoutDays: List<WorkoutDay>,
-        allSets: List<WorkoutSet>,
         exercises: List<Exercise>,
     ): String {
         if (currentSets.isNotEmpty() || currentDay?.cycleSlotType != null) {
@@ -416,11 +408,12 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         val templateDay = workoutDays
             .filter { it.date < today && it.cycleSlotType == targetType }
             .maxByOrNull { it.date }
+        val sets = templateDay?.let { setRepository.getSetsByDate(it.date) }.orEmpty()
         return buildSessionJson(
             date = today,
             slotType = targetType,
             slotOccurrence = templateDay?.cycleSlotOccurrence?.plus(1),
-            setsForDate = templateDay?.let { day -> allSets.filter { it.date == day.date } }.orEmpty(),
+            setsForDate = sets,
             exercises = exercises,
             templateFromDate = templateDay?.date,
         ).toString()
@@ -479,6 +472,38 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         return latestAssigned?.cycleSlotType?.let { (it + 1) % numTypes } ?: 0
     }
 }
+
+data class AiMessageUi(
+    val id: Long,
+    val isUser: Boolean,
+    val text: String,
+    val isError: Boolean = false,
+)
+
+data class AiShortcutUi(
+    val title: String,
+    val subtitle: String,
+    val prompt: String,
+)
+
+data class AiPendingActionUi(
+    val title: String,
+    val detail: String,
+    val confirmLabel: String,
+)
+
+data class AiUiState(
+    val statusHeadline: String = "",
+    val statusDetail: String = "",
+    val modelPath: String? = null,
+    val isModelReady: Boolean = false,
+    val messages: List<AiMessageUi> = emptyList(),
+    val shortcuts: List<AiShortcutUi> = emptyList(),
+    val input: String = "",
+    val attachedImageLabel: String? = null,
+    val pendingAction: AiPendingActionUi? = null,
+    val isWorking: Boolean = false,
+)
 
 private data class PartialAiPresentationState(
     val input: String,

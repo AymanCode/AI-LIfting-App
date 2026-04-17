@@ -1,9 +1,11 @@
 package com.ayman.ecolift.data
 
 object FuzzyMatcher {
-    fun levenshteinDistance(left: String, right: String): Int {
-        val source = left.trim().lowercase()
-        val target = right.trim().lowercase()
+    /**
+     * Calculates the Levenshtein distance between two strings.
+     * Note: This function assumes inputs are already normalized (e.g., trimmed and lowercase).
+     */
+    fun levenshteinDistance(source: String, target: String): Int {
         if (source.isEmpty()) return target.length
         if (target.isEmpty()) return source.length
 

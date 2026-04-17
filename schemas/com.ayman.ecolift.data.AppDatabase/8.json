@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 8,
-    "identityHash": "e2cce23b4a0c5b31925bddc6a51f5bac",
+    "identityHash": "84c0ada43bf62c783b9e097c197a117d",
     "entities": [
       {
         "tableName": "exercise",
@@ -193,7 +193,7 @@
       },
       {
         "tableName": "cycle",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `numTypes` INTEGER NOT NULL, `isActive` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `numTypes` INTEGER NOT NULL, `isActive` INTEGER NOT NULL, `nextSessionType` INTEGER, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -212,6 +212,11 @@
             "columnName": "isActive",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "nextSessionType",
+            "columnName": "nextSessionType",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -284,7 +289,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e2cce23b4a0c5b31925bddc6a51f5bac')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '84c0ada43bf62c783b9e097c197a117d')"
     ]
   }
 }

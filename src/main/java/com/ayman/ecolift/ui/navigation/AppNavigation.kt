@@ -52,7 +52,7 @@ import com.ayman.ecolift.ui.theme.BorderDefault
 import com.ayman.ecolift.ui.theme.NavBackground
 import com.ayman.ecolift.ui.theme.TextInactive
 import com.ayman.ecolift.ui.theme.TextMuted
-import com.ayman.ecolift.ui.viewmodel.ai.AiViewModel
+import com.ayman.ecolift.ui.viewmodel.AiViewModel
 
 private data class AppDestination(
     val route: String,

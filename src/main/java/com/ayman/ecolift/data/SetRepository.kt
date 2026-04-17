@@ -3,7 +3,7 @@ package com.ayman.ecolift.data
 import kotlinx.coroutines.flow.Flow
 
 class SetRepository(private val db: AppDatabase) {
-    val allSets: Flow<List<WorkoutSet>> = db.workoutSetDao().observeAll()
+    suspend fun getAllSets(): List<WorkoutSet> = db.workoutSetDao().getAll()
 
     fun observeSetsForDate(date: String): Flow<List<WorkoutSet>> = db.workoutSetDao().observeForDate(date)
 
@@ -58,7 +58,31 @@ class SetRepository(private val db: AppDatabase) {
 
     suspend fun getMostRecentBeforeDate(exerciseId: Long, date: String) = db.workoutSetDao().getMostRecentBeforeDate(exerciseId, date)
 
+    suspend fun getRecentHistoryForExercise(exerciseId: Long, beforeDate: String) = db.workoutSetDao().getRecentHistoryForExercise(exerciseId, beforeDate)
+
+    suspend fun getMaxWeightBeforeDate(exerciseId: Long, beforeDate: String) = db.workoutSetDao().getMaxWeightBeforeDate(exerciseId, beforeDate)
+
+    suspend fun getLastSessionDate(beforeDate: String) = db.workoutSetDao().getLastSessionDate(beforeDate)
+
+    suspend fun getSetsByDate(date: String) = db.workoutSetDao().getSetsByDate(date)
+
+    suspend fun getSetsForDates(dates: List<String>) =
+        if (dates.isEmpty()) emptyList() else db.workoutSetDao().getForDates(dates)
+
     suspend fun getById(id: Long): WorkoutSet? = db.workoutSetDao().getById(id)
+
+    fun observeExerciseProgressSummaries(): Flow<List<ExerciseProgressSummary>> = db.workoutSetDao().observeExerciseProgressSummaries()
+
+    suspend fun getVolumeHistory(exerciseId: Long, limit: Int) = db.workoutSetDao().getVolumeHistory(exerciseId, limit)
+
+    suspend fun getSetsSince(exerciseId: Long, sinceDate: String) = db.workoutSetDao().getSetsSince(exerciseId, sinceDate)
+
+    suspend fun getVolumesSince(sinceDate: String) = db.workoutSetDao().getVolumesSince(sinceDate)
+
+    suspend fun getAllTimeMaxWeights() = db.workoutSetDao().getAllTimeMaxWeights()
+
+    suspend fun getMaxWeightsForExercises(exerciseIds: List<Long>) =
+        if (exerciseIds.isEmpty()) emptyList() else db.workoutSetDao().getMaxWeightsForExercises(exerciseIds)
 
     suspend fun deleteSet(id: Long) {
         db.workoutSetDao().deleteById(id)

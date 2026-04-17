@@ -39,6 +39,26 @@ set DEFAULT_JVM_OPTS=-Dfile.encoding=UTF-8 "-Xmx64m" "-Xms64m"
 @rem Find java.exe
 if defined JAVA_HOME goto findJavaFromJavaHome
 
+set "ANDROID_STUDIO_JBR=%ProgramFiles%\Android\Android Studio\jbr"
+if exist "%ANDROID_STUDIO_JBR%\bin\java.exe" (
+    set "JAVA_HOME=%ANDROID_STUDIO_JBR%"
+    goto findJavaFromJavaHome
+)
+
+if defined ProgramFiles(x86) (
+    set "ANDROID_STUDIO_JBR=%ProgramFiles(x86)%\Android\Android Studio\jbr"
+    if exist "%ANDROID_STUDIO_JBR%\bin\java.exe" (
+        set "JAVA_HOME=%ANDROID_STUDIO_JBR%"
+        goto findJavaFromJavaHome
+    )
+)
+
+set "ANDROID_STUDIO_JBR=%LOCALAPPDATA%\Programs\Android Studio\jbr"
+if exist "%ANDROID_STUDIO_JBR%\bin\java.exe" (
+    set "JAVA_HOME=%ANDROID_STUDIO_JBR%"
+    goto findJavaFromJavaHome
+)
+
 set JAVA_EXE=java.exe
 %JAVA_EXE% -version >NUL 2>&1
 if %ERRORLEVEL% equ 0 goto execute

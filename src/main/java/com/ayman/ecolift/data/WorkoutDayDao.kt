@@ -19,6 +19,29 @@ interface WorkoutDayDao {
     @Query("SELECT * FROM workout_day ORDER BY date ASC")
     fun observeAll(): Flow<List<WorkoutDay>>
 
+    @Query("SELECT * FROM workout_day ORDER BY date ASC")
+    suspend fun getAll(): List<WorkoutDay>
+
+    @Query(
+        """
+        SELECT * FROM workout_day
+        WHERE cycleSlotId = :slotId AND date < :beforeDate
+        ORDER BY date DESC
+        LIMIT 1
+        """
+    )
+    suspend fun getLatestForSlotIdBefore(beforeDate: String, slotId: Long): WorkoutDay?
+
+    @Query(
+        """
+        SELECT * FROM workout_day
+        WHERE cycleSlotType = :slotType AND date < :beforeDate
+        ORDER BY date DESC
+        LIMIT 1
+        """
+    )
+    suspend fun getLatestForSlotTypeBefore(beforeDate: String, slotType: Int): WorkoutDay?
+
     @Query(
         """
         SELECT MAX(cycleSlotOccurrence) FROM workout_day
@@ -42,6 +65,9 @@ interface WorkoutDayDao {
         occurrence: Int,
         beforeDate: String,
     ): WorkoutDay?
+
+    @Query("DELETE FROM workout_day WHERE date = :date")
+    suspend fun deleteByDate(date: String)
 
     @Query(
         """

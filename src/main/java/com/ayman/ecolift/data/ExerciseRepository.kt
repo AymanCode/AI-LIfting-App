@@ -2,40 +2,55 @@ package com.ayman.ecolift.data
 
 import kotlinx.coroutines.flow.Flow
 
-class ExerciseRepository(private val db: AppDatabase) {
-    val exercises: Flow<List<Exercise>> = db.exerciseDao().observeAll()
+class ExerciseRepository(private val exerciseDao: ExerciseDao) {
+    val exercises: Flow<List<Exercise>> = exerciseDao.observeAll()
 
-    suspend fun getAll(): List<Exercise> = db.exerciseDao().getAll()
+    suspend fun getAll(): List<Exercise> = exerciseDao.getAll()
 
-    suspend fun getById(id: Long): Exercise? = db.exerciseDao().getById(id)
+    suspend fun getById(id: Long): Exercise? = exerciseDao.getById(id)
 
-    suspend fun findExact(name: String): Exercise? = db.exerciseDao().getByExactName(name.trim())
+    suspend fun getByIds(ids: Collection<Long>): List<Exercise> {
+        if (ids.isEmpty()) {
+            return emptyList()
+        }
+        return exerciseDao.getByIds(ids.distinct())
+    }
+
+    suspend fun findExact(name: String): Exercise? = exerciseDao.getByExactName(name.trim())
 
     suspend fun getOrCreate(name: String): Exercise {
         val normalized = normalizeName(name)
-        val existing = db.exerciseDao().getByExactName(normalized)
+        val existing = exerciseDao.getByExactName(normalized)
         if (existing != null) {
             return existing
         }
         val exercise = Exercise(name = normalized)
-        val insertedId = db.exerciseDao().insert(exercise)
+        val insertedId = exerciseDao.insert(exercise)
         return if (insertedId == -1L) {
-            db.exerciseDao().getByExactName(normalized) ?: exercise
+            exerciseDao.getByExactName(normalized) ?: exercise
         } else {
             exercise.copy(id = insertedId)
         }
     }
 
     suspend fun suggestions(query: String, maxDistance: Int = 2, limit: Int = 5): List<ExerciseSuggestion> {
-        val normalizedQuery = query.trim()
+        val normalizedQuery = normalizeName(query)
         if (normalizedQuery.isEmpty()) {
             return emptyList()
         }
-        return getAll()
+
+        val candidates = exerciseDao.searchByName(
+            query = normalizedQuery,
+            limit = limit.coerceAtLeast(1) * 8,
+        )
+        return candidates
             .map { exercise ->
                 ExerciseSuggestion(
                     exercise = exercise,
-                    distance = FuzzyMatcher.levenshteinDistance(normalizedQuery, exercise.name),
+                    distance = FuzzyMatcher.levenshteinDistance(
+                        normalizedQuery.lowercase(),
+                        exercise.name.lowercase(),
+                    ),
                 )
             }
             .filter { it.distance <= maxDistance }
@@ -56,13 +71,13 @@ class ExerciseRepository(private val db: AppDatabase) {
 
     suspend fun updateName(id: Long, newName: String) {
         val normalized = normalizeName(newName)
-        db.exerciseDao().getById(id)?.let { exercise ->
-            db.exerciseDao().upsert(exercise.copy(name = normalized))
+        exerciseDao.getById(id)?.let { exercise ->
+            exerciseDao.upsert(exercise.copy(name = normalized))
         }
     }
 
     suspend fun deleteExercise(id: Long) {
-        db.exerciseDao().deleteExerciseWithLogs(id)
+        exerciseDao.deleteExerciseWithLogs(id)
     }
 }
 

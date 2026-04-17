@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalCoroutinesApi::class)
 class LogViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getInstance(application)
-    private val exerciseRepository = ExerciseRepository(database)
+    private val exerciseRepository = ExerciseRepository(database.exerciseDao())
     private val workoutRepository = WorkoutRepository(database)
     private val setRepository = SetRepository(database)
     private val pendingReviewRepository = PendingReviewRepository(database)
@@ -41,6 +41,9 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private val restTimerSeconds = MutableStateFlow<Int?>(null)
     private var timerJob: kotlinx.coroutines.Job? = null
 
+    private val _exerciseHints = MutableStateFlow<Map<Long, String?>>(emptyMap())
+    private val _exercisePBs = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
+
     private val workoutDays = workoutRepository.observeAllWorkoutDays()
     private val currentDay = currentDate.flatMapLatest { workoutRepository.observeWorkoutDay(it) }
 
@@ -49,8 +52,37 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             currentDate.collect { date ->
                 val sets = setRepository.getSetsForDate(date)
                 _sessionSets.value = sets
+                updateHistoricalHints(date, sets)
             }
         }
+    }
+
+    private suspend fun updateHistoricalHints(date: String, currentSets: List<WorkoutSet>) {
+        val exerciseIds = currentSets.map { it.exerciseId }.distinct()
+        val hints = mutableMapOf<Long, String?>()
+        val pbs = mutableMapOf<Long, Boolean>()
+
+        exerciseIds.forEach { id ->
+            val history = setRepository.getRecentHistoryForExercise(id, date)
+            val lastDate = history.maxOfOrNull { it.date }
+            val lastSessionSets = history.filter { it.date == lastDate }
+            
+            hints[id] = if (lastSessionSets.isNotEmpty()) {
+                val maxWeight = lastSessionSets.maxOf { it.weightLbs ?: 0 }
+                val maxLabel = if (maxWeight == 0) "BW" else "$maxWeight lbs"
+                "${lastSessionSets.size} sets | Max $maxLabel"
+            } else null
+
+            val currentMax1RM = currentSets.filter { it.exerciseId == id }.maxOfOrNull { 
+                val reps = (it.reps ?: 0).coerceIn(0, 36)
+                if (reps == 0) 0f else (it.weightLbs ?: 0) / (1.0278f - 0.0278f * reps)
+            } ?: 0f
+
+            val allTimeMaxWeight = setRepository.getMaxWeightBeforeDate(id, date) ?: 0
+            pbs[id] = currentMax1RM > 0 && currentSets.any { it.exerciseId == id && (it.weightLbs ?: 0) > allTimeMaxWeight }
+        }
+        _exerciseHints.value = hints
+        _exercisePBs.value = pbs
     }
 
     private val uiInputs = combine(
@@ -78,14 +110,12 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         exerciseRepository.exercises,
         workoutRepository.cycle,
         workoutRepository.observeCycleSlots(),
-        setRepository.allSets,
         pendingReviewRepository.unresolved,
-    ) { exercises, cycle, slots, allSets, pendingReviews ->
+    ) { exercises, cycle, slots, pendingReviews ->
         LibrarySnapshot(
             exercises = exercises,
             cycle = cycle,
             slots = slots,
-            allSets = allSets,
             pendingReviews = pendingReviews,
         )
     }
@@ -98,7 +128,6 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             workoutDays = schedule.workoutDays,
             currentDay = schedule.currentDay,
             currentSets = schedule.currentSets,
-            allSets = library.allSets,
             pendingReviews = library.pendingReviews,
         )
     }
@@ -278,18 +307,14 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun addExercise(rawInput: String) {
-        val allExercises = exerciseRepository.getAll()
-        val normalized = exerciseRepository.normalizeName(rawInput)
         val exactMatch = exerciseRepository.findExact(rawInput)
-        val rankedMatches = allExercises
-            .map { exercise -> exercise to FuzzyMatcher.levenshteinDistance(normalized, exercise.name) }
-            .sortedWith(compareBy<Pair<Exercise, Int>> { it.second }.thenBy { it.first.name })
+        val rankedMatches = exerciseRepository.suggestions(rawInput, maxDistance = 5, limit = 5)
         val bestMatch = rankedMatches.firstOrNull()
         val exercise = when {
             exactMatch != null -> exactMatch
-            bestMatch != null && bestMatch.second <= 2 -> bestMatch.first
+            bestMatch != null && bestMatch.distance <= 2 -> bestMatch.exercise
             else -> {
-                if (bestMatch != null && bestMatch.second in 3..5) {
+                if (bestMatch != null && bestMatch.distance in 3..5) {
                     pendingReviewRepository.add(rawInput, currentDate.value)
                 }
                 exerciseRepository.getOrCreate(rawInput)
@@ -308,7 +333,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         val groupedExercises = snapshot.currentSets
             .groupBy(WorkoutSet::exerciseId)
             .entries
-            .sortedByDescending { entry -> entry.value.minOfOrNull(WorkoutSet::id) ?: 0L }
+            .sortedByDescending { entry -> entry.value.maxOfOrNull(WorkoutSet::id) ?: 0L }
             .mapNotNull { entry ->
                 val exercise = exerciseMap[entry.key] ?: return@mapNotNull null
                 val sets = entry.value.sortedBy(WorkoutSet::setNumber)
@@ -318,23 +343,12 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                     val reps = (it.reps ?: 0).coerceIn(0, 36)
                     if (reps == 0) 0f else (it.weightLbs ?: 0) / (1.0278f - 0.0278f * reps)
                 }?.toInt() ?: 0
-                
-                // Check for PB
-                val previousSets = snapshot.allSets.filter { it.exerciseId == exercise.id && it.date < inputs.date }
-                val allTimeMax1RM = previousSets.maxOfOrNull { 
-                    val reps = (it.reps ?: 0).coerceIn(0, 36)
-                    if (reps == 0) 0f else (it.weightLbs ?: 0) / (1.0278f - 0.0278f * reps)
-                }?.toInt() ?: 0
 
                 LogExerciseUi(
                     exerciseId = exercise.id,
                     name = exercise.name,
                     muscleGroups = exercise.muscleGroups,
-                    lastSessionHint = buildLastSessionHint(
-                        exerciseId = exercise.id,
-                        currentDate = inputs.date,
-                        allSets = snapshot.allSets,
-                    ),
+                    lastSessionHint = _exerciseHints.value[exercise.id],
                     sets = sets.map { set ->
                         LogSetUi(
                             id = set.id,
@@ -347,7 +361,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     },
                     estimated1RM = currentMax1RM,
-                    isNewPB = currentMax1RM > allTimeMax1RM && allTimeMax1RM > 0
+                    isNewPB = _exercisePBs.value[exercise.id] ?: false
                 )
             }
         
@@ -439,13 +453,25 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         input: String,
         exercises: List<Exercise>,
     ): List<com.ayman.ecolift.data.ExerciseSuggestion> {
-        val trimmed = input.trim()
-        if (trimmed.isEmpty()) return emptyList()
-        return exercises
+        val normalized = exerciseRepository.normalizeName(input)
+        if (normalized.isEmpty()) return emptyList()
+        val normalizedLower = normalized.lowercase()
+        val candidatePool = exercises.asSequence()
+            .filter { exercise ->
+                val name = exercise.name.lowercase()
+                name.startsWith(normalizedLower) ||
+                    name.contains(" $normalizedLower") ||
+                    (normalizedLower.length >= 3 && name.contains(normalizedLower))
+            }
+            .take(24)
+            .toList()
+            .ifEmpty { exercises.take(24) }
+
+        return candidatePool
             .map { exercise ->
                 com.ayman.ecolift.data.ExerciseSuggestion(
                     exercise = exercise,
-                    distance = FuzzyMatcher.levenshteinDistance(trimmed, exercise.name),
+                    distance = FuzzyMatcher.levenshteinDistance(normalizedLower, exercise.name.lowercase()),
                 )
             }
             .filter { it.distance <= 2 }
@@ -471,7 +497,6 @@ private data class LibrarySnapshot(
     val exercises: List<Exercise>,
     val cycle: Cycle,
     val slots: List<CycleSlot>,
-    val allSets: List<WorkoutSet>,
     val pendingReviews: List<PendingReview>,
 )
 
@@ -482,6 +507,5 @@ private data class DbSnapshot(
     val workoutDays: List<WorkoutDay>,
     val currentDay: WorkoutDay?,
     val currentSets: List<WorkoutSet>,
-    val allSets: List<WorkoutSet>,
     val pendingReviews: List<PendingReview>,
 )

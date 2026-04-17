@@ -10,7 +10,7 @@ interface CycleSlotDao {
     @Query("SELECT * FROM cycle_slot ORDER BY name ASC")
     fun observeAll(): Flow<List<CycleSlot>>
 
-    @Query("SELECT * FROM cycle_slot")
+    @Query("SELECT * FROM cycle_slot ORDER BY name ASC")
     suspend fun getAll(): List<CycleSlot>
 
     @Upsert

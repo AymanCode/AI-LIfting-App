@@ -17,7 +17,7 @@ class AiToolExecutor(
     private val tempSessionSwapRepository: TempSessionSwapRepository,
     private val manifestRepository: GymContextManifestRepository,
 ) {
-    suspend fun preview(toolCall: AiToolCall): AiActionPreview {
+    fun preview(toolCall: AiToolCall): AiActionPreview {
         return when (toolCall.tool) {
             AiToolName.UpdateSetLog -> {
                 val exerciseName = toolCall.exercise ?: "this exercise"
@@ -83,27 +83,32 @@ class AiToolExecutor(
 
     private suspend fun executeUpdateSetLog(toolCall: AiToolCall): AiExecutionResult {
         val exerciseName = toolCall.exercise
-            ?: return AiExecutionResult("Missing exercise", "I need the exercise name to update a historical set.")
+            ?: return AiExecutionResult("Missing exercise", "I need the exercise name to update a set.")
         val date = toolCall.date
             ?: return AiExecutionResult("Missing date", "I need a workout date in YYYY-MM-DD format.")
         val field = toolCall.field?.lowercase()
             ?: return AiExecutionResult("Missing field", "I need to know whether to change weight or reps.")
         val newValue = toolCall.newValue
             ?: return AiExecutionResult("Missing value", "I need the new numeric value to apply.")
+
         val exercise = resolveExercise(exerciseName)
             ?: return AiExecutionResult(
                 title = "Exercise not found",
-                detail = "I could not match $exerciseName to an exercise in your local library.",
+                detail = "I could not match $exerciseName to an exercise in your library.",
             )
+
         val matchingSets = setRepository.getSetsForDate(date)
+            .asSequence()
             .filter { it.exerciseId == exercise.id }
             .sortedBy { it.setNumber }
+            .toList()
         if (matchingSets.isEmpty()) {
             return AiExecutionResult(
                 title = "No session found",
                 detail = "There are no logged sets for ${exercise.name} on $date.",
             )
         }
+
         val target = chooseTargetSet(matchingSets, field, toolCall.setSelector)
         val updated = when (field) {
             "weight", "weight_lbs" -> target.copy(weightLbs = newValue.coerceAtLeast(0))
@@ -111,10 +116,11 @@ class AiToolExecutor(
             else -> {
                 return AiExecutionResult(
                     title = "Unsupported field",
-                    detail = "I can currently edit weight or reps for historical sets.",
+                    detail = "I can currently update weight or reps for historical sets.",
                 )
             }
         }
+
         setRepository.updateSet(updated)
         val detail = when (field) {
             "reps" -> "Updated ${exercise.name} set ${target.setNumber} on $date to ${updated.reps} reps."
@@ -138,11 +144,10 @@ class AiToolExecutor(
             explicitType = toolCall.activeSessionType,
             explicitLabel = toolCall.activeSessionLabel,
             numTypes = cycle.numTypes,
+        ) ?: return AiExecutionResult(
+            title = "Unknown session",
+            detail = "I could not map that request to one of your split day types.",
         )
-            ?: return AiExecutionResult(
-                title = "Unknown session",
-                detail = "I could not map that request to one of your split day types.",
-            )
         workoutRepository.setNextSessionType(slotType)
         manifestRepository.refresh()
         return AiExecutionResult(
@@ -172,7 +177,8 @@ class AiToolExecutor(
                 detail = "Turn on the split cycle and assign workout days before asking for dynamic swaps.",
             )
         }
-        val sourceSlotType = workoutRepository.getWorkoutDay(date)?.cycleSlotType
+
+        val sourceSlotType = workoutRepository.resolveSlotType(workoutRepository.getWorkoutDay(date))
             ?: cycle.nextSessionType
             ?: 0
         val sourceExercise = resolveCurrentExercise(date, sourceSlotType, toolCall.exercise)
@@ -181,52 +187,69 @@ class AiToolExecutor(
                 detail = "I could not determine which exercise to swap out for this session.",
             )
         val sourcePattern = ExercisePatternMatcher.classify(sourceExercise.name)
-        val alternatives = (0 until cycle.numTypes)
-            .filter { it != sourceSlotType }
-            .mapNotNull { targetSlotType ->
-                val candidate = latestTemplateExercises(date, targetSlotType)
-                    .map { exercise -> exercise to compatibilityScore(sourcePattern, ExercisePatternMatcher.classify(exercise.name)) }
-                    .filter { it.second > 0 }
-                    .maxByOrNull { it.second }
-                    ?: return@mapNotNull null
-                SplitAlternative(
-                    targetSlotType = targetSlotType,
-                    exercise = candidate.first,
-                    score = candidate.second,
+        val templateExercisesBySlot = mutableMapOf<Int, List<Exercise>>()
+        val alternatives = buildList {
+            for (targetSlotType in 0 until cycle.numTypes) {
+                if (targetSlotType == sourceSlotType) {
+                    continue
+                }
+                val candidateExercises = templateExercisesBySlot[targetSlotType]
+                    ?: latestTemplateExercises(date, targetSlotType).also {
+                        templateExercisesBySlot[targetSlotType] = it
+                    }
+                val bestMatch = candidateExercises
+                    .asSequence()
+                    .map { exercise ->
+                        exercise to compatibilityScore(sourcePattern, ExercisePatternMatcher.classify(exercise.name))
+                    }
+                    .filter { (_, score) -> score > 0 }
+                    .maxWithOrNull(
+                        compareBy<Pair<Exercise, Int>> { it.second }
+                            .thenBy { it.first.name }
+                    )
+                    ?: continue
+                add(
+                    SplitAlternative(
+                        targetSlotType = targetSlotType,
+                        exercise = bestMatch.first,
+                        score = bestMatch.second,
+                    )
                 )
             }
+        }
             .sortedByDescending { it.score }
-        val best = alternatives.firstOrNull()
+            .firstOrNull()
             ?: return AiExecutionResult(
                 title = "No clean alternative found",
                 detail = "I could not find a compatible lift in the other split templates for this week.",
             )
+
         val pendingCall = AiToolCall(
             tool = AiToolName.CreateTempSwap,
             requiresConfirmation = true,
             exercise = sourceExercise.name,
-            targetExercise = best.exercise.name,
+            targetExercise = alternatives.exercise.name,
             date = date,
             activeSessionType = sourceSlotType,
             activeSessionLabel = dayLabel(sourceSlotType),
-            targetSessionType = best.targetSlotType,
-            targetSessionLabel = dayLabel(best.targetSlotType),
+            targetSessionType = alternatives.targetSlotType,
+            targetSessionLabel = dayLabel(alternatives.targetSlotType),
         )
-        val preview = preview(pendingCall)
         return AiExecutionResult(
             title = "Swap ready",
-            detail = "I found ${best.exercise.name} on ${dayLabel(best.targetSlotType)} as the cleanest swap for ${sourceExercise.name}.",
+            detail = "I found ${alternatives.exercise.name} on ${dayLabel(alternatives.targetSlotType)} as the cleanest swap for ${sourceExercise.name}.",
             pendingToolCall = pendingCall,
-            pendingPreview = preview,
+            pendingPreview = preview(pendingCall),
         )
     }
 
     private suspend fun executeCreateTempSwap(toolCall: AiToolCall): AiExecutionResult {
         val date = toolCall.date ?: WorkoutDates.today()
+        val numTypes = workoutRepository.getCycle().numTypes
         val sourceSlotType = resolveSlotType(
             explicitType = toolCall.activeSessionType,
             explicitLabel = toolCall.activeSessionLabel,
-            numTypes = workoutRepository.getCycle().numTypes,
+            numTypes = numTypes,
         ) ?: return AiExecutionResult(
             title = "Missing source day",
             detail = "I could not determine the day you want to swap out.",
@@ -234,7 +257,7 @@ class AiToolExecutor(
         val targetSlotType = resolveSlotType(
             explicitType = toolCall.targetSessionType,
             explicitLabel = toolCall.targetSessionLabel,
-            numTypes = workoutRepository.getCycle().numTypes,
+            numTypes = numTypes,
         ) ?: return AiExecutionResult(
             title = "Missing target day",
             detail = "I could not determine which future split day should receive the swapped lift.",
@@ -247,6 +270,7 @@ class AiToolExecutor(
             ?: return AiExecutionResult("Missing target exercise", "I need the alternate lift name to create a swap.")
         val targetExercise = resolveExercise(targetExerciseName)
             ?: return AiExecutionResult("Unknown target exercise", "I could not match $targetExerciseName to a saved exercise.")
+
         tempSessionSwapRepository.createSwap(
             date = date,
             sourceSlotType = sourceSlotType,
@@ -302,9 +326,9 @@ class AiToolExecutor(
         }
         val estimate = ExercisePatternMatcher.estimateRelativeLoad(machineName, benchmark)
         val detail = if (estimate.perSideLoad != null) {
-            "Based on a ${benchmark} lbs benchmark, start around ${estimate.perSideLoad} lbs per side (${estimate.totalLoad} lbs total) for 12-15 reps."
+            "Based on a $benchmark lbs benchmark, start around ${estimate.perSideLoad} lbs per side (${estimate.totalLoad} lbs total) for 12-15 reps."
         } else {
-            "Based on a ${benchmark} lbs benchmark, start around ${estimate.totalLoad} lbs for 12-15 reps."
+            "Based on a $benchmark lbs benchmark, start around ${estimate.totalLoad} lbs for 12-15 reps."
         }
         return AiExecutionResult(
             title = "Relative load estimate",
@@ -313,16 +337,20 @@ class AiToolExecutor(
     }
 
     private suspend fun resolveExercise(name: String): Exercise? {
-        val exact = exerciseRepository.findExact(name)
-        if (exact != null) {
-            return exact
+        exerciseRepository.findExact(name)?.let { return it }
+
+        val suggestions = exerciseRepository.suggestions(name, maxDistance = 3, limit = 8)
+        if (suggestions.isNotEmpty()) {
+            return suggestions.first().exercise
         }
-        val normalized = exerciseRepository.normalizeName(name)
+
+        val normalized = exerciseRepository.normalizeName(name).lowercase()
         return exerciseRepository.getAll()
+            .asSequence()
             .map { exercise ->
-                exercise to FuzzyMatcher.levenshteinDistance(normalized, exercise.name)
+                exercise to FuzzyMatcher.levenshteinDistance(normalized, exercise.name.lowercase())
             }
-            .filter { it.second <= 3 }
+            .filter { (_, distance) -> distance <= 3 }
             .sortedWith(compareBy<Pair<Exercise, Int>> { it.second }.thenBy { it.first.name })
             .firstOrNull()
             ?.first
@@ -335,9 +363,9 @@ class AiToolExecutor(
     ): WorkoutSet {
         return when {
             setSelector == "last" -> matchingSets.maxByOrNull { it.setNumber } ?: matchingSets.last()
-            setSelector == "max_weight" -> matchingSets.maxByOrNull { it.weightLbs * 1000 + it.setNumber } ?: matchingSets.last()
+            setSelector == "max_weight" -> matchingSets.maxByOrNull { (it.weightLbs ?: 0) * 1000 + it.setNumber } ?: matchingSets.last()
             field == "reps" -> matchingSets.maxByOrNull { it.setNumber } ?: matchingSets.last()
-            else -> matchingSets.maxByOrNull { it.weightLbs * 1000 + it.setNumber } ?: matchingSets.last()
+            else -> matchingSets.maxByOrNull { (it.weightLbs ?: 0) * 1000 + it.setNumber } ?: matchingSets.last()
         }
     }
 
@@ -347,12 +375,13 @@ class AiToolExecutor(
         numTypes: Int,
     ): Int? {
         explicitType?.let { type ->
-            if (type in 0 until numTypes) return type
+            if (type in 0 until numTypes) {
+                return type
+            }
         }
         val label = explicitLabel?.trim()?.uppercase() ?: return null
         if (label.startsWith("DAY ") && label.length >= 5) {
-            val letter = label.last()
-            val type = letter.code - 'A'.code
+            val type = label.last().code - 'A'.code
             if (type in 0 until numTypes) {
                 return type
             }
@@ -370,12 +399,9 @@ class AiToolExecutor(
         if (!requestedName.isNullOrBlank()) {
             return resolveExercise(requestedName)
         }
-        val todayExerciseId = setRepository.getSetsForDate(date)
-            .sortedWith(compareBy<WorkoutSet> { it.exerciseId }.thenBy { it.setNumber })
-            .firstOrNull()
-            ?.exerciseId
-        if (todayExerciseId != null) {
-            return exerciseRepository.getById(todayExerciseId)
+        val todaySets = setRepository.getSetsForDate(date)
+        if (todaySets.isNotEmpty()) {
+            return exerciseRepository.getById(todaySets.first().exerciseId)
         }
         return latestTemplateExercises(date, slotType).firstOrNull()
     }
@@ -385,42 +411,58 @@ class AiToolExecutor(
             date = WorkoutDates.addDays(date, 1),
             slotType = slotType,
         ) ?: return emptyList()
-        return setRepository.getSetsForDate(latestDay.date)
-            .mapNotNull { set -> exerciseRepository.getById(set.exerciseId) }
+        val setList = setRepository.getSetsForDate(latestDay.date)
+        val exercisesById = exerciseRepository.getByIds(setList.map(WorkoutSet::exerciseId))
+            .associateBy { it.id }
+        return setList
+            .mapNotNull { set -> exercisesById[set.exerciseId] }
             .distinctBy { it.id }
     }
 
     private suspend fun bestHistoricalMatchForPattern(pattern: MovementPattern): Exercise? {
         return exerciseRepository.getAll()
-            .map { exercise -> exercise to compatibilityScore(pattern, ExercisePatternMatcher.classify(exercise.name)) }
-            .filter { it.second > 0 }
-            .sortedWith(compareByDescending<Pair<Exercise, Int>> { it.second }.thenBy { it.first.name })
-            .firstOrNull()
+            .asSequence()
+            .map { exercise ->
+                exercise to compatibilityScore(pattern, ExercisePatternMatcher.classify(exercise.name))
+            }
+            .filter { (_, score) -> score > 0 }
+            .maxWithOrNull(compareBy<Pair<Exercise, Int>> { it.second }.thenBy { it.first.name })
             ?.first
     }
 
     private suspend fun findBenchmarkWeight(exerciseName: String?, machineName: String): Int? {
-        val allSets = setRepository.getAllSets()
-        val allExercises = exerciseRepository.getAll().associateBy { it.id }
-        val explicitExercise = if (exerciseName.isNullOrBlank()) {
-            null
-        } else {
-            resolveExercise(exerciseName)
-        }
+        val explicitExercise = if (exerciseName.isNullOrBlank()) null else resolveExercise(exerciseName)
         if (explicitExercise != null) {
-            return allSets.filter { it.exerciseId == explicitExercise.id }.maxOfOrNull { it.weightLbs }
+            return setRepository.getMaxWeightsForExercises(listOf(explicitExercise.id))
+                .firstOrNull()
+                ?.maxWeight
         }
+
         val targetPattern = ExercisePatternMatcher.classify(machineName)
-        return allSets
-            .groupBy { it.exerciseId }
-            .mapNotNull { (exerciseId, sets) ->
-                val exercise = allExercises[exerciseId] ?: return@mapNotNull null
-                val score = compatibilityScore(targetPattern, ExercisePatternMatcher.classify(exercise.name))
-                if (score <= 0) return@mapNotNull null
-                score to (sets.maxOfOrNull { it.weightLbs } ?: return@mapNotNull null)
+        val matchingExercises = exerciseRepository.getAll()
+            .asSequence()
+            .map { exercise ->
+                exercise to compatibilityScore(targetPattern, ExercisePatternMatcher.classify(exercise.name))
             }
-            .sortedByDescending { it.first }
-            .firstOrNull()
+            .filter { (_, score) -> score > 0 }
+            .toList()
+        if (matchingExercises.isEmpty()) {
+            return null
+        }
+
+        val maxWeightsById = setRepository.getMaxWeightsForExercises(
+            matchingExercises.map { (exercise, _) -> exercise.id }
+        ).associateBy { it.exerciseId }
+
+        return matchingExercises
+            .mapNotNull { (exercise, score) ->
+                val maxWeight = maxWeightsById[exercise.id]?.maxWeight ?: return@mapNotNull null
+                Triple(score, maxWeight, exercise.id)
+            }
+            .maxWithOrNull(
+                compareBy<Triple<Int, Int, Long>> { it.first }
+                    .thenBy { it.second }
+            )
             ?.second
     }
 

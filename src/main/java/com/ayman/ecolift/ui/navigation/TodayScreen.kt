@@ -28,7 +28,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -97,6 +99,15 @@ import com.ayman.ecolift.ui.viewmodel.LogViewModel
 @Composable
 fun TodayScreen(viewModel: LogViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+
+    // Scroll to newly added exercise card
+    LaunchedEffect(uiState.exercises.size) {
+        if (uiState.exercises.isNotEmpty()) {
+            val cycleOffset = if (uiState.cycleEnabled && uiState.cycleSlot == null) 1 else 0
+            listState.animateScrollToItem(cycleOffset + uiState.exercises.size - 1)
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -151,25 +162,12 @@ fun TodayScreen(viewModel: LogViewModel = viewModel()) {
             )
 
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (uiState.pendingReviews.isNotEmpty()) {
-                    item {
-                        PendingReviewBanner(
-                            expanded = uiState.reviewsExpanded,
-                            reviewCount = uiState.pendingReviews.size,
-                            reviews = uiState.pendingReviews.map { "${it.rawInput} — ${it.dateLogged}" },
-                            onToggle = viewModel::toggleReviewsExpanded,
-                            onResolve = { index ->
-                                viewModel.markReviewResolved(uiState.pendingReviews[index].id)
-                            },
-                        )
-                    }
-                }
-
                 if (uiState.cycleEnabled && uiState.cycleSlot == null) {
                     item {
                         CyclePickerCard(
@@ -370,48 +368,6 @@ private fun AddExerciseBar(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
-                }
-            }
-        }
-    }
-}
-
-// ── Pending review banner ─────────────────────────────────────────────────────
-
-@Composable
-private fun PendingReviewBanner(
-    expanded: Boolean,
-    reviewCount: Int,
-    reviews: List<String>,
-    onToggle: () -> Unit,
-    onResolve: (Int) -> Unit,
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clickable(onClick = onToggle),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-    ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = "$reviewCount pending review${if (reviewCount == 1) "" else "s"}  ${if (expanded) "▲" else "▼"}",
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
-            )
-            if (expanded) {
-                reviews.forEachIndexed { index, review ->
-                    Text(
-                        text = review,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
-                            .clickable { onResolve(index) }
-                            .padding(horizontal = 12.dp, vertical = 9.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
                 }
             }
         }
@@ -672,7 +628,8 @@ private fun SetRow(
         val weightDisplay = when {
             set.isBodyweight && (set.weightLbs ?: 0) == 0 -> "BW"
             set.isBodyweight -> "BW+${set.weightLbs ?: 0}"
-            else -> set.weightLbs?.toString() ?: ""
+            (set.weightLbs ?: 0) == 0 -> ""
+            else -> set.weightLbs.toString()
         }
         NumberInputBox(
             modifier = Modifier.weight(2.2f),
@@ -687,7 +644,7 @@ private fun SetRow(
 
         NumberInputBox(
             modifier = Modifier.weight(2f),
-            displayValue = set.reps?.toString() ?: "",
+            displayValue = if ((set.reps ?: 0) == 0) "" else set.reps.toString(),
             editable = true,
             onValueChange = onRepsChange,
             onDecrease = { onRepsStep(-1) },
@@ -775,7 +732,7 @@ private fun NumberInputBox(
     onLongDecrease: () -> Unit,
     onLongIncrease: () -> Unit,
 ) {
-    var hasFocused by remember(displayValue) { mutableStateOf(false) }
+    var hasFocused by remember { mutableStateOf(false) }
 
     Row(
         modifier = modifier
