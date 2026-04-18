@@ -85,6 +85,8 @@ class IntentRouter(
             "askrecommendation" -> Intent.Read(ReadType.AskRecommendation, rawText)
             "asksimilar"        -> Intent.Read(ReadType.AskSimilar, rawText)
             "askhistory"        -> Intent.Read(ReadType.AskHistory, rawText)
+            "querydate"         -> Intent.Read(ReadType.QueryDate, rawText)
+            "queryprogress"     -> Intent.Read(ReadType.QueryProgress, rawText)
             "clarify"           -> null
             else                -> null
         }
@@ -93,7 +95,7 @@ class IntentRouter(
     companion object {
         private val INTENT_LABEL_SCHEMA = """
             One of: LogSet | EditSet | DeleteSet | MoveWorkoutDay | RenameExercise |
-            AskRecommendation | AskSimilar | AskHistory | Clarify
+            AskRecommendation | AskSimilar | AskHistory | QueryDate | QueryProgress | Clarify
         """.trimIndent()
     }
 }

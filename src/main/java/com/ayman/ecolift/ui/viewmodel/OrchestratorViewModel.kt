@@ -14,6 +14,7 @@ import com.ayman.ecolift.agent.patches.PatchValidator
 import com.ayman.ecolift.agent.router.IntentRouter
 import com.ayman.ecolift.agent.tools.AgentToolsImpl
 import com.ayman.ecolift.data.AppDatabase
+import com.ayman.ecolift.data.DebugDataHelper
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -161,6 +162,13 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
 
     fun clearTurnLog() {
         viewModelScope.launch { turnLogDao.clearAll() }
+    }
+
+    fun seedDebugData() {
+        viewModelScope.launch {
+            DebugDataHelper.seed(getApplication())
+            push(isUser = false, text = "Debug data seeded — 7 exercises, ~30 sessions across 90 days. Try: \"how is my bench trending\" or \"what did I do on Monday\".")
+        }
     }
 
     // ── Internal helpers ──────────────────────────────────────────────

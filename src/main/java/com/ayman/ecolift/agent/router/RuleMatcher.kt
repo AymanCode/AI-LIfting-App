@@ -42,6 +42,17 @@ object RuleMatcher {
             return RuleMatch(Intent.Write(PatchType.LogSet, text), 0.78f)
         }
 
+        // ── QueryDate — "what did I do on Tuesday" (full session for a date) ──
+        // Checked before AskHistory — more specific match wins.
+        if (QUERY_DATE.any { t.contains(it) }) {
+            return RuleMatch(Intent.Read(ReadType.QueryDate, text), 0.90f)
+        }
+
+        // ── QueryProgress — "how's my bench trending?" ──
+        if (QUERY_PROGRESS.any { t.contains(it) }) {
+            return RuleMatch(Intent.Read(ReadType.QueryProgress, text), 0.88f)
+        }
+
         // ── AskRecommendation ──
         if (ASK_RECOMMENDATION.any { t.contains(it) }) {
             return RuleMatch(Intent.Read(ReadType.AskRecommendation, text), 0.88f)
@@ -98,6 +109,20 @@ object RuleMatcher {
         "similar exercise", "alternative to", "instead of ", "substitute for",
         "replace ", "what else can i do", "alternatives for",
         "similar to ", "swap out "
+    )
+
+    // Full-session date queries — "what did I do on", "show me last Monday"
+    private val QUERY_DATE = listOf(
+        "what did i do on", "what was my workout on", "show me my workout",
+        "what did i train on", "my session on", "what exercises did i do",
+        "what did i lift on", "show workout for"
+    )
+
+    // Progress trend queries — "how's my bench trending", "am I getting stronger"
+    private val QUERY_PROGRESS = listOf(
+        "how is my", "how has my", "trending", "over time",
+        "progress on", "am i improving", "am i getting stronger", "my gains",
+        "how much have i improved", "how much stronger", "gained on"
     )
 
     private val ASK_HISTORY = listOf(

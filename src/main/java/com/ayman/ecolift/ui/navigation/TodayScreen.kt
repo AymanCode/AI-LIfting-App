@@ -1,10 +1,18 @@
 package com.ayman.ecolift.ui.navigation
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -60,7 +68,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -197,7 +208,7 @@ fun TodayScreen(viewModel: LogViewModel = viewModel()) {
         }
 
         // ── Floating Rest Timer ──────────────────────────────────────────────
-        uiState.restTimerSeconds?.let { seconds ->
+        uiState.restStopwatchSeconds?.let { seconds ->
             RestTimerOverlay(
                 seconds = seconds,
                 onCancel = viewModel::cancelRestTimer,
@@ -215,35 +226,42 @@ private fun RestTimerOverlay(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val mins = seconds / 60
+    val secs = (seconds % 60).toString().padStart(2, '0')
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.secondaryContainer,
+        color = BackgroundSurface,
         shadowElevation = 8.dp
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Icon(
                 imageVector = Icons.Default.History,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.size(20.dp)
+                tint = AccentTeal,
+                modifier = Modifier.size(16.dp)
             )
             Text(
-                text = "Rest: ${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSecondaryContainer
+                text = "Resting",
+                style = TextStyle(fontSize = 11.sp, color = TextMuted, letterSpacing = 0.04.sp)
             )
             Text(
-                text = "Cancel",
+                text = "$mins:$secs",
+                style = TextStyle(
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
+                    fontFeatureSettings = "tnum"
+                )
+            )
+            Text(
+                text = "Done",
                 modifier = Modifier.clickable(onClick = onCancel),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold
+                style = TextStyle(fontSize = 12.sp, color = AccentTeal, fontWeight = FontWeight.Bold)
             )
         }
     }
@@ -465,12 +483,19 @@ private fun ExerciseCard(
     onDeleteSet: (Long) -> Unit,
     onUpdateName: (Long, String) -> Unit,
 ) {
+    val allCompleted = exercise.sets.isNotEmpty() && exercise.sets.all { it.completed }
+    val cardColor by animateColorAsState(
+        targetValue = if (allCompleted) AccentTeal12 else BackgroundSurface,
+        animationSpec = tween(durationMillis = 1200),
+        label = "CardColor"
+    )
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
@@ -543,6 +568,12 @@ private fun ExerciseCard(
 
             SetColumnHeader()
 
+            Column(modifier = Modifier.animateContentSize(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium
+                )
+            )) {
             exercise.sets.forEach { set ->
                 SetRow(
                     set = set,
@@ -554,7 +585,9 @@ private fun ExerciseCard(
                     onToggleCompleted = { onToggleCompleted(set.id) },
                     onDelete = { onDeleteSet(set.id) },
                 )
+                set.restAfterSeconds?.let { RestTimeIndicator(it) }
             }
+            } // end animateContentSize Column
         }
     }
 }
@@ -604,10 +637,19 @@ private fun SetRow(
     onToggleCompleted: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val rowBg by animateColorAsState(
+        targetValue = if (set.completed) AccentTeal12 else Color.Transparent,
+        animationSpec = tween(durationMillis = 300),
+        label = "RowBg"
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = 4.dp, vertical = 3.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(rowBg)
+            .padding(horizontal = 4.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -682,21 +724,7 @@ private fun SetRow(
                 .padding(horizontal = 4.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(30.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (set.completed) AccentTeal12 else BackgroundElevated)
-                    .clickable(onClick = onToggleCompleted),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "Done",
-                    tint = if (set.completed) AccentTeal else TextSecondary,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
+            TactileCheckButton(isCompleted = set.completed, onToggle = onToggleCompleted)
         }
 
         Box(
@@ -800,6 +828,73 @@ private fun NumberInputBox(
         ) {
             Text("+", fontSize = 11.sp, fontWeight = FontWeight.W700, color = AccentTeal)
         }
+    }
+}
+
+// ── Rest time indicator (shown between sets after completing one) ─────────────
+
+@Composable
+private fun RestTimeIndicator(seconds: Int) {
+    val mins = seconds / 60
+    val secs = (seconds % 60).toString().padStart(2, '0')
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Box(modifier = Modifier.weight(1f).height(1.dp).background(BorderSubtle.copy(alpha = 0.35f)))
+        Text(
+            text = "  $mins:$secs rest  ",
+            style = TextStyle(
+                fontSize = 9.sp,
+                color = TextMuted,
+                fontFeatureSettings = "tnum",
+                letterSpacing = 0.05.sp,
+            )
+        )
+        Box(modifier = Modifier.weight(1f).height(1.dp).background(BorderSubtle.copy(alpha = 0.35f)))
+    }
+}
+
+// ── Tactile checkmark button ──────────────────────────────────────────────────
+
+@Composable
+private fun TactileCheckButton(isCompleted: Boolean, onToggle: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.78f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "CheckScale"
+    )
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .scale(scale)
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (isCompleted) AccentTeal12 else BackgroundElevated)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onToggle()
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Check,
+            contentDescription = "Done",
+            tint = if (isCompleted) AccentTeal else TextSecondary,
+            modifier = Modifier.size(18.dp)
+        )
     }
 }
 

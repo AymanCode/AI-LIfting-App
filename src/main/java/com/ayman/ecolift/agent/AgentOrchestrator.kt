@@ -12,6 +12,8 @@ import com.ayman.ecolift.agent.router.ReadType
 import com.ayman.ecolift.agent.tools.AgentTools
 import com.ayman.ecolift.agent.tools.ExerciseMatch
 import com.ayman.ecolift.agent.tools.HistorySummary
+import com.ayman.ecolift.agent.tools.ProgressTrend
+import com.ayman.ecolift.agent.tools.SessionSnapshot
 import com.ayman.ecolift.agent.tools.WeightSuggestion
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -102,6 +104,18 @@ class AgentOrchestrator(
 
     private suspend fun handleRead(intent: Intent.Read, userText: String): AgentTurn {
         val text = when (intent.queryType) {
+            ReadType.QueryDate -> {
+                val date = extractDate(userText, today())
+                    ?: return AgentTurn.TextResponse("Which date? I couldn't parse one from your message.")
+                val snapshot = tools.getSessionByDate(date)
+                summarizeSession(snapshot)
+            }
+            ReadType.QueryProgress -> {
+                val ex = extractAndFindExercise(userText)
+                    ?: return AgentTurn.TextResponse("Which exercise? I couldn't identify one in your message.")
+                val trend = tools.getProgressTrend(ex.exerciseId)
+                summarizeTrend(trend)
+            }
             ReadType.AskHistory -> {
                 val ex = extractAndFindExercise(userText)
                     ?: return AgentTurn.TextResponse("Which exercise? I couldn't identify one in your message.")
@@ -258,6 +272,38 @@ class AgentOrchestrator(
         if (t.contains("tomorrow"))  return current.plusDays(1).toString()
         if (t.contains("next week")) return current.plusWeeks(1).toString()
         return null
+    }
+
+    private fun extractDate(text: String, todayStr: String): String? =
+        DateExtractor.extract(text, LocalDate.parse(todayStr))
+
+    /** Compact session summary kept under ~200 chars so Nano can format it easily. */
+    private fun summarizeSession(snapshot: SessionSnapshot): String {
+        if (snapshot.exercises.isEmpty())
+            return "No workout logged on ${snapshot.date}."
+        return buildString {
+            append("On ${snapshot.date}: ")
+            snapshot.exercises.joinTo(this, " | ") { ex ->
+                val top = ex.sets.maxByOrNull { it.weightLbs ?: 0 }
+                "${ex.name} (${ex.sets.size} sets, top ${top?.weightLbs ?: "bw"}×${top?.reps ?: 0})"
+            }
+        }
+    }
+
+    /** Compact progress summary kept under ~200 chars for Nano context. */
+    private fun summarizeTrend(trend: ProgressTrend): String {
+        if (trend.sessionCount == 0) return "No history for ${trend.name} yet."
+        return buildString {
+            append("${trend.name}: ${trend.sessionCount} sessions. ")
+            if (trend.prWeightLbs != null) append("PR ${trend.prWeightLbs}lbs on ${trend.prDate}. ")
+            if (trend.est1Rm != null)      append("Est 1RM ${trend.est1Rm}lbs. ")
+            if (trend.deltaPercent != null) {
+                val dir = if (trend.deltaPercent >= 0) "up" else "down"
+                append("$dir ${Math.abs(trend.deltaPercent).toInt()}% last 30 days. ")
+            }
+            if (trend.recentSessions.isNotEmpty())
+                append("Recent: ${trend.recentSessions.take(3).joinToString(", ")}")
+        }
     }
 
     private fun extractNewName(text: String): String? {

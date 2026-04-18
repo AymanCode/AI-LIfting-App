@@ -69,8 +69,9 @@ fun AiScreen() {
 
     if (showDebug) {
         DebugSheet(
-            turns    = recentTurns,
-            onClear  = { viewModel.clearTurnLog() },
+            turns     = recentTurns,
+            onClear   = { viewModel.clearTurnLog() },
+            onSeed    = { viewModel.seedDebugData(); showDebug = false },
             onDismiss = { showDebug = false }
         )
     }
@@ -308,6 +309,7 @@ private fun ChatInput(
 private fun DebugSheet(
     turns: List<AgentTurnLog>,
     onClear: () -> Unit,
+    onSeed: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -331,8 +333,13 @@ private fun DebugSheet(
                     fontWeight = FontWeight.Bold,
                     style      = MaterialTheme.typography.titleMedium
                 )
-                IconButton(onClick = onClear) {
-                    Icon(Icons.Default.Delete, contentDescription = "Clear log", tint = MaterialTheme.colorScheme.error)
+                Row {
+                    TextButton(onClick = onSeed) {
+                        Text("Seed Data", style = MaterialTheme.typography.labelMedium)
+                    }
+                    IconButton(onClick = onClear) {
+                        Icon(Icons.Default.Delete, contentDescription = "Clear log", tint = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
             HorizontalDivider()

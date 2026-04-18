@@ -144,6 +144,74 @@ class AgentToolsImpl(
         )
     }
 
+    // ── getSessionByDate ─────────────────────────────────────────────
+
+    override suspend fun getSessionByDate(date: String): SessionSnapshot {
+        val sets = db.workoutSetDao().getForDate(date)
+        val exerciseIds = sets.map { it.exerciseId }.distinct()
+        val exercises = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
+
+        val snapshots = exerciseIds.mapNotNull { exId ->
+            val ex = exercises[exId] ?: return@mapNotNull null
+            ExerciseSnapshot(
+                exerciseId = exId,
+                name = ex.name,
+                sets = sets.filter { it.exerciseId == exId }.map { s ->
+                    SetSummary(s.id, s.date, s.setNumber, s.weightLbs, s.reps, s.isBodyweight)
+                }
+            )
+        }
+        return SessionSnapshot(date = date, exercises = snapshots)
+    }
+
+    // ── getProgressTrend ─────────────────────────────────────────────
+
+    override suspend fun getProgressTrend(exerciseId: Long): ProgressTrend {
+        val today = LocalDate.now()
+        val exercise = db.exerciseDao().getById(exerciseId)
+        val sets = db.workoutSetDao().getRecentHistoryForExercise(exerciseId, today.toString())
+
+        fun epley(w: Int, r: Int): Float = w * (1f + r / 30f)
+
+        val cutoff30 = today.minusDays(30).toString()
+        val cutoff60 = today.minusDays(60).toString()
+
+        val recent30Max = sets.filter { it.date >= cutoff30 }
+            .mapNotNull { s -> s.weightLbs?.let { w -> s.reps?.let { r -> if (r > 0) epley(w, r) else null } } }
+            .maxOrNull()
+
+        val prev30Max = sets.filter { it.date in cutoff60..<cutoff30 }
+            .mapNotNull { s -> s.weightLbs?.let { w -> s.reps?.let { r -> if (r > 0) epley(w, r) else null } } }
+            .maxOrNull()
+
+        val delta = if (recent30Max != null && prev30Max != null && prev30Max > 0f)
+            ((recent30Max - prev30Max) / prev30Max) * 100f else null
+
+        val allEst1Rms = sets.mapNotNull { s ->
+            s.weightLbs?.let { w -> s.reps?.let { r -> if (r > 0) epley(w, r) else null } }
+        }
+        val prSet = sets.maxByOrNull { it.weightLbs ?: 0 }
+
+        val recentSessions = sets.groupBy { it.date }
+            .entries.sortedByDescending { it.key }
+            .take(5)
+            .map { (date, setsForDate) ->
+                val top = setsForDate.maxByOrNull { it.weightLbs ?: 0 }
+                "$date: ${top?.weightLbs ?: "bw"}×${top?.reps ?: 0}"
+            }
+
+        return ProgressTrend(
+            exerciseId = exerciseId,
+            name = exercise?.name ?: "Unknown",
+            sessionCount = sets.map { it.date }.distinct().size,
+            prWeightLbs = prSet?.weightLbs,
+            prDate = prSet?.date,
+            est1Rm = allEst1Rms.maxOrNull()?.toInt(),
+            deltaPercent = delta,
+            recentSessions = recentSessions
+        )
+    }
+
     private fun noDataSuggestion(exerciseId: Long, targetReps: Int, reason: String) =
         WeightSuggestion(
             exerciseId = exerciseId,

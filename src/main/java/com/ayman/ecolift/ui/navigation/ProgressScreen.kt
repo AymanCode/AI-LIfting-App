@@ -1,6 +1,9 @@
 package com.ayman.ecolift.ui.navigation
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -340,87 +343,164 @@ private fun ProgressChart(points: List<ProgressPointUi>, metric: ProgressMetric)
     }
     val max = values.max().coerceAtLeast(1f)
     val min = values.min()
-    val range = (max - min).coerceAtLeast(1f)
+    val chartMin = if (max == min) 0f else min
+    val range = (max - chartMin).coerceAtLeast(1f)
     
     var selectedIndex by remember { mutableStateOf(-1) }
 
-    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Canvas(modifier = Modifier.fillMaxSize()
-            .pointerInput(points) {
-                detectTapGestures { offset ->
-                    selectedIndex = findClosestPoint(offset, points.size, size.width.toFloat())
-                }
-            }
-            .pointerInput(points) {
-                detectDragGestures(
-                    onDragStart = { offset -> selectedIndex = findClosestPoint(offset, points.size, size.width.toFloat()) },
-                    onDrag = { change, _ -> selectedIndex = findClosestPoint(change.position, points.size, size.width.toFloat()) },
-                    onDragEnd = { selectedIndex = -1 }
-                )
-            }
-        ) {
-            val width = size.width
-            val height = size.height
-            val spacing = width / (points.size - 1).coerceAtLeast(1)
+    val progress = remember(points, metric) { Animatable(0f) }
+    LaunchedEffect(points, metric) {
+        progress.snapTo(0f)
+        progress.animateTo(1f, tween(durationMillis = 1100, easing = FastOutSlowInEasing))
+    }
 
-            // Grid
-            for (i in 0..3) {
-                val y = height - (i * height / 3)
-                drawLine(Color.Gray.copy(alpha = 0.1f), Offset(0f, y), Offset(width, y), 1.dp.toPx())
-            }
+    val yAxisLabels = remember(values, metric) { buildYAxisLabels(min = chartMin, max = max, metric = metric) }
+    val xAxisLabels = remember(points) { buildXAxisLabels(points) }
 
-            val path = Path()
-            val fillPath = Path()
-            
-            points.forEachIndexed { i, p ->
-                val x = if (points.size > 1) i * spacing else width / 2f
-                val y = height - ((values[i] - min) / range) * height
-                
-                if (i == 0) {
-                    path.moveTo(x, y)
-                    fillPath.moveTo(x, height)
-                    fillPath.lineTo(x, y)
-                } else {
-                    val prevX = (i - 1) * spacing
-                    val prevY = height - ((values[i-1] - min) / range) * height
-                    // Lightweight interpolation
-                    path.lineTo(x, y)
-                    fillPath.lineTo(x, y)
-                }
-                
-                if (i == points.lastIndex) {
-                    fillPath.lineTo(x, height)
-                    fillPath.close()
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.width(48.dp).fillMaxHeight().padding(end = 8.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.End
+            ) {
+                yAxisLabels.forEach { label ->
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.End
+                    )
                 }
             }
 
-            drawPath(fillPath, Brush.verticalGradient(listOf(Color(0xFF00C9A7).copy(alpha = 0.2f), Color.Transparent)))
-            drawPath(path, Color(0xFF00C9A7), style = Stroke(width = 3.dp.toPx(), join = StrokeJoin.Round))
+            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                Canvas(modifier = Modifier.fillMaxSize()
+                    .pointerInput(points) {
+                        detectTapGestures { offset ->
+                            selectedIndex = findClosestPoint(offset, points.size, size.width.toFloat())
+                        }
+                    }
+                    .pointerInput(points) {
+                        detectDragGestures(
+                            onDragStart = { offset -> selectedIndex = findClosestPoint(offset, points.size, size.width.toFloat()) },
+                            onDrag = { change, _ -> selectedIndex = findClosestPoint(change.position, points.size, size.width.toFloat()) },
+                            onDragEnd = { selectedIndex = -1 }
+                        )
+                    }
+                ) {
+                    val width = size.width
+                    val height = size.height
+                    val spacing = width / (points.size - 1).coerceAtLeast(1)
 
-            points.forEachIndexed { i, _ ->
-                val x = if (points.size > 1) i * spacing else width / 2f
-                val y = height - ((values[i] - min) / range) * height
-                drawCircle(Color(0xFF00C9A7), 4.dp.toPx(), Offset(x, y))
-                drawCircle(Color.White, 2.dp.toPx(), Offset(x, y))
-            }
+                    drawLine(Color.Gray.copy(alpha = 0.16f), Offset(0f, height), Offset(width, height), 1.dp.toPx())
+                    drawLine(Color.Gray.copy(alpha = 0.16f), Offset(0f, 0f), Offset(0f, height), 1.dp.toPx())
 
-            if (selectedIndex != -1) {
-                val x = selectedIndex * spacing
-                drawLine(Color.Gray.copy(alpha = 0.5f), Offset(x, 0f), Offset(x, height), 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f)))
+                    for (i in 0..3) {
+                        val y = height - (i * height / 3)
+                        drawLine(Color.Gray.copy(alpha = 0.1f), Offset(0f, y), Offset(width, y), 1.dp.toPx())
+                    }
+
+                    val prog = progress.value
+                    val pointsPhase = 0.5f
+                    val pointsT = (prog / pointsPhase).coerceIn(0f, 1f)
+                    val lineT = ((prog - pointsPhase) / (1f - pointsPhase)).coerceIn(0f, 1f)
+
+                    val xs = FloatArray(points.size)
+                    val ys = FloatArray(points.size)
+                    points.forEachIndexed { i, _ ->
+                        xs[i] = if (points.size > 1) i * spacing else width / 2f
+                        ys[i] = height - ((values[i] - chartMin) / range) * height
+                    }
+
+                    if (lineT > 0f && points.size > 1) {
+                        val totalSegs = points.size - 1
+                        val segFloat = lineT * totalSegs
+                        val fullSegs = segFloat.toInt().coerceAtMost(totalSegs - 1)
+                        val partial = segFloat - fullSegs
+                        val reached = if (lineT >= 1f) totalSegs else fullSegs
+
+                        val path = Path()
+                        val fillPath = Path()
+                        path.moveTo(xs[0], ys[0])
+                        fillPath.moveTo(xs[0], height)
+                        fillPath.lineTo(xs[0], ys[0])
+
+                        for (i in 1..reached) {
+                            path.lineTo(xs[i], ys[i])
+                            fillPath.lineTo(xs[i], ys[i])
+                        }
+                        val endX: Float
+                        val endY: Float
+                        if (lineT < 1f) {
+                            endX = xs[fullSegs] + (xs[fullSegs + 1] - xs[fullSegs]) * partial
+                            endY = ys[fullSegs] + (ys[fullSegs + 1] - ys[fullSegs]) * partial
+                            path.lineTo(endX, endY)
+                            fillPath.lineTo(endX, endY)
+                        } else {
+                            endX = xs.last()
+                            endY = ys.last()
+                        }
+                        fillPath.lineTo(endX, height)
+                        fillPath.close()
+
+                        drawPath(fillPath, Brush.verticalGradient(listOf(Color(0xFF00C9A7).copy(alpha = 0.2f), Color.Transparent)))
+                        drawPath(path, Color(0xFF00C9A7), style = Stroke(width = 3.dp.toPx(), join = StrokeJoin.Round))
+                    }
+
+                    val n = points.size
+                    points.forEachIndexed { i, _ ->
+                        val start = if (n > 1) i.toFloat() / n else 0f
+                        val dur = 1f / n.coerceAtLeast(1)
+                        val local = ((pointsT - start) / dur).coerceIn(0f, 1f)
+                        val eased = 1f - (1f - local) * (1f - local)
+                        if (eased > 0f) {
+                            val outer = 4.dp.toPx() * eased
+                            val inner = 2.dp.toPx() * eased
+                            drawCircle(Color(0xFF00C9A7).copy(alpha = eased), outer, Offset(xs[i], ys[i]))
+                            drawCircle(Color.White.copy(alpha = eased), inner, Offset(xs[i], ys[i]))
+                        }
+                    }
+
+                    if (selectedIndex != -1) {
+                        val x = selectedIndex * spacing
+                        drawLine(Color.Gray.copy(alpha = 0.5f), Offset(x, 0f), Offset(x, height), 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f)))
+                    }
+                }
+
+                if (selectedIndex != -1 && selectedIndex < points.size) {
+                    val point = points[selectedIndex]
+                    Surface(
+                        modifier = Modifier.align(Alignment.TopCenter).padding(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        tonalElevation = 4.dp
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(point.label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            Text(metricTooltipLabel(point, metric), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
             }
         }
 
-        if (selectedIndex != -1 && selectedIndex < points.size) {
-            val p = points[selectedIndex]
-            Surface(
-                modifier = Modifier.align(Alignment.TopCenter).padding(8.dp),
-                color = MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp),
-                shape = RoundedCornerShape(8.dp),
-                tonalElevation = 4.dp
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Spacer(Modifier.width(56.dp))
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(modifier = Modifier.padding(8.dp)) {
-                    Text(p.label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                    Text("${p.maxWeight} lbs x ${p.reps}", style = MaterialTheme.typography.bodySmall)
+                xAxisLabels.forEach { label ->
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }
@@ -431,4 +511,41 @@ private fun findClosestPoint(offset: Offset, count: Int, width: Float): Int {
     if (count <= 1) return 0
     val spacing = width / (count - 1)
     return (offset.x / spacing).toInt().coerceIn(0, count - 1)
+}
+
+private fun buildYAxisLabels(min: Float, max: Float, metric: ProgressMetric): List<String> {
+    val ticks = 4
+    return (0 until ticks).map { index ->
+        val fraction = 1f - (index / (ticks - 1).toFloat())
+        val value = min + ((max - min) * fraction)
+        formatAxisValue(value, metric)
+    }
+}
+
+private fun buildXAxisLabels(points: List<ProgressPointUi>): List<String> {
+    return when (points.size) {
+        0 -> emptyList()
+        1 -> listOf(points.first().label)
+        2 -> listOf(points.first().label, points.last().label)
+        else -> listOf(points.first().label, points[points.lastIndex / 2].label, points.last().label)
+    }
+}
+
+private fun formatAxisValue(value: Float, metric: ProgressMetric): String {
+    return when (metric) {
+        ProgressMetric.ESTIMATED_1RM,
+        ProgressMetric.WEIGHT -> "${value.toInt()}"
+        ProgressMetric.VOLUME -> {
+            if (value >= 1000f) String.format(Locale.US, "%.1fk", value / 1000f)
+            else value.toInt().toString()
+        }
+    }
+}
+
+private fun metricTooltipLabel(point: ProgressPointUi, metric: ProgressMetric): String {
+    return when (metric) {
+        ProgressMetric.ESTIMATED_1RM -> "Est. 1RM ${String.format(Locale.US, "%.1f", point.estimated1RM)} lbs"
+        ProgressMetric.WEIGHT -> "${point.maxWeight} lbs x ${point.reps}"
+        ProgressMetric.VOLUME -> "Volume ${formatAxisValue(point.volume.toFloat(), ProgressMetric.VOLUME)}"
+    }
 }

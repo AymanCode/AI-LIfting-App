@@ -151,6 +151,16 @@ interface WorkoutSetDao {
         """
     )
     suspend fun getSetsSince(exerciseId: Long, sinceDate: String): List<WorkoutSet>
+
+    @Query(
+        """
+        SELECT * FROM workout_set
+        WHERE exerciseId = :exerciseId AND date >= :sinceDate
+        ORDER BY date ASC, setNumber ASC
+        """
+    )
+    fun observeSetsSince(exerciseId: Long, sinceDate: String): Flow<List<WorkoutSet>>
+
     @Query(
         """
         SELECT exerciseId, MAX(weightLbs) as maxWeight

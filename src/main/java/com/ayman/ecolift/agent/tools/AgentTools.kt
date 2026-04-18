@@ -50,6 +50,31 @@ data class WeightSuggestion(
     enum class Confidence { HIGH, MEDIUM, LOW, NO_DATA }
 }
 
+/** All exercises logged on a single date. */
+data class SessionSnapshot(
+    val date: String,
+    val exercises: List<ExerciseSnapshot>
+)
+
+/** One exercise's sets within a session. */
+data class ExerciseSnapshot(
+    val exerciseId: Long,
+    val name: String,
+    val sets: List<SetSummary>
+)
+
+/** Progress trend for an exercise across all logged history. */
+data class ProgressTrend(
+    val exerciseId: Long,
+    val name: String,
+    val sessionCount: Int,
+    val prWeightLbs: Int?,
+    val prDate: String?,
+    val est1Rm: Int?,          // Epley formula on best set
+    val deltaPercent: Float?,  // % change in est 1RM: last 30 days vs prior 30 days
+    val recentSessions: List<String> // compact "date: WxR" strings, newest first
+)
+
 /** Read-side interface for the agent. No SQL, no arithmetic — pure Kotlin results. */
 interface AgentTools {
     /** Fuzzy-match an exercise name from the catalog. Returns null if no plausible match. */
@@ -75,4 +100,10 @@ interface AgentTools {
      * by finding similar exercises and applying a transfer ratio.
      */
     suspend fun suggestTransferWeight(targetExerciseId: Long, targetReps: Int): WeightSuggestion
+
+    /** All exercises logged on [date] (ISO yyyy-MM-dd). Empty exercises list = rest day. */
+    suspend fun getSessionByDate(date: String): SessionSnapshot
+
+    /** Progress trend for [exerciseId] across all logged history. */
+    suspend fun getProgressTrend(exerciseId: Long): ProgressTrend
 }
