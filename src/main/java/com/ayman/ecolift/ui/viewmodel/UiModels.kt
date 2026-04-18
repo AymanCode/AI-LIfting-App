@@ -19,6 +19,7 @@ data class LogSetUi(
     val reps: Int?,
     val isBodyweight: Boolean,
     val completed: Boolean,
+    val restAfterSeconds: Int? = null,
 )
 
 data class LogExerciseUi(
@@ -44,7 +45,7 @@ data class LogUiState(
     val quickAddExercises: List<ExerciseChipUi> = emptyList(),
     val pendingReviews: List<PendingReview> = emptyList(),
     val reviewsExpanded: Boolean = false,
-    val restTimerSeconds: Int? = null,
+    val restStopwatchSeconds: Int? = null,
 )
 
 data class ExerciseChipUi(

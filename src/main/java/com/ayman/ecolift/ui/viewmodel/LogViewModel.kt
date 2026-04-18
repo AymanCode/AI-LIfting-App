@@ -38,8 +38,10 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private val _sessionSets = MutableStateFlow<List<WorkoutSet>>(emptyList())
     private val exerciseInput = MutableStateFlow("")
     private val reviewsExpanded = MutableStateFlow(false)
-    private val restTimerSeconds = MutableStateFlow<Int?>(null)
-    private var timerJob: kotlinx.coroutines.Job? = null
+    private val restStopwatchSeconds = MutableStateFlow<Int?>(null)
+    private val _restTimes = MutableStateFlow<Map<Long, Int>>(emptyMap())
+    private var stopwatchJob: kotlinx.coroutines.Job? = null
+    private var lastCompletedSetId: Long? = null
 
     private val _exerciseHints = MutableStateFlow<Map<Long, String?>>(emptyMap())
     private val _exercisePBs = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
@@ -89,9 +91,9 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         currentDate,
         exerciseInput,
         reviewsExpanded,
-        restTimerSeconds
-    ) { date, input, expanded, timer ->
-        UiInputs(date = date, input = input, expanded = expanded, restTimer = timer)
+        restStopwatchSeconds
+    ) { date, input, expanded, stopwatch ->
+        UiInputs(date = date, input = input, expanded = expanded, restStopwatch = stopwatch)
     }
 
     private val scheduleSnapshot = combine(workoutDays, currentDay, _sessionSets) {
@@ -132,8 +134,8 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    val uiState: StateFlow<LogUiState> = combine(uiInputs, dbSnapshot) { inputs, snapshot ->
-        buildUiState(inputs, snapshot)
+    val uiState: StateFlow<LogUiState> = combine(uiInputs, dbSnapshot, _restTimes) { inputs, snapshot, restTimes ->
+        buildUiState(inputs, snapshot, restTimes)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -269,10 +271,20 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         val newCompleted = !set.completed
 
         if (newCompleted) {
-            startRestTimer(90)
+            // Record elapsed rest for the previous completed set
+            lastCompletedSetId?.let { prevId ->
+                val elapsed = restStopwatchSeconds.value ?: 0
+                if (elapsed > 0) _restTimes.update { it + (prevId to elapsed) }
+            }
+            lastCompletedSetId = setId
+            startStopwatch()
+        } else {
+            if (lastCompletedSetId == setId) {
+                stopStopwatch()
+                lastCompletedSetId = null
+            }
         }
 
-        // Immediate UI update + background DB sync
         updateSetLocal(setId) { it.copy(completed = newCompleted) }
     }
 
@@ -289,21 +301,24 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun startRestTimer(seconds: Int) {
-        timerJob?.cancel()
-        restTimerSeconds.value = seconds
-        timerJob = viewModelScope.launch {
-            while ((restTimerSeconds.value ?: 0) > 0) {
+    private fun startStopwatch() {
+        stopwatchJob?.cancel()
+        restStopwatchSeconds.value = 0
+        stopwatchJob = viewModelScope.launch {
+            while (true) {
                 kotlinx.coroutines.delay(1000)
-                restTimerSeconds.update { (it ?: 0) - 1 }
+                restStopwatchSeconds.update { (it ?: 0) + 1 }
             }
-            restTimerSeconds.value = null
         }
     }
 
     fun cancelRestTimer() {
-        timerJob?.cancel()
-        restTimerSeconds.value = null
+        stopStopwatch()
+    }
+
+    private fun stopStopwatch() {
+        stopwatchJob?.cancel()
+        restStopwatchSeconds.value = null
     }
 
     private suspend fun addExercise(rawInput: String) {
@@ -323,7 +338,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         addSet(exercise.id)
     }
 
-    private fun buildUiState(inputs: UiInputs, snapshot: DbSnapshot): LogUiState {
+    private fun buildUiState(inputs: UiInputs, snapshot: DbSnapshot, restTimes: Map<Long, Int> = emptyMap()): LogUiState {
         val exerciseMap = snapshot.exercises.associateBy(Exercise::id)
         val suggestions = buildSuggestions(inputs.input, snapshot.exercises)
         
@@ -358,6 +373,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                             reps = set.reps,
                             isBodyweight = set.isBodyweight,
                             completed = set.completed,
+                            restAfterSeconds = restTimes[set.id],
                         )
                     },
                     estimated1RM = currentMax1RM,
@@ -413,7 +429,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             quickAddExercises = quickAdd,
             pendingReviews = snapshot.pendingReviews,
             reviewsExpanded = inputs.expanded,
-            restTimerSeconds = inputs.restTimer,
+            restStopwatchSeconds = inputs.restStopwatch,
         )
     }
 
@@ -484,7 +500,7 @@ private data class UiInputs(
     val date: String,
     val input: String,
     val expanded: Boolean,
-    val restTimer: Int?,
+    val restStopwatch: Int?,
 )
 
 private data class ScheduleSnapshot(

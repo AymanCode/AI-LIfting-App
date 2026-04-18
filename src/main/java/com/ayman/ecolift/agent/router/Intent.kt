@@ -5,7 +5,7 @@ enum class PatchType {
 }
 
 enum class ReadType {
-    AskRecommendation, AskSimilar, AskHistory
+    AskRecommendation, AskSimilar, AskHistory, QueryDate, QueryProgress
 }
 
 sealed interface Intent {

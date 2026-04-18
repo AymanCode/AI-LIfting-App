@@ -24,7 +24,9 @@ object Prompts {
         appendLine("  RenameExercise  - user wants to rename an exercise")
         appendLine("  AskRecommendation - user asks how much weight to use")
         appendLine("  AskSimilar      - user asks for similar or alternative exercises")
-        appendLine("  AskHistory      - user asks about past workouts or progress")
+        appendLine("  AskHistory      - user asks about past performance for a specific exercise (PR, last session, best set)")
+        appendLine("  QueryDate       - user asks what exercises/workout they did on a specific date or day")
+        appendLine("  QueryProgress   - user asks how an exercise is trending or improving over time")
         appendLine("  Clarify         - unclear, need more info")
         appendLine()
         if (recentContext.isNotBlank()) {

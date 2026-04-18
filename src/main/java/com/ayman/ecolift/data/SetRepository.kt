@@ -73,6 +73,9 @@ class SetRepository(private val db: AppDatabase) {
 
     fun observeExerciseProgressSummaries(): Flow<List<ExerciseProgressSummary>> = db.workoutSetDao().observeExerciseProgressSummaries()
 
+    fun observeSetsSince(exerciseId: Long, sinceDate: String): Flow<List<WorkoutSet>> =
+        db.workoutSetDao().observeSetsSince(exerciseId, sinceDate)
+
     suspend fun getVolumeHistory(exerciseId: Long, limit: Int) = db.workoutSetDao().getVolumeHistory(exerciseId, limit)
 
     suspend fun getSetsSince(exerciseId: Long, sinceDate: String) = db.workoutSetDao().getSetsSince(exerciseId, sinceDate)
