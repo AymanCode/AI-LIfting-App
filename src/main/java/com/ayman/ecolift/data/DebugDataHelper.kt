@@ -8,7 +8,7 @@ import kotlin.random.Random
 
 /**
  * Seeds realistic workout history for UI and AI debugging.
- * ADDITIVE — never deletes existing data. Safe to call multiple times (exercise inserts use IGNORE).
+ * ADDITIVE - never deletes existing data. Safe to call multiple times (exercise inserts use IGNORE).
  *
  * Generates ~20 sessions across 90 days with:
  *  - Bench Press: progressive overload trend (good for progress chart)
@@ -44,7 +44,7 @@ object DebugDataHelper {
         val pullId   = getOrCreate("Pull-ups",        "BACK · BICEPS",         true)
         val latId    = getOrCreate("Lateral Raises",  "SHOULDERS",             false)
 
-        // ── Session schedule ─────────────────────────────────────────────
+        // Session schedule
         // A sessions: Bench, OHP, Lateral Raises (push)
         // B sessions: Squat, Deadlift, Barbell Row (pull/legs)
         // Pull-ups sprinkled on both
@@ -124,7 +124,7 @@ object DebugDataHelper {
                     exerciseId = s.exId,
                     date       = date,
                     setNumber  = (idx % 4) + 1,
-                    weightLbs  = s.weight,
+                    weightLbs  = WeightLbs.fromWholePounds(s.weight),
                     reps       = s.reps,
                     isBodyweight = s.bw,
                     completed  = true

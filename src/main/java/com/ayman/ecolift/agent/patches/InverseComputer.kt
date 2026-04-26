@@ -17,7 +17,7 @@ class InverseComputer(
      * Returns the inverse of [patch]. For patches that need current DB state
      * (EditSet, DeleteSet, RenameExercise), this reads the row first.
      *
-     * @param insertedId For LogSet only — the ID of the row that was just inserted.
+     * @param insertedId For LogSet only - the ID of the row that was just inserted.
      *   Pass null for pre-read patches (the read happens inside this method).
      */
     suspend fun computeInverse(patch: DbPatch, insertedId: Long? = null): DbPatch = when (patch) {

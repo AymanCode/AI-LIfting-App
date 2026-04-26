@@ -17,11 +17,12 @@ import com.ayman.ecolift.agent.patches.AuditDao
         Cycle::class,
         PendingReview::class,
         CycleSlot::class,
+        SplitExercise::class,
         TempSessionSwap::class,
         AuditEntity::class,
         AgentTurnLog::class,
     ],
-    version = 11,
+    version = 13,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -31,6 +32,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun cycleDao(): CycleDao
     abstract fun pendingReviewDao(): PendingReviewDao
     abstract fun cycleSlotDao(): CycleSlotDao
+    abstract fun splitExerciseDao(): SplitExerciseDao
     abstract fun tempSessionSwapDao(): TempSessionSwapDao
     abstract fun auditDao(): AuditDao
     abstract fun agentTurnLogDao(): AgentTurnLogDao
@@ -40,14 +42,19 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
+                DataBackupManager.snapshotExistingDatabaseFiles(context.applicationContext)
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "ecolift.db"
                 )
                     .addMigrations(*Migrations.ALL_MIGRATIONS)
+                    // Legacy installs can still carry schemas outside the current migration chain.
+                    // Prefer a usable app over a startup crash when Room cannot migrate them.
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance
+                DataBackupManager.scheduleAutomaticBackup(context.applicationContext, instance)
                 instance
             }
         }

@@ -6,6 +6,7 @@ import com.ayman.ecolift.agent.tools.WeightSuggestion
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.data.ExerciseDao
+import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.WorkoutSetDao
 import kotlinx.coroutines.test.runTest
@@ -24,6 +25,7 @@ class AgentToolsImplTest {
     private val benchPress = Exercise(id = 1L, name = "Bench Press", isBodyweight = false)
     private val pullUp = Exercise(id = 2L, name = "Pull Up", isBodyweight = true)
     private val inclineBench = Exercise(id = 3L, name = "Incline Bench Press", isBodyweight = false)
+    private fun lbs(value: Int): Int = WeightLbs.fromWholePounds(value)!!
 
     @Before
     fun setUp() {
@@ -131,15 +133,15 @@ class AgentToolsImplTest {
     fun `suggestWeight with history returns suggestion`() = runTest {
         whenever(exerciseDao.getById(1L)).thenReturn(benchPress)
         val sets = listOf(
-            WorkoutSet(id = 1L, exerciseId = 1L, date = "2026-04-16", setNumber = 1, weightLbs = 135, reps = 10),
-            WorkoutSet(id = 2L, exerciseId = 1L, date = "2026-04-15", setNumber = 1, weightLbs = 135, reps = 10),
-            WorkoutSet(id = 3L, exerciseId = 1L, date = "2026-04-14", setNumber = 1, weightLbs = 135, reps = 10),
+            WorkoutSet(id = 1L, exerciseId = 1L, date = "2026-04-16", setNumber = 1, weightLbs = lbs(135), reps = 10),
+            WorkoutSet(id = 2L, exerciseId = 1L, date = "2026-04-15", setNumber = 1, weightLbs = lbs(135), reps = 10),
+            WorkoutSet(id = 3L, exerciseId = 1L, date = "2026-04-14", setNumber = 1, weightLbs = lbs(135), reps = 10),
         )
         whenever(setDao.getSetsSince(eq(1L), any())).thenReturn(sets)
 
         // Target 8 reps, last top set 135×10 → 10 >= 8+2 → increase to 140
         val result = tools.suggestWeight(1L, targetReps = 8)
-        assertEquals(140, result.suggestedWeightLbs)
+        assertEquals(lbs(140), result.suggestedWeightLbs)
         assertEquals(WeightSuggestion.Confidence.HIGH, result.confidence)
     }
 

@@ -1,41 +1,40 @@
 # Phase 1: DbPatch Type System and Validation
 
-## What was built
+## What Was Built
 
-1. **`DbPatch` sealed interface** (`agent/model/DbPatch.kt`) — five patch types representing all mutations the agent can propose:
-   - `LogSet` — log a new set (weighted or bodyweight)
-   - `EditSet` — partial update on an existing set
-   - `DeleteSet` — remove a set (destructive)
-   - `MoveWorkoutDay` — move a workout day to a new date
-   - `RenameExercise` — rename an exercise (destructive)
+`DbPatch` is a sealed interface that represents every database mutation the agent can propose:
 
-2. **`PatchValidator`** (`agent/patches/PatchValidator.kt`) — stateless business-rule validation:
-   - Positive IDs, valid YYYY-MM-DD dates, positive weights/reps
-   - Bodyweight consistency (no weight on bodyweight exercises)
-   - EditSet must change at least one field
-   - MoveWorkoutDay dates must differ
-   - RenameExercise name not blank, ≤100 chars
-   - `validateAll()` for batch validation (fails fast on first rejection)
+- `LogSet`
+- `EditSet`
+- `DeleteSet`
+- `MoveWorkoutDay`
+- `RenameExercise`
 
-3. **Unit tests** — 43 tests total, all passing:
-   - `DbPatchTest` (11): serialization round-trips for every patch type, destructive flag coverage, polymorphic list round-trip
-   - `PatchValidatorTest` (32): every patch type valid + every rejection path
+`PatchValidator` performs stateless business-rule validation before any patch reaches the database:
 
-## Schema adaptations from prompt
+- Positive IDs
+- Valid `YYYY-MM-DD` dates
+- Positive weights and reps
+- Bodyweight consistency
+- At least one changed field for `EditSet`
+- Different source and target dates for `MoveWorkoutDay`
+- Non-blank exercise names with length limits
+- Batch validation through `validateAll()`
 
-The prompt assumed `workoutId: Long` and `weightKg: Double`. Actual schema uses:
-- `date: String` (YYYY-MM-DD) instead of workoutId — `WorkoutDay.date` is the PK
-- `weightLbs: Int?` instead of weightKg: Double
-- No `rpe` field exists on WorkoutSet
-- `MoveWorkoutDay` operates on date strings, not numeric IDs
+## Schema Notes
 
-## Intentionally left out
+The implementation follows the app's actual Room schema:
 
-- No Room interaction — that's Phase 2 (PatchService)
-- No inverse patch computation — Phase 2
-- `PatchValidator` does not check ID existence in DB — PatchService responsibility
-- No `completed` field on EditSet — agent shouldn't toggle completion status
+- Workout days are keyed by `date: String`, not by `workoutId`.
+- Weights are stored as `weightLbs`, not kilograms.
+- `WorkoutSet` does not currently have an RPE field.
+- `MoveWorkoutDay` operates on date strings.
 
-## Side fixes
+## Tests
 
-Removed/fixed 7 pre-existing corrupted test files (content wrapped in JSON string literals) and 1 misplaced test directory (`ecolif/` typo). Fixed typo in `FuzzyMatcherTest`.
+Unit tests cover serialization, destructive flag behavior, polymorphic lists, valid patches, and rejection paths.
+
+## Deferred Work
+
+- Database existence checks belong in `PatchService`, not `PatchValidator`.
+- Room round-trip coverage should be added as instrumentation tests.

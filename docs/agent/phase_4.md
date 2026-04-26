@@ -1,45 +1,38 @@
 # Phase 4: Local GenAI Engine
 
-## What was built
+## What Was Built
 
-1. **`LocalGenAiEngine`** (`agent/engine/LocalGenAiEngine.kt`) — stable interface:
-   - `isReady: Boolean`
-   - `warmup()` — load weights on app start, not first interaction
-   - `streamText(prompt): Flow<String>` — token stream (single-item for MediaPipe)
-   - `generateStructured(prompt, schema): String` — JSON output with schema hint
-   - `AutoCloseable` — release native resources
+`LocalGenAiEngine` is the stable interface used by higher-level agent code:
 
-2. **`MediaPipeGenAiEngine`** (`agent/engine/MediaPipeGenAiEngine.kt`) — implementation backed by `com.google.mediapipe:tasks-genai:0.10.14`:
-   - Model resolution: scans 6 candidate paths in `filesDir` and `externalFilesDir`
-   - `warmup()`: runs on `Dispatchers.IO`, logs warning if model missing (doesn't crash)
-   - `streamText()`: emits full response as single Flow item (MediaPipe has no true streaming)
-   - `generateStructured()`: appends schema to prompt as plain-text instruction
-   - `close()`: calls `LlmInference.close()` and nulls the reference
+- `isReady`
+- `warmup()`
+- `streamText(prompt)`
+- `generateStructured(prompt, schema)`
+- `close()`
 
-3. **`Prompts`** (`agent/engine/Prompts.kt`) — all prompt templates in one place:
-   - `intentClassification` — 9-label enum classification
-   - `patchGeneration` — structured JSON extraction with grounded context
-   - `explanation` — one-sentence confirmation after patch apply
-   - `formatReadResult` — plain-English summary of read tool output
-   - `clarify` — generates a follow-up question
+`MediaPipeGenAiEngine` implements that interface with `com.google.mediapipe:tasks-genai`. It resolves model files from app storage, warms up on `Dispatchers.IO`, avoids crashing when no model is present, and releases native resources on close.
 
-## Why not LiteRT-LM
+`GeminiNanoEngine` provides an AICore integration point for supported devices.
 
-`com.google.ai.edge.litertlm` was not production-stable on Maven Central as of the knowledge cutoff (May 2025). `MediaPipeGenAiEngine` is explicitly marked with a `// TODO: swap to LiteRtLmEngine` comment. The interface layer means the swap requires no changes above `MediaPipeGenAiEngine`.
+`Prompts` centralizes prompt text for intent classification, patch generation, read-result formatting, explanation, and clarification flows.
 
-## Acceptance — manual QA checklist
+## Runtime Behavior
 
-Unit tests cover the interface contract and all prompt templates (112 tests total, 0 failures). Smoke test requiring a real device:
+The app should continue to work when no local model is available. Deterministic routing, read tools, patch validation, and patch application remain available. A ready model can improve formatting or future model-backed extraction.
 
-- [ ] Place `gemma_e2b.task` in `filesDir/models/`
-- [ ] Call `warmup()` from `Application.onCreate()` background coroutine
-- [ ] `isReady` is `true` before any UI interaction
-- [ ] `streamText("Say hello")` emits a non-empty string
-- [ ] `generateStructured("Extract intent", "{}")` returns a string containing `{`
-- [ ] `close()` doesn't crash; subsequent `warmup()` reinitializes correctly
+## Manual Smoke Test
 
-## Intentionally left out
+Use a real device or emulator when validating local model behavior:
 
-- Token-level streaming — not possible with MediaPipe 0.10.14
-- Play on-device AI delivery — requires Google Play distribution setup, deferred
-- Model download UI — out of scope for engine layer
+- Place a compatible model file in the expected app-accessible model directory.
+- Launch the app and open IronMind.
+- Confirm `warmup()` does not crash.
+- Confirm a simple text prompt returns a non-empty response.
+- Confirm structured generation returns JSON-like text for a schema prompt.
+- Close/reopen the screen and confirm resources can be reinitialized.
+
+## Deferred Work
+
+- Token-level streaming if the selected runtime supports it.
+- Production model delivery and download UX.
+- Broader device compatibility testing for MediaPipe and AICore paths.

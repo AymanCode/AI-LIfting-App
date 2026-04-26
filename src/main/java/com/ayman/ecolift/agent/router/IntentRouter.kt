@@ -6,9 +6,9 @@ import com.ayman.ecolift.agent.engine.Prompts
 /**
  * Two-stage intent router:
  *
- * 1. Rule-based fast path via [RuleMatcher] — zero model cost, covers ~80% of queries.
- * 2. Model fallback via [LocalGenAiEngine] — for ambiguous or novel phrasing.
- * 3. Clarify — if model output doesn't parse to a known label.
+ * 1. Rule-based fast path via [RuleMatcher] - zero model cost, covers ~80% of queries.
+ * 2. Model fallback via [LocalGenAiEngine] - for ambiguous or novel phrasing.
+ * 3. Clarify - if model output doesn't parse to a known label.
  *
  * [engine] is nullable: if null (model not ready), falls back to Clarify for
  * unmatched rules rather than blocking.
@@ -51,7 +51,7 @@ class IntentRouter(
         return RoutingResult(Intent.Clarify(question), RoutingResult.Source.FALLBACK, 0.0f)
     }
 
-    // ── Model classification ─────────────────────────────────────────
+    // Model classification
 
     private suspend fun classifyWithModel(text: String, eng: LocalGenAiEngine): Intent? {
         val prompt = Prompts.intentClassification(text)
@@ -72,7 +72,7 @@ class IntentRouter(
         }
     }
 
-    // ── Label parsing ────────────────────────────────────────────────
+    // Label parsing
 
     private fun parseLabelToIntent(label: String, rawText: String): Intent? {
         val clean = label.trim().removeSuffix(".").lowercase()

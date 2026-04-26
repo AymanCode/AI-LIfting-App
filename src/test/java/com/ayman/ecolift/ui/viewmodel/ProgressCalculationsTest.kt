@@ -1,5 +1,6 @@
 package com.ayman.ecolift.ui.viewmodel
 
+import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutSet
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -45,7 +46,7 @@ class ProgressCalculationsTest {
         assertEquals(2, points.size)
         assertEquals("Apr 10", points.first().label)
         assertEquals(1540, points.first().volume)
-        assertEquals(205, points.first().maxWeight)
+        assertEquals(WeightLbs.fromWholePounds(205), points.first().maxWeight)
     }
 
     private fun workoutSet(
@@ -59,7 +60,7 @@ class ProgressCalculationsTest {
         exerciseId = 1L,
         date = date,
         setNumber = setNumber,
-        weightLbs = weight,
+        weightLbs = WeightLbs.fromWholePounds(weight),
         reps = reps,
         isBodyweight = false,
         completed = true,

@@ -10,6 +10,7 @@ import com.ayman.ecolift.agent.tools.HistorySummary
 import com.ayman.ecolift.agent.tools.SetSummary
 import com.ayman.ecolift.agent.tools.SimilarExercise
 import com.ayman.ecolift.agent.tools.WeightSuggestion
+import com.ayman.ecolift.data.WeightLbs
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -24,6 +25,7 @@ class AgentOrchestratorTest {
 
     private val TODAY = "2026-04-16"
     private val BENCH_MATCH = ExerciseMatch(exerciseId = 1L, name = "Bench Press", isBodyweight = false, score = 0.0)
+    private fun lbs(value: Int): Int = WeightLbs.fromWholePounds(value)!!
 
     @Before
     fun setup() {
@@ -66,7 +68,7 @@ class AgentOrchestratorTest {
             verify(patchApplier).applyPatches(any(), capture(), eq(false))
             val patch = firstValue.first() as DbPatch.LogSet
             assertEquals(1, patch.setNumber)
-            assertEquals(135, patch.weightLbs)
+            assertEquals(lbs(135), patch.weightLbs)
             assertEquals(8, patch.reps)
             assertEquals(TODAY, patch.date)
         }
@@ -159,7 +161,7 @@ class AgentOrchestratorTest {
             verify(patchApplier).applyPatches(any(), capture(), eq(false))
             val patch = firstValue.first() as DbPatch.EditSet
             assertEquals(77L, patch.setId)
-            assertEquals(135, patch.weightLbs)
+            assertEquals(lbs(135), patch.weightLbs)
         }
     }
 
@@ -207,7 +209,7 @@ class AgentOrchestratorTest {
                 exerciseId     = 1L,
                 windowDays     = 30,
                 sessionCount   = 5,
-                topSetWeightLbs = 225,
+                topSetWeightLbs = lbs(225),
                 topSetReps     = 5,
                 recentSets     = emptyList()
             )
@@ -263,7 +265,7 @@ class AgentOrchestratorTest {
             WeightSuggestion(
                 exerciseId       = 1L,
                 targetReps       = 8,
-                suggestedWeightLbs = 140,
+                suggestedWeightLbs = lbs(140),
                 confidence       = WeightSuggestion.Confidence.HIGH,
                 reasoning        = "Based on last session."
             )

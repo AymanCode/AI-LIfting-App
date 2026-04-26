@@ -5,7 +5,7 @@ package com.ayman.ecolift.agent.router
  * Covers ~80% of user queries with zero model cost.
  *
  * Returns a matched [Intent] or null if no rule fires with sufficient confidence.
- * Order matters — more specific rules are checked before general ones.
+ * Order matters - more specific rules are checked before general ones.
  */
 object RuleMatcher {
 
@@ -14,27 +14,27 @@ object RuleMatcher {
     fun match(text: String): RuleMatch? {
         val t = text.trim().lowercase()
 
-        // ── DeleteSet ── (check before edit/log — "delete my last set")
+        // DeleteSet
         if (DELETE_SET.any { t.contains(it) }) {
             return RuleMatch(Intent.Write(PatchType.DeleteSet, text), 0.90f)
         }
 
-        // ── RenameExercise ──
+        // RenameExercise
         if (RENAME_EXERCISE.any { t.contains(it) }) {
             return RuleMatch(Intent.Write(PatchType.RenameExercise, text), 0.90f)
         }
 
-        // ── MoveWorkoutDay ──
+        // MoveWorkoutDay
         if (MOVE_WORKOUT.any { t.contains(it) }) {
             return RuleMatch(Intent.Write(PatchType.MoveWorkoutDay, text), 0.85f)
         }
 
-        // ── EditSet ── (check before LogSet — "fix my last set", "change that weight")
+        // EditSet
         if (EDIT_SET.any { t.contains(it) }) {
             return RuleMatch(Intent.Write(PatchType.EditSet, text), 0.85f)
         }
 
-        // ── LogSet ── (weight+reps pattern is high confidence)
+        // LogSet
         if (hasWeightAndReps(t)) {
             return RuleMatch(Intent.Write(PatchType.LogSet, text), 0.92f)
         }
@@ -42,36 +42,35 @@ object RuleMatcher {
             return RuleMatch(Intent.Write(PatchType.LogSet, text), 0.78f)
         }
 
-        // ── QueryDate — "what did I do on Tuesday" (full session for a date) ──
-        // Checked before AskHistory — more specific match wins.
+        // QueryDate
         if (QUERY_DATE.any { t.contains(it) }) {
             return RuleMatch(Intent.Read(ReadType.QueryDate, text), 0.90f)
         }
 
-        // ── QueryProgress — "how's my bench trending?" ──
+        // QueryProgress
         if (QUERY_PROGRESS.any { t.contains(it) }) {
             return RuleMatch(Intent.Read(ReadType.QueryProgress, text), 0.88f)
         }
 
-        // ── AskRecommendation ──
+        // AskRecommendation
         if (ASK_RECOMMENDATION.any { t.contains(it) }) {
             return RuleMatch(Intent.Read(ReadType.AskRecommendation, text), 0.88f)
         }
 
-        // ── AskSimilar ──
+        // AskSimilar
         if (ASK_SIMILAR.any { t.contains(it) }) {
             return RuleMatch(Intent.Read(ReadType.AskSimilar, text), 0.88f)
         }
 
-        // ── AskHistory ──
+        // AskHistory
         if (ASK_HISTORY.any { t.contains(it) }) {
             return RuleMatch(Intent.Read(ReadType.AskHistory, text), 0.85f)
         }
 
-        return null  // no rule matched → fall through to model
+        return null  // no rule matched -> fall through to model
     }
 
-    // ── Patterns ──────────────────────────────────────────────────────
+    // Patterns
 
     private val DELETE_SET = listOf(
         "delete", "remove my", "erase", "undo that set", "cancel that set",
@@ -111,14 +110,15 @@ object RuleMatcher {
         "similar to ", "swap out "
     )
 
-    // Full-session date queries — "what did I do on", "show me last Monday"
+        // AskHistory
     private val QUERY_DATE = listOf(
-        "what did i do on", "what was my workout on", "show me my workout",
+        "what did i do on", "what did i do today", "what did i do yesterday",
+        "what was my workout on", "show me my workout",
         "what did i train on", "my session on", "what exercises did i do",
-        "what did i lift on", "show workout for"
+        "what did i lift on", "show workout for", "what did i do last"
     )
 
-    // Progress trend queries — "how's my bench trending", "am I getting stronger"
+    // Progress trend queries - "how's my bench trending", "am I getting stronger"
     private val QUERY_PROGRESS = listOf(
         "how is my", "how has my", "trending", "over time",
         "progress on", "am i improving", "am i getting stronger", "my gains",
@@ -126,7 +126,7 @@ object RuleMatcher {
     )
 
     private val ASK_HISTORY = listOf(
-        "show me my", "how did i do", "my progress", "last time i",
+        "show me my", "show my", "how did i do", "my progress", "last time i",
         "when did i", "how many times", "my history", "show history",
         "what did i", "my pr", "personal record", "my best"
     )
@@ -147,7 +147,7 @@ object RuleMatcher {
     private val SET_NOTATION    = Regex("""\d+\s*x\s*\d+""")
 
     private fun hasWeightAndReps(t: String): Boolean {
-        // "NxM" alone is sufficient — first number = weight, second = reps (gym convention)
+        // "NxM" alone is sufficient - first number = weight, second = reps (gym convention)
         if (SET_NOTATION.containsMatchIn(t)) return true
         val hasWeight = WEIGHT_WITH_UNIT.containsMatchIn(t) || WEIGHT_AT_NUM.containsMatchIn(t)
         val hasReps   = REPS_EXPLICIT.containsMatchIn(t) || FOR_REPS.containsMatchIn(t)

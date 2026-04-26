@@ -3,6 +3,7 @@ package com.ayman.ecolift.data
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 @Entity(
     tableName = "temp_session_swap",
@@ -12,6 +13,7 @@ import androidx.room.PrimaryKey
         Index("targetSlotType"),
     ],
 )
+@Serializable
 data class TempSessionSwap(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val weekStartDate: String,

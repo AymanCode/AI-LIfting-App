@@ -28,6 +28,13 @@ class SetRepository(private val db: AppDatabase) {
         return newSet.copy(id = insertedId)
     }
 
+    suspend fun addSetsForExercises(date: String, exerciseIds: List<Long>) {
+        exerciseIds.forEach { exId ->
+            // Add 1 default set for each exercise
+            addSet(date, exId)
+        }
+    }
+
     suspend fun cloneDay(templateDate: String, targetDate: String) {
         val existing = db.workoutSetDao().getForDate(targetDate)
         val existingExerciseIds = existing.map { it.exerciseId }.toSet()

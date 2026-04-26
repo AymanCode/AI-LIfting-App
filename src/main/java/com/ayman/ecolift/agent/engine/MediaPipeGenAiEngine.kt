@@ -20,11 +20,7 @@ import java.io.File
  *   4. filesDir/gemma-e2b.task
  *   5. externalFilesDir/models/gemma_e2b.task
  *   6. externalFilesDir/gemma_e2b.task
- *
- * TODO: swap implementation to LiteRtLmEngine once
- *   com.google.ai.edge.litertlm is stable on Maven Central.
- *   The interface above this layer requires no changes.
- */
+ * */
 class MediaPipeGenAiEngine(
     private val context: Context,
     private val maxTokens: Int = 512,
@@ -44,7 +40,7 @@ class MediaPipeGenAiEngine(
         withContext(Dispatchers.IO) {
             val modelFile = locateModelFile()
             if (modelFile == null) {
-                Log.w(tag, "Model file not found — engine will remain unavailable. " +
+                Log.w(tag, "Model file not found; engine will remain unavailable. " +
                     "Place gemma_e2b.task in ${context.filesDir}/models/")
                 return@withContext
             }
@@ -89,12 +85,11 @@ class MediaPipeGenAiEngine(
         inference = null
         Log.i(tag, "Engine closed.")
     }
-
-    // ── Internal ─────────────────────────────────────────────────────
+    // Internal helpers
 
     private fun runInference(prompt: String): String? {
         val engine = inference ?: run {
-            Log.w(tag, "runInference called before warmup — returning null")
+            Log.w(tag, "runInference called before warmup; returning null")
             return null
         }
         return try {

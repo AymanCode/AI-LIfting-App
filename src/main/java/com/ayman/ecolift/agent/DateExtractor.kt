@@ -9,11 +9,11 @@ import java.time.temporal.TemporalAdjusters
  *
  * Handles:
  *  - Relative: "yesterday", "today"
- *  - Day names: "Monday", "last Tuesday" → most recent past occurrence
+ *  - Day names: "Monday", "last Tuesday" -> most recent past occurrence
  *  - Month + day: "April 5th", "March 12"
  *  - ISO literals: "2026-04-05"
  *
- * Pure function — no side effects, fully testable without Android.
+ * Pure function - no side effects, fully testable without Android.
  */
 object DateExtractor {
 

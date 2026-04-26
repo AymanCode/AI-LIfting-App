@@ -1,40 +1,34 @@
 # Phase 3: Read Tools and Recommendation Engine
 
-## What was built
+## What Was Built
 
-1. **`AgentTools` interface** (`agent/tools/AgentTools.kt`) — read-side contract with 6 methods: `findExercise`, `getRecentSets`, `getExerciseHistory`, `getSimilarExercises`, `suggestWeight`, `suggestTransferWeight`. Data classes: `ExerciseMatch`, `SetSummary`, `HistorySummary`, `SimilarExercise`, `WeightSuggestion`.
+`AgentTools` defines the read-side contract the assistant uses to ground answers in local workout data:
 
-2. **`WeightRecommender`** (`agent/tools/WeightRecommender.kt`) — pure Kotlin, zero DB access, zero model inference:
-   - reps ≥ target + 2 → +5 lbs
-   - reps < target → -5 lbs (floored at 5)
-   - otherwise → hold
-   - Confidence: HIGH (≥3 sessions), MEDIUM (1 session), LOW (<1), NO_DATA
+- `findExercise`
+- `getRecentSets`
+- `getExerciseHistory`
+- `getSimilarExercises`
+- `suggestWeight`
+- `suggestTransferWeight`
 
-3. **`TransferRatios`** (`agent/tools/TransferRatios.kt`) — documented ratio table between movement patterns. Symmetric (looks up reverse if direct not found). Tune over time with real data.
+`WeightRecommender` is a pure Kotlin recommendation helper. It looks at recent performance and suggests increasing, decreasing, or holding weight in 5 lb steps, with confidence levels based on available history.
 
-4. **`ExerciseEmbeddingIndex`** (`agent/tools/ExerciseEmbeddingIndex.kt`) — Phase 3 stub using `ExercisePatternMatcher` for similarity. Same-pattern = 1.0, related-pattern via TransferRatios = normalized ratio, unknown = excluded. **Replace with EmbeddingGemma vectors in Phase 4** — interface is stable.
+`TransferRatios` documents movement-pattern ratios for estimating a starting point when moving between similar exercises.
 
-5. **`AgentToolsImpl`** (`agent/tools/AgentToolsImpl.kt`) — wires the above to Room DAOs:
-   - `findExercise`: Levenshtein over all exercises, rejects if distance > max(3, queryLen/2)
-   - `getRecentSets`: delegates to `getRecentHistoryForExercise`
-   - `getExerciseHistory`: `getSetsSince`, computes distinct session count + top set
-   - `getSimilarExercises`: loads full catalog, calls `ExerciseEmbeddingIndex.findSimilar`
-   - `suggestWeight`: history → `WeightRecommender.suggest`
-   - `suggestTransferWeight`: find similar with history → apply similarity score as transfer ratio → round to nearest 5 lbs
+`ExerciseEmbeddingIndex` currently uses `ExercisePatternMatcher` as a deterministic similarity implementation. The interface is stable enough to swap in vector embeddings later.
 
-## Schema note
+`AgentToolsImpl` connects the tool interface to Room DAOs and recommendation helpers.
 
-Weight is `weightLbs: Int?` (not kg). `WeightRecommender` step size = 5 lbs. Transfer rounding also snaps to nearest 5 lbs.
+## Schema Notes
 
-## Intentionally left out
-
-- `getSimilarExercises(exerciseIdOrName: String, k)` — interface takes `exerciseId: Long` only (string lookup uses `findExercise` first). Simplifies impl.
-- Pre-computed embedding cache in Room — deferred to Phase 4 with LiteRT
-- Jaro-Winkler — existing `FuzzyMatcher` uses Levenshtein; no reason to add another distance function for Phase 3
+Weights use `weightLbs`. Recommendation steps and transfer rounding snap to 5 lb increments.
 
 ## Tests
 
-97 total across all phases, 0 failures:
-- `WeightRecommenderTest` (15): increase/decrease/hold/bodyweight/confidence/bounds
-- `ExerciseEmbeddingIndexTest` (9): ordering, exclusion, k limit, score range, empty catalog
-- `AgentToolsImplTest` (15): all 6 tool methods, fuzzy match, transfer, edge cases
+Unit tests cover recommendation rules, similarity ordering and filtering, fuzzy matching, transfer suggestions, and the main `AgentToolsImpl` methods.
+
+## Deferred Work
+
+- Pre-computed embedding storage.
+- Device-backed tests for larger catalogs and real database queries.
+- More personalized recommendation logic using longer-term progression history.

@@ -12,6 +12,7 @@ import com.ayman.ecolift.data.FuzzyMatcher
 import com.ayman.ecolift.data.PendingReview
 import com.ayman.ecolift.data.PendingReviewRepository
 import com.ayman.ecolift.data.SetRepository
+import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutDates
 import com.ayman.ecolift.data.WorkoutDay
 import com.ayman.ecolift.data.WorkoutRepository
@@ -71,13 +72,13 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             
             hints[id] = if (lastSessionSets.isNotEmpty()) {
                 val maxWeight = lastSessionSets.maxOf { it.weightLbs ?: 0 }
-                val maxLabel = if (maxWeight == 0) "BW" else "$maxWeight lbs"
+                val maxLabel = if (maxWeight == 0) "BW" else "${WeightLbs.formatStored(maxWeight)} lbs"
                 "${lastSessionSets.size} sets | Max $maxLabel"
             } else null
 
             val currentMax1RM = currentSets.filter { it.exerciseId == id }.maxOfOrNull { 
                 val reps = (it.reps ?: 0).coerceIn(0, 36)
-                if (reps == 0) 0f else (it.weightLbs ?: 0) / (1.0278f - 0.0278f * reps)
+                if (reps == 0) 0f else WeightLbs.toLbs(it.weightLbs).toFloat() / (1.0278f - 0.0278f * reps)
             } ?: 0f
 
             val allTimeMaxWeight = setRepository.getMaxWeightBeforeDate(id, date) ?: 0
@@ -187,17 +188,28 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     fun assignCycleSlot(slotId: Long) {
         viewModelScope.launch {
             val assignedDay = workoutRepository.assignCycleSlot(currentDate.value, slotId)
-            val previousOccurrence = (assignedDay.cycleSlotOccurrence ?: 1) - 1
-            if (previousOccurrence > 0) {
-                val previousDay = workoutRepository.getPreviousOccurrenceDayForSlot(
-                    date = currentDate.value,
-                    slotId = slotId,
-                    occurrence = previousOccurrence,
-                )
-                if (previousDay != null) {
-                    setRepository.cloneDay(previousDay.date, currentDate.value)
+            
+            // 1. Check if there are manually saved exercises for this split
+            val savedExercises = database.splitExerciseDao().getForSplit(slotId)
+            
+            if (savedExercises.isNotEmpty()) {
+                // Priority 1: Load from manually saved template
+                setRepository.addSetsForExercises(currentDate.value, savedExercises.map { it.exerciseId })
+            } else {
+                // Priority 2: Clone from the most recent historical occurrence
+                val previousOccurrence = (assignedDay.cycleSlotOccurrence ?: 1) - 1
+                if (previousOccurrence > 0) {
+                    val previousDay = workoutRepository.getPreviousOccurrenceDayForSlot(
+                        date = currentDate.value,
+                        slotId = slotId,
+                        occurrence = previousOccurrence,
+                    )
+                    if (previousDay != null) {
+                        setRepository.cloneDay(previousDay.date, currentDate.value)
+                    }
                 }
             }
+
             // Always refresh session sets from DB after slot assignment/cloning
             _sessionSets.value = setRepository.getSetsForDate(currentDate.value)
         }
@@ -212,7 +224,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateWeight(setId: Long, input: String) {
         updateSetLocal(setId) { set ->
-            val value = input.filter { it.isDigit() }.toIntOrNull()
+            val value = WeightLbs.parseInputToStorage(input)
             set.copy(weightLbs = value, completed = false)
         }
     }
@@ -356,7 +368,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                 // Calculate Est. 1RM: Brzycki Formula
                 val currentMax1RM = sets.maxOfOrNull { 
                     val reps = (it.reps ?: 0).coerceIn(0, 36)
-                    if (reps == 0) 0f else (it.weightLbs ?: 0) / (1.0278f - 0.0278f * reps)
+                    if (reps == 0) 0f else WeightLbs.toLbs(it.weightLbs).toFloat() / (1.0278f - 0.0278f * reps)
                 }?.toInt() ?: 0
 
                 LogExerciseUi(
@@ -443,7 +455,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         val lastSessionSets = previousSets.filter { it.date == lastDate }
         if (lastSessionSets.isEmpty()) return null
         val maxWeight = lastSessionSets.maxOf { it.weightLbs ?: 0 }
-        val maxLabel = if (maxWeight == 0) "BW" else "$maxWeight lbs"
+        val maxLabel = if (maxWeight == 0) "BW" else "${WeightLbs.formatStored(maxWeight)} lbs"
         return "${lastSessionSets.size} sets | Max $maxLabel"
     }
 

@@ -104,10 +104,52 @@ data class ProgressStatsUi(
     val workoutCountDelta: Int
 )
 
-data class SplitUiState(
-    val isActive: Boolean = false,
-    val slots: List<CycleSlotUi> = emptyList(),
+// Split tab models
+
+data class SplitExerciseRef(
+    val exerciseId: Long,
+    val displayName: String,
+    val recentMaxVolume: List<Float> = emptyList(),
 )
+
+data class Split(
+    val id: Long,
+    val name: String,
+    val exercises: List<SplitExerciseRef>,
+    val lastPerformedEpochDay: Long?,   // null = never
+    val estimatedDurationMin: Int,
+    val recentVolume: List<Float>,
+    val isSaved: Boolean = false,       // true = user explicitly saved exercise list
+)
+
+sealed interface CycleEntry {
+    val label: String
+    data class SplitDay(val splitId: Long, override val label: String) : CycleEntry
+    data class RestDay(override val label: String = "Rest") : CycleEntry
+}
+
+data class SplitCycle(
+    val enabled: Boolean,
+    val order: List<CycleEntry>,
+    val currentIndex: Int,
+)
+
+data class SplitUiState(
+    val cycle: SplitCycle = SplitCycle(false, emptyList(), 0),
+    val splits: List<Split> = emptyList(),
+) {
+    val today: Split?
+        get() {
+            if (!cycle.enabled) return null
+            val entry = cycle.order.getOrNull(cycle.currentIndex) ?: return null
+            val splitId = (entry as? CycleEntry.SplitDay)?.splitId ?: return null
+            return splits.firstOrNull { it.id == splitId }
+        }
+
+    val isRestDay: Boolean
+        get() = cycle.enabled &&
+            cycle.order.getOrNull(cycle.currentIndex) is CycleEntry.RestDay
+}
 
 fun cycleTypeLabel(type: Int): String = "Session ${type + 1}"
 

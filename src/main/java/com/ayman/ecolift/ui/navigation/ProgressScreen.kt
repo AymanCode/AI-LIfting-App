@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,17 +27,22 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.ui.viewmodel.*
 import java.util.Locale
 
 @Composable
-fun ProgressScreen(viewModel: ProgressViewModel = viewModel()) {
+fun ProgressScreen(
+    onOpenBackups: () -> Unit = {},
+    viewModel: ProgressViewModel = viewModel(),
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     AnimatedContent(
@@ -47,7 +53,8 @@ fun ProgressScreen(viewModel: ProgressViewModel = viewModel()) {
         if (selectedId == null) {
             ProgressList(
                 exercises = uiState.exercises,
-                onExerciseClick = { viewModel.selectExercise(it) }
+                onExerciseClick = { viewModel.selectExercise(it) },
+                onOpenBackups = onOpenBackups,
             )
         } else {
             ExerciseDetail(
@@ -64,7 +71,8 @@ fun ProgressScreen(viewModel: ProgressViewModel = viewModel()) {
 @Composable
 private fun ProgressList(
     exercises: List<ProgressExerciseUi>,
-    onExerciseClick: (Long) -> Unit
+    onExerciseClick: (Long) -> Unit,
+    onOpenBackups: () -> Unit,
 ) {
     var searchQuery by remember { mutableStateOf("") }
     val filteredExercises = remember(searchQuery, exercises) {
@@ -73,25 +81,66 @@ private fun ProgressList(
 
     Scaffold(
         topBar = {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text(
-                    text = "Progress",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Search exercises...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                        focusedBorderColor = MaterialTheme.colorScheme.primary
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.background,
+                shadowElevation = 0.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(top = 16.dp, bottom = 12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Progress",
+                            style = MaterialTheme.typography.headlineMedium
+                        )
+                        IconButton(
+                            onClick = onOpenBackups,
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Icon(Icons.Default.Save, contentDescription = "Open backups")
+                        }
+                    }
+                    
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "EXERCISE TRENDS AND STATS",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        style = TextStyle(
+                            fontSize = 10.sp,
+                            color = Color(0xFF6B6B70), // SplitTheme.TextTertiary
+                            fontWeight = FontWeight.W800,
+                            letterSpacing = 0.08.sp
+                        )
                     )
-                )
+
+                    Spacer(Modifier.height(16.dp))
+                    
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        placeholder = { Text("Search exercises...", fontSize = 13.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        shape = RoundedCornerShape(14.dp),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                }
             }
         },
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
@@ -534,7 +583,7 @@ private fun buildXAxisLabels(points: List<ProgressPointUi>): List<String> {
 private fun formatAxisValue(value: Float, metric: ProgressMetric): String {
     return when (metric) {
         ProgressMetric.ESTIMATED_1RM,
-        ProgressMetric.WEIGHT -> "${value.toInt()}"
+        ProgressMetric.WEIGHT -> WeightLbs.formatStored(value.toInt())
         ProgressMetric.VOLUME -> {
             if (value >= 1000f) String.format(Locale.US, "%.1fk", value / 1000f)
             else value.toInt().toString()
@@ -545,7 +594,7 @@ private fun formatAxisValue(value: Float, metric: ProgressMetric): String {
 private fun metricTooltipLabel(point: ProgressPointUi, metric: ProgressMetric): String {
     return when (metric) {
         ProgressMetric.ESTIMATED_1RM -> "Est. 1RM ${String.format(Locale.US, "%.1f", point.estimated1RM)} lbs"
-        ProgressMetric.WEIGHT -> "${point.maxWeight} lbs x ${point.reps}"
+        ProgressMetric.WEIGHT -> "${WeightLbs.formatStored(point.maxWeight)} lbs x ${point.reps}"
         ProgressMetric.VOLUME -> "Volume ${formatAxisValue(point.volume.toFloat(), ProgressMetric.VOLUME)}"
     }
 }

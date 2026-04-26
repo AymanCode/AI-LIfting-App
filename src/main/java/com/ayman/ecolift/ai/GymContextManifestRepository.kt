@@ -3,6 +3,7 @@ package com.ayman.ecolift.ai
 import android.content.Context
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.Exercise
+import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutDates
 import com.ayman.ecolift.data.WorkoutSet
 import org.json.JSONArray
@@ -144,7 +145,7 @@ class GymContextManifestRepository(
             val name = exercises[exerciseId]?.name ?: return@mapNotNull null
             JSONObject()
                 .put("exercise", name)
-                .put("recentMax", recent.last())
+                .put("recentMax", WeightLbs.toLbs(recent.last()))
                 .put("sessionsWithoutIncrease", recent.size)
         }.take(5)
     }

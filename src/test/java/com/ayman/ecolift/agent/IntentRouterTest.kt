@@ -69,7 +69,7 @@ class IntentRouterTest {
         // ── AskHistory ──
         Case("show me my bench press history", Intent.Read::class.java, readType = ReadType.AskHistory),
         Case("how did i do last monday", Intent.Read::class.java, readType = ReadType.AskHistory),
-        Case("my progress on squat", Intent.Read::class.java, readType = ReadType.AskHistory),
+        Case("my progress on squat", Intent.Read::class.java, readType = ReadType.QueryProgress),
         Case("last time i did deadlift", Intent.Read::class.java, readType = ReadType.AskHistory),
         Case("what's my personal record on bench", Intent.Read::class.java, readType = ReadType.AskHistory),
         Case("my best squat ever", Intent.Read::class.java, readType = ReadType.AskHistory),

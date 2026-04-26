@@ -4,17 +4,25 @@
 
 # Gradle
 .gradle/
+.gradle-home/
+.gradle-tmp/
 .gradle-user-home/
 build/
 *.class
+.kotlin/
 
 # Android Studio / IntelliJ
 .idea/
 *.iml
 local.properties
+.android/
+.android-adb-home/
 
 # Tools
 .tools/
+.mcp.json
+.claude/settings.local.json
+.claude/presets/
 
 # OS
 .DS_Store
@@ -23,6 +31,7 @@ Thumbs.db
 
 
 # Large model files
+*.task
 *.litertlm
 *.gguf
 *.bin

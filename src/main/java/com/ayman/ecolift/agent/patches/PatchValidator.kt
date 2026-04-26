@@ -16,7 +16,7 @@ sealed interface ValidationResult {
  * This validator catches logical issues: negative weights, blank names,
  * unparseable dates, etc.
  *
- * It does NOT verify that referenced IDs exist in the database —
+ * It does NOT verify that referenced IDs exist in the database -
  * that is PatchService's responsibility at apply-time.
  */
 class PatchValidator {
@@ -37,7 +37,7 @@ class PatchValidator {
         return ValidationResult.Ok
     }
 
-    // ── Individual validators ───────────────────────────────────────
+    // Individual validators
 
     private fun validateLogSet(p: DbPatch.LogSet): ValidationResult {
         if (p.exerciseId <= 0) return rejected("exerciseId must be positive")
@@ -88,7 +88,7 @@ class PatchValidator {
         return ValidationResult.Ok
     }
 
-    // ── Helpers ─────────────────────────────────────────────────────
+    // Helpers
 
     private fun isValidDate(date: String): Boolean = try {
         LocalDate.parse(date)

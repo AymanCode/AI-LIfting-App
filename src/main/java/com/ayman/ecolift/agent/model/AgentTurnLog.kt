@@ -4,9 +4,9 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * Persisted record of one agent turn — written after every [AgentOrchestrator.process] call.
+ * Persisted record of one agent turn - written after every [AgentOrchestrator.process] call.
  *
- * Used for the in-app debug view (Phase 8) and future analytics / A/B tuning.
+ * Used for the in-app debug view and future agent-quality analysis.
  */
 @Entity(tableName = "agent_turn_log")
 data class AgentTurnLog(

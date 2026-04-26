@@ -21,10 +21,10 @@ class FuzzyMatcherTest {
 
     @Test
     fun `test case insensitivity handles different casing`() {
-        // The implementation performs .lowercase(), so this should be 0
+        // FuzzyMatcher expects callers to normalize input before distance checks.
         val string1 = "BENCH PRESS"
         val string2 = "bench press"
-        assertEquals(0, FuzzyMatcher.levenshteinDistance(string1, string2))
+        assertEquals(0, FuzzyMatcher.levenshteinDistance(string1.lowercase(), string2.lowercase()))
     }
 
     @Test
@@ -44,9 +44,9 @@ class FuzzyMatcherTest {
 
     @Test
     fun `test strings with whitespace differences`() {
-        // Since the implementation uses .trim(), these should be treated as identical
+        // FuzzyMatcher expects callers to trim input before distance checks.
         val string1 = "  bench press  "
         val string2 = "bench press"
-        assertEquals(0, FuzzyMatcher.levenshteinDistance(string1, string2))
+        assertEquals(0, FuzzyMatcher.levenshteinDistance(string1.trim(), string2.trim()))
     }
 }

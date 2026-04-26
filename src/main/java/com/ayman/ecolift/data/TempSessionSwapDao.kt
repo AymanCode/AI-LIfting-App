@@ -2,6 +2,7 @@ package com.ayman.ecolift.data
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
@@ -9,6 +10,12 @@ import kotlinx.coroutines.flow.Flow
 interface TempSessionSwapDao {
     @Insert
     suspend fun insert(swap: TempSessionSwap): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(swaps: List<TempSessionSwap>)
+
+    @Query("SELECT * FROM temp_session_swap ORDER BY createdAt DESC")
+    suspend fun getAll(): List<TempSessionSwap>
 
     @Query(
         """

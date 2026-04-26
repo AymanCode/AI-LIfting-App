@@ -3,7 +3,7 @@ package com.ayman.ecolift.agent
 import com.ayman.ecolift.agent.model.DbPatch
 
 /**
- * Result of one orchestrator turn — consumed directly by the UI layer.
+ * Result of one orchestrator turn - consumed directly by the UI layer.
  */
 sealed interface AgentTurn {
 
@@ -20,6 +20,6 @@ sealed interface AgentTurn {
     /** Patches were successfully applied. [auditId] can be passed to undo(). */
     data class Applied(val text: String, val auditId: Long) : AgentTurn
 
-    /** Unrecoverable error — show to user and log. */
+    /** Unrecoverable error - show to user and log. */
     data class Error(val message: String) : AgentTurn
 }

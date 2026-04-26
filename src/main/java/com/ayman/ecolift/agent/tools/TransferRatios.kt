@@ -5,7 +5,7 @@ import com.ayman.ecolift.ai.MovementPattern
 /**
  * Transfer ratios between movement patterns.
  *
- * Ratio represents: targetWeight ≈ sourceWeight × ratio
+ * Ratio represents: targetWeight ~= sourceWeight x ratio
  * Values are conservative estimates based on common strength ratios.
  * Tune these over time as real user data accumulates.
  *
@@ -22,7 +22,7 @@ object TransferRatios {
         return RATIOS[source to target] ?: RATIOS[target to source]?.let { 1.0 / it }
     }
 
-    // Source → Target : ratio (targetWeight = sourceWeight × ratio)
+    // Source -> Target : ratio (targetWeight = sourceWeight x ratio)
     private val RATIOS: Map<Pair<MovementPattern, MovementPattern>, Double> = mapOf(
         // Horizontal press family
         (MovementPattern.HorizontalPress to MovementPattern.InclinePress) to 0.85,
