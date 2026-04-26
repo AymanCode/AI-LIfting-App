@@ -19,6 +19,7 @@ import com.ayman.ecolift.data.ExerciseRepository
 import com.ayman.ecolift.data.PendingReviewRepository
 import com.ayman.ecolift.data.SetRepository
 import com.ayman.ecolift.data.TempSessionSwapRepository
+import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutDates
 import com.ayman.ecolift.data.WorkoutDay
 import com.ayman.ecolift.data.WorkoutRepository
@@ -443,7 +444,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                                 orderedSets.map { set ->
                                     JSONObject()
                                         .put("setNumber", set.setNumber)
-                                        .put("weightLbs", set.weightLbs)
+                                        .put("weightLbs", WeightLbs.toLbs(set.weightLbs))
                                         .put("reps", set.reps)
                                         .put("isBodyweight", set.isBodyweight)
                                         .put("completed", set.completed)

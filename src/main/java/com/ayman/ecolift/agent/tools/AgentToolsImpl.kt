@@ -2,6 +2,7 @@ package com.ayman.ecolift.agent.tools
 
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.FuzzyMatcher
+import com.ayman.ecolift.data.WeightLbs
 import java.time.LocalDate
 
 class AgentToolsImpl(
@@ -9,7 +10,7 @@ class AgentToolsImpl(
     private val embeddingIndex: ExerciseEmbeddingIndex = ExerciseEmbeddingIndex()
 ) : AgentTools {
 
-    // ── findExercise ─────────────────────────────────────────────────
+    // findExercise
 
     override suspend fun findExercise(fuzzyName: String): ExerciseMatch? {
         val query = fuzzyName.trim().lowercase()
@@ -18,24 +19,30 @@ class AgentToolsImpl(
         val all = db.exerciseDao().getAll()
         if (all.isEmpty()) return null
 
-        // Score each exercise by Levenshtein distance; lower = better
-        val best = all.minByOrNull { exercise ->
-            FuzzyMatcher.levenshteinDistance(query, exercise.name.lowercase())
-        } ?: return null
+        fun ExerciseMatch(ex: com.ayman.ecolift.data.Exercise, score: Double) =
+            ExerciseMatch(ex.id, ex.name, ex.isBodyweight, score)
 
+        // 1. Exact substring - "bench" matches "Bench Press", "bench press" matches too
+        all.firstOrNull { it.name.lowercase().contains(query) || query.contains(it.name.lowercase()) }
+            ?.let { return ExerciseMatch(it, 0.0) }
+
+        // 2. Word-level - any significant query word (>2 chars) appears in exercise name
+        val queryWords = query.split(Regex("\\s+")).filter { it.length > 2 }
+        all.firstOrNull { ex ->
+            val exLower = ex.name.lowercase()
+            queryWords.any { qw -> exLower.contains(qw) }
+        }?.let { return ExerciseMatch(it, 1.0) }
+
+        // 3. Levenshtein fallback on full query string
+        val best = all.minByOrNull { FuzzyMatcher.levenshteinDistance(query, it.name.lowercase()) }
+            ?: return null
         val score = FuzzyMatcher.levenshteinDistance(query, best.name.lowercase()).toDouble()
-        // Reject if distance > half the query length (too dissimilar)
         if (score > (query.length / 2.0).coerceAtLeast(3.0)) return null
 
-        return ExerciseMatch(
-            exerciseId = best.id,
-            name = best.name,
-            isBodyweight = best.isBodyweight,
-            score = score
-        )
+        return ExerciseMatch(best, score)
     }
 
-    // ── getRecentSets ────────────────────────────────────────────────
+    // getRecentSets
 
     override suspend fun getRecentSets(exerciseId: Long, limit: Int): List<SetSummary> {
         val today = LocalDate.now().toString()
@@ -54,7 +61,7 @@ class AgentToolsImpl(
             }
     }
 
-    // ── getExerciseHistory ───────────────────────────────────────────
+    // getExerciseHistory
 
     override suspend fun getExerciseHistory(exerciseId: Long, windowDays: Int): HistorySummary {
         val today = LocalDate.now()
@@ -86,7 +93,7 @@ class AgentToolsImpl(
         )
     }
 
-    // ── getSimilarExercises ──────────────────────────────────────────
+    // getSimilarExercises
 
     override suspend fun getSimilarExercises(exerciseId: Long, k: Int): List<SimilarExercise> {
         val target = db.exerciseDao().getById(exerciseId) ?: return emptyList()
@@ -94,7 +101,7 @@ class AgentToolsImpl(
         return embeddingIndex.findSimilar(target, catalog, k)
     }
 
-    // ── suggestWeight ────────────────────────────────────────────────
+    // suggestWeight
 
     override suspend fun suggestWeight(exerciseId: Long, targetReps: Int): WeightSuggestion {
         val exercise = db.exerciseDao().getById(exerciseId)
@@ -102,7 +109,7 @@ class AgentToolsImpl(
         return WeightRecommender.suggest(history, targetReps, exercise?.isBodyweight ?: false)
     }
 
-    // ── suggestTransferWeight ────────────────────────────────────────
+    // suggestTransferWeight
 
     override suspend fun suggestTransferWeight(
         targetExerciseId: Long,
@@ -128,23 +135,23 @@ class AgentToolsImpl(
         )
 
         // Apply transfer ratio if available, else use raw score as proxy
-        val ratio = sourced.similarityScore  // Phase 3: similarity ≈ ratio
-        val estimated = (sourceWeight * ratio).toInt().coerceAtLeast(5)
-        // Round to nearest 5 lbs
-        val rounded = ((estimated + 2) / 5) * 5
+        val ratio = sourced.similarityScore  // Similarity score is used as a transfer ratio proxy.
+        val estimatedLbs = (WeightLbs.toLbs(sourceWeight) * ratio).toInt().coerceAtLeast(5)
+        val roundedLbs = ((estimatedLbs + 2) / 5) * 5
+        val rounded = WeightLbs.fromWholePounds(roundedLbs)
 
         return WeightSuggestion(
             exerciseId = targetExerciseId,
             targetReps = targetReps,
             suggestedWeightLbs = rounded,
             confidence = WeightSuggestion.Confidence.LOW,
-            reasoning = "Transfer from ${sourced.name} (${sourceWeight}lbs, similarity ${
+            reasoning = "Transfer from ${sourced.name} (${WeightLbs.formatStored(sourceWeight)}lbs, similarity ${
                 "%.2f".format(sourced.similarityScore)
-            }). Estimated: ${rounded}lbs for ${targetReps} reps. Log ${target.name} to calibrate."
+            }). Estimated: ${roundedLbs}lbs for ${targetReps} reps. Log ${target.name} to calibrate."
         )
     }
 
-    // ── getSessionByDate ─────────────────────────────────────────────
+    // getSessionByDate
 
     override suspend fun getSessionByDate(date: String): SessionSnapshot {
         val sets = db.workoutSetDao().getForDate(date)
@@ -164,14 +171,14 @@ class AgentToolsImpl(
         return SessionSnapshot(date = date, exercises = snapshots)
     }
 
-    // ── getProgressTrend ─────────────────────────────────────────────
+    // getProgressTrend
 
     override suspend fun getProgressTrend(exerciseId: Long): ProgressTrend {
         val today = LocalDate.now()
         val exercise = db.exerciseDao().getById(exerciseId)
         val sets = db.workoutSetDao().getRecentHistoryForExercise(exerciseId, today.toString())
 
-        fun epley(w: Int, r: Int): Float = w * (1f + r / 30f)
+        fun epley(w: Int, r: Int): Float = WeightLbs.toLbs(w).toFloat() * (1f + r / 30f)
 
         val cutoff30 = today.minusDays(30).toString()
         val cutoff60 = today.minusDays(60).toString()
@@ -197,7 +204,7 @@ class AgentToolsImpl(
             .take(5)
             .map { (date, setsForDate) ->
                 val top = setsForDate.maxByOrNull { it.weightLbs ?: 0 }
-                "$date: ${top?.weightLbs ?: "bw"}×${top?.reps ?: 0}"
+                "$date: ${top?.weightLbs?.let(WeightLbs::formatStored) ?: "bw"}x${top?.reps ?: 0}"
             }
 
         return ProgressTrend(

@@ -5,6 +5,7 @@ import com.ayman.ecolift.data.ExerciseRepository
 import com.ayman.ecolift.data.FuzzyMatcher
 import com.ayman.ecolift.data.SetRepository
 import com.ayman.ecolift.data.TempSessionSwapRepository
+import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutDates
 import com.ayman.ecolift.data.WorkoutRepository
 import com.ayman.ecolift.data.WorkoutSet
@@ -111,7 +112,7 @@ class AiToolExecutor(
 
         val target = chooseTargetSet(matchingSets, field, toolCall.setSelector)
         val updated = when (field) {
-            "weight", "weight_lbs" -> target.copy(weightLbs = newValue.coerceAtLeast(0))
+            "weight", "weight_lbs" -> target.copy(weightLbs = WeightLbs.fromWholePounds(newValue.coerceAtLeast(0)))
             "reps" -> target.copy(reps = newValue.coerceAtLeast(0))
             else -> {
                 return AiExecutionResult(
@@ -124,7 +125,7 @@ class AiToolExecutor(
         setRepository.updateSet(updated)
         val detail = when (field) {
             "reps" -> "Updated ${exercise.name} set ${target.setNumber} on $date to ${updated.reps} reps."
-            else -> "Updated ${exercise.name} set ${target.setNumber} on $date to ${updated.weightLbs} lbs."
+            else -> "Updated ${exercise.name} set ${target.setNumber} on $date to ${WeightLbs.formatStored(updated.weightLbs)} lbs."
         }
         return AiExecutionResult(
             title = "Historical log updated",
@@ -436,6 +437,7 @@ class AiToolExecutor(
             return setRepository.getMaxWeightsForExercises(listOf(explicitExercise.id))
                 .firstOrNull()
                 ?.maxWeight
+                ?.let { WeightLbs.toLbs(it).toInt() }
         }
 
         val targetPattern = ExercisePatternMatcher.classify(machineName)
@@ -457,7 +459,7 @@ class AiToolExecutor(
         return matchingExercises
             .mapNotNull { (exercise, score) ->
                 val maxWeight = maxWeightsById[exercise.id]?.maxWeight ?: return@mapNotNull null
-                Triple(score, maxWeight, exercise.id)
+                Triple(score, WeightLbs.toLbs(maxWeight).toInt(), exercise.id)
             }
             .maxWithOrNull(
                 compareBy<Triple<Int, Int, Long>> { it.first }

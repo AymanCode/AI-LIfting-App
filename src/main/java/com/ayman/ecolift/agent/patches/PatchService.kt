@@ -27,10 +27,10 @@ interface PatchApplier {
 /**
  * Single entry point for all agent-proposed mutations.
  *
- * Flow: validate → open transaction → (read pre-state → compute inverse → apply) per patch
- *       → write audit → commit. On any exception the transaction rolls back automatically.
+ * Flow: validate -> open transaction -> (read pre-state -> compute inverse -> apply) per patch
+ *       -> write audit -> commit. On any exception the transaction rolls back automatically.
  *
- * [transactionRunner] is injectable for testing — production code passes [roomTransactionRunner].
+ * [transactionRunner] is injectable for testing - production code passes [roomTransactionRunner].
  */
 class PatchService(
     private val db: AppDatabase,
@@ -47,7 +47,7 @@ class PatchService(
         patches: List<DbPatch>,
         userConfirmed: Boolean
     ): PatchResult {
-        // 1. Validate all patches up front — no DB access yet
+        // 1. Validate all patches up front - no DB access yet
         val validation = validator.validateAll(patches)
         if (validation is ValidationResult.Rejected) {
             return PatchResult.Rejected(validation.reason)
@@ -104,7 +104,7 @@ class PatchService(
         )
     }
 
-    // ── Per-patch application ────────────────────────────────────────
+    // Per-patch application
 
     /** Applies a single patch via the appropriate DAO. Returns inserted row ID for LogSet, null otherwise. */
     private suspend fun applyPatch(patch: DbPatch): Long? {
@@ -164,19 +164,19 @@ class PatchService(
     }
 }
 
-// ── TransactionRunner ────────────────────────────────────────────────
+// TransactionRunner
 
 /** Abstraction over Room's withTransaction so PatchService is testable without a real DB. */
 interface TransactionRunner {
     suspend fun <T> run(block: suspend () -> T): T
 }
 
-/** Production runner — delegates to Room's withTransaction for full rollback-on-exception. */
+/** Production runner - delegates to Room's withTransaction for full rollback-on-exception. */
 fun roomTransactionRunner(db: AppDatabase): TransactionRunner = object : TransactionRunner {
     override suspend fun <T> run(block: suspend () -> T): T = db.withTransaction { block() }
 }
 
-/** Test runner — executes block directly, no transaction wrapper needed for mock DBs. */
+/** Test runner - executes block directly, no transaction wrapper needed for mock DBs. */
 fun noOpTransactionRunner(): TransactionRunner = object : TransactionRunner {
     override suspend fun <T> run(block: suspend () -> T): T = block()
 }

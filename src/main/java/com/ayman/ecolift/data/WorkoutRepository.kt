@@ -14,14 +14,41 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     suspend fun getCycleSlots(): List<CycleSlot> = db.cycleSlotDao().getAll()
 
-    suspend fun addCycleSlot(name: String) {
-        db.cycleSlotDao().upsert(CycleSlot(name = name))
+    suspend fun addCycleSlot(name: String): Long {
+        val nextOrder = db.cycleSlotDao().getMaxOrderIndex() + 1
+        val id = db.cycleSlotDao().upsert(CycleSlot(name = name, orderIndex = nextOrder))
         syncCycleSlotCount()
+        return id
     }
 
     suspend fun deleteCycleSlot(id: Long) {
         db.cycleSlotDao().delete(id)
         syncCycleSlotCount()
+    }
+
+    suspend fun renameCycleSlot(id: Long, name: String) {
+        db.cycleSlotDao().updateName(id, name)
+    }
+
+    suspend fun reorderCycleSlots(idsInOrder: List<Long>) {
+        db.cycleSlotDao().applyOrder(idsInOrder)
+    }
+
+    fun observeSplitExercises(splitId: Long) =
+        db.splitExerciseDao().observeForSplit(splitId)
+
+    fun observeAllSplitExercises() = db.splitExerciseDao().observeAll()
+
+    suspend fun saveSplitFromDate(splitId: Long, date: String) {
+        val sets = db.workoutSetDao().getForDate(date)
+        val orderedIds = sets.sortedBy { it.setNumber }
+            .map { it.exerciseId }
+            .distinct()
+        db.splitExerciseDao().replaceForSplit(splitId, orderedIds)
+    }
+
+    suspend fun clearSplitExercises(splitId: Long) {
+        db.splitExerciseDao().deleteForSplit(splitId)
     }
 
     suspend fun getCycle(): Cycle = db.cycleDao().getCycle() ?: Cycle()

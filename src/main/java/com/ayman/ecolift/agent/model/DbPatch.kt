@@ -30,7 +30,7 @@ sealed interface DbPatch {
         val restTimeSeconds: Int? = null
     ) : DbPatch
 
-    /** Delete a set by ID. Destructive — requires user confirmation. */
+    /** Delete a set by ID. Destructive - requires user confirmation. */
     @Serializable
     data class DeleteSet(val setId: Long) : DbPatch
 
@@ -41,7 +41,7 @@ sealed interface DbPatch {
         val newDate: String         // "YYYY-MM-DD"
     ) : DbPatch
 
-    /** Rename an exercise. Destructive — requires user confirmation. */
+    /** Rename an exercise. Destructive - requires user confirmation. */
     @Serializable
     data class RenameExercise(
         val exerciseId: Long,

@@ -96,6 +96,35 @@ object Migrations {
         }
     }
 
+    val MIGRATION_11_12 = object : Migration(11, 12) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE cycle_slot ADD COLUMN orderIndex INTEGER NOT NULL DEFAULT 0")
+            // Seed orderIndex = rowid ordering so existing slots keep their current display order
+            db.execSQL("UPDATE cycle_slot SET orderIndex = id")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `split_exercise` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `splitId` INTEGER NOT NULL,
+                    `exerciseId` INTEGER NOT NULL,
+                    `orderIndex` INTEGER NOT NULL,
+                    FOREIGN KEY(`splitId`) REFERENCES `cycle_slot`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                    FOREIGN KEY(`exerciseId`) REFERENCES `exercise`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_split_exercise_splitId` ON `split_exercise` (`splitId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_split_exercise_exerciseId` ON `split_exercise` (`exerciseId`)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_split_exercise_splitId_exerciseId` ON `split_exercise` (`splitId`, `exerciseId`)")
+        }
+    }
+
+    val MIGRATION_12_13 = object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("UPDATE workout_set SET weightLbs = weightLbs * 10 WHERE weightLbs IS NOT NULL")
+        }
+    }
+
     val ALL_MIGRATIONS = arrayOf(
         MIGRATION_3_4,
         MIGRATION_4_5,
@@ -105,5 +134,7 @@ object Migrations {
         MIGRATION_8_9,
         MIGRATION_9_10,
         MIGRATION_10_11,
+        MIGRATION_11_12,
+        MIGRATION_12_13,
     )
 }

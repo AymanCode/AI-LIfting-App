@@ -1,20 +1,20 @@
 package com.ayman.ecolift.agent.tools
 
+import com.ayman.ecolift.data.WeightLbs
+
 /**
- * Pure Kotlin weight recommendation logic. No model, no DB — takes history as input.
+ * Pure Kotlin weight recommendation logic. No model, no DB - takes history as input.
  *
  * Rules (all weights in lbs):
- *   - No history → NO_DATA
- *   - Bodyweight exercise → null weight, MEDIUM confidence
- *   - Last top set reps ≥ targetReps + 2 → increase by STEP_LBS
- *   - Last top set reps < targetReps     → decrease by STEP_LBS
- *   - Otherwise                          → hold current weight
- *
- * "Top set" = set with the highest weight on the most recent session.
+ *   - No history -> NO_DATA
+ *   - Bodyweight exercise -> null weight, MEDIUM confidence
+ *   - Last top set reps >= targetReps + 2 -> increase by 5 lbs
+ *   - Last top set reps < targetReps      -> decrease by 5 lbs
+ *   - Otherwise                           -> hold current weight
  */
 object WeightRecommender {
 
-    private const val STEP_LBS = 5  // standard small plate increment
+    private val stepStorage = WeightLbs.fromWholePounds(5) ?: 50
 
     fun suggest(
         history: HistorySummary,
@@ -27,7 +27,7 @@ object WeightRecommender {
                 targetReps = targetReps,
                 suggestedWeightLbs = null,
                 confidence = WeightSuggestion.Confidence.MEDIUM,
-                reasoning = "Bodyweight exercise — no load to suggest."
+                reasoning = "Bodyweight exercise - no load to suggest."
             )
         }
 
@@ -46,19 +46,16 @@ object WeightRecommender {
 
         val (suggested, reasoning) = when {
             topReps >= targetReps + 2 ->
-                topWeight + STEP_LBS to
-                    "Last top set: ${topWeight}lbs × ${topReps} reps. " +
-                    "Reps ≥ target + 2 → increase by ${STEP_LBS}lbs."
+                topWeight + stepStorage to
+                    "Last top set: ${WeightLbs.formatStored(topWeight)}lbs x $topReps reps. Reps >= target + 2 -> increase by 5lbs."
 
             topReps < targetReps ->
-                maxOf(topWeight - STEP_LBS, STEP_LBS) to
-                    "Last top set: ${topWeight}lbs × ${topReps} reps. " +
-                    "Reps < target → decrease by ${STEP_LBS}lbs."
+                maxOf(topWeight - stepStorage, stepStorage) to
+                    "Last top set: ${WeightLbs.formatStored(topWeight)}lbs x $topReps reps. Reps < target -> decrease by 5lbs."
 
             else ->
                 topWeight to
-                    "Last top set: ${topWeight}lbs × ${topReps} reps. " +
-                    "On target — hold weight."
+                    "Last top set: ${WeightLbs.formatStored(topWeight)}lbs x $topReps reps. On target - hold weight."
         }
 
         val confidence = when {

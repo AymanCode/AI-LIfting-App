@@ -2,6 +2,7 @@ package com.ayman.ecolift.data
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
@@ -11,6 +12,9 @@ interface WorkoutSetDao {
     @Insert
     suspend fun insert(set: WorkoutSet): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(sets: List<WorkoutSet>)
+
     @androidx.room.Upsert
     suspend fun upsert(set: WorkoutSet): Long
 
@@ -19,6 +23,9 @@ interface WorkoutSetDao {
 
     @Query("DELETE FROM workout_set WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("SELECT DISTINCT date FROM workout_set ORDER BY date DESC")
+    fun observeAllDistinctDates(): Flow<List<String>>
 
     @Query("SELECT * FROM workout_set")
     suspend fun getAll(): List<WorkoutSet>
@@ -84,7 +91,7 @@ interface WorkoutSetDao {
 
     @Query(
         """
-        SELECT date, SUM(weightLbs * reps) as volume
+        SELECT date, CAST(ROUND(SUM(COALESCE(weightLbs, 0) * COALESCE(reps, 0)) / 10.0) AS INTEGER) as volume
         FROM workout_set
         WHERE exerciseId = :exerciseId
         GROUP BY date
@@ -96,7 +103,7 @@ interface WorkoutSetDao {
 
     @Query(
         """
-        SELECT exerciseId, SUM(weightLbs * reps) as volume
+        SELECT exerciseId, CAST(ROUND(SUM(COALESCE(weightLbs, 0) * COALESCE(reps, 0)) / 10.0) AS INTEGER) as volume
         FROM workout_set
         WHERE date >= :sinceDate
         GROUP BY exerciseId

@@ -7,29 +7,31 @@ import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 
 @Entity(
-    tableName = "workout_set",
+    tableName = "split_exercise",
     foreignKeys = [
+        ForeignKey(
+            entity = CycleSlot::class,
+            parentColumns = ["id"],
+            childColumns = ["splitId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
         ForeignKey(
             entity = Exercise::class,
             parentColumns = ["id"],
             childColumns = ["exerciseId"],
-            onDelete = ForeignKey.CASCADE
-        )
+            onDelete = ForeignKey.CASCADE,
+        ),
     ],
     indices = [
+        Index("splitId"),
         Index("exerciseId"),
-        Index("date"),
-    ]
+        Index(value = ["splitId", "exerciseId"], unique = true),
+    ],
 )
 @Serializable
-data class WorkoutSet(
+data class SplitExercise(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val splitId: Long,
     val exerciseId: Long,
-    val date: String,
-    val setNumber: Int,
-    val weightLbs: Int? = null,
-    val reps: Int? = null,
-    val isBodyweight: Boolean = false,
-    val completed: Boolean = false,
-    val restTimeSeconds: Int? = null, // Track how long you rested BEFORE this set
+    val orderIndex: Int = 0,
 )

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.ExerciseRepository
 import com.ayman.ecolift.data.SetRepository
+import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutDates
 import com.ayman.ecolift.data.WorkoutSet
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -66,7 +67,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                         name = summary.exerciseName,
                         sessions = summary.sessionCount,
                         lastSessionDate = WorkoutDates.formatAxis(summary.lastSessionDate),
-                        lastSessionSummary = if (lastSet != null) "${lastSet.weightLbs ?: 0} x ${lastSet.reps ?: 0}" else "No sets",
+                        lastSessionSummary = if (lastSet != null) "${WeightLbs.formatStored(lastSet.weightLbs)} x ${lastSet.reps ?: 0}" else "No sets",
                         changePercentage = change * 100,
                         trend = trend
                     )
@@ -225,7 +226,7 @@ internal fun buildProgressStats(
     val prev30WorkoutCount = prev30Sets.map(WorkoutSet::date).distinct().size
 
     return ProgressStatsUi(
-        currentPr = "$currentPr",
+        currentPr = WeightLbs.formatStored(currentPr),
         currentPrDelta = percentageDelta(currentPr.toFloat(), prevPr.toFloat()),
         est1Rm = String.format(Locale.US, "%.1f", current1RM),
         est1RmDelta = percentageDelta(current1RM, prev1RM),
@@ -258,8 +259,9 @@ private fun latestEstimatedOneRepMax(
 }
 
 private fun calc1RM(weight: Int, reps: Int, isBodyweight: Boolean, userBodyWeight: Int): Float {
-    val adjustedWeight = if (isBodyweight) weight + userBodyWeight else weight
-    return adjustedWeight * (1 + reps / 30f)
+    val baseWeight = WeightLbs.toLbs(weight)
+    val adjustedWeight = if (isBodyweight) baseWeight + userBodyWeight else baseWeight
+    return (adjustedWeight * (1 + reps / 30f)).toFloat()
 }
 
 private fun calculateSessionVolume(
@@ -268,10 +270,10 @@ private fun calculateSessionVolume(
     userBodyWeight: Int,
 ): Int {
     return sets.sumOf {
-        val weight = it.weightLbs ?: 0
+        val weight = WeightLbs.toLbs(it.weightLbs)
         val reps = it.reps ?: 0
         val effectiveWeight = if (isBodyweight) weight + userBodyWeight else weight
-        effectiveWeight * reps
+        (effectiveWeight * reps).toInt()
     }
 }
 

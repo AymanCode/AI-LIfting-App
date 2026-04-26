@@ -100,6 +100,7 @@ import com.ayman.ecolift.ui.theme.TextInactive
 import com.ayman.ecolift.ui.theme.TextMuted
 import com.ayman.ecolift.ui.theme.TextPrimary
 import com.ayman.ecolift.ui.theme.TextSecondary
+import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.ui.viewmodel.CycleSlotUi
 import com.ayman.ecolift.ui.viewmodel.ExerciseChipUi
 import com.ayman.ecolift.ui.viewmodel.LogExerciseUi
@@ -112,7 +113,7 @@ fun TodayScreen(viewModel: LogViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
-    // Scroll to newly added exercise card
+// Exercise card
     LaunchedEffect(uiState.exercises.size) {
         if (uiState.exercises.isNotEmpty()) {
             val cycleOffset = if (uiState.cycleEnabled && uiState.cycleSlot == null) 1 else 0
@@ -124,7 +125,7 @@ fun TodayScreen(viewModel: LogViewModel = viewModel()) {
         modifier = Modifier
             .fillMaxSize()
     ) {
-        // ── Main Content ─────────────────────────────────────────────────────
+        // Main content
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -207,7 +208,7 @@ fun TodayScreen(viewModel: LogViewModel = viewModel()) {
             }
         }
 
-        // ── Floating Rest Timer ──────────────────────────────────────────────
+        // Floating rest timer
         uiState.restStopwatchSeconds?.let { seconds ->
             RestTimerOverlay(
                 seconds = seconds,
@@ -267,7 +268,7 @@ private fun RestTimerOverlay(
     }
 }
 
-// ── Date header ───────────────────────────────────────────────────────────────
+// Date header
 
 @Composable
 private fun DateHeader(
@@ -321,7 +322,7 @@ private fun DateHeader(
     }
 }
 
-// ── Pinned search / add bar ───────────────────────────────────────────────────
+// Pinned search and add bar
 
 @Composable
 private fun AddExerciseBar(
@@ -392,7 +393,7 @@ private fun AddExerciseBar(
     }
 }
 
-// ── Cycle slot picker ─────────────────────────────────────────────────────────
+// Cycle slot picker
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -468,7 +469,7 @@ private fun CyclePickerCard(
     }
 }
 
-// ── Exercise card ─────────────────────────────────────────────────────────────
+// Exercise card
 
 @Composable
 private fun ExerciseCard(
@@ -624,7 +625,7 @@ private fun HeaderCell(text: String, modifier: Modifier) {
     )
 }
 
-// ── Set row ───────────────────────────────────────────────────────────────────
+// Set row
 
 @Composable
 private fun SetRow(
@@ -669,19 +670,20 @@ private fun SetRow(
 
         val weightDisplay = when {
             set.isBodyweight && (set.weightLbs ?: 0) == 0 -> "BW"
-            set.isBodyweight -> "BW+${set.weightLbs ?: 0}"
+            set.isBodyweight -> "BW+${WeightLbs.formatStored(set.weightLbs)}"
             (set.weightLbs ?: 0) == 0 -> ""
-            else -> set.weightLbs.toString()
+            else -> WeightLbs.formatStored(set.weightLbs)
         }
         NumberInputBox(
             modifier = Modifier.weight(2.2f),
             displayValue = weightDisplay,
             editable = !set.isBodyweight,
             onValueChange = onWeightChange,
-            onDecrease = { onWeightStep(-5) },
-            onIncrease = { onWeightStep(5) },
-            onLongDecrease = { onWeightStep(-25) },
-            onLongIncrease = { onWeightStep(25) },
+            onDecrease = { onWeightStep(-50) },
+            onIncrease = { onWeightStep(50) },
+            onLongDecrease = { onWeightStep(-250) },
+            onLongIncrease = { onWeightStep(250) },
+            keyboardType = KeyboardType.Decimal,
         )
 
         NumberInputBox(
@@ -737,7 +739,7 @@ private fun SetRow(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "×",
+                text = "x",
                 color = TextSecondary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
@@ -746,7 +748,7 @@ private fun SetRow(
     }
 }
 
-// ── Number input — clears on first focus so user can just type ────────────────
+// Number input
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -759,8 +761,14 @@ private fun NumberInputBox(
     onIncrease: () -> Unit,
     onLongDecrease: () -> Unit,
     onLongIncrease: () -> Unit,
+    keyboardType: KeyboardType = KeyboardType.Number,
 ) {
     var hasFocused by remember { mutableStateOf(false) }
+    var draftText by remember(displayValue) { mutableStateOf(displayValue) }
+
+    LaunchedEffect(displayValue) {
+        draftText = displayValue
+    }
 
     Row(
         modifier = modifier
@@ -786,9 +794,12 @@ private fun NumberInputBox(
         
         if (editable) {
             BasicTextField(
-                value = displayValue,
-                onValueChange = onValueChange,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                value = draftText,
+                onValueChange = {
+                    draftText = it
+                    onValueChange(it)
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
                 textStyle = TextStyle(
                     textAlign = TextAlign.Center,
                     fontWeight = FontWeight.W800,
@@ -801,7 +812,13 @@ private fun NumberInputBox(
                     .onFocusChanged { focusState ->
                         if (focusState.isFocused && !hasFocused) {
                             hasFocused = true
-                            if (displayValue == "0" || displayValue == "") onValueChange("")
+                            if (draftText == "0" || draftText.isEmpty()) {
+                                draftText = ""
+                                onValueChange("")
+                            }
+                        }
+                        if (!focusState.isFocused) {
+                            draftText = displayValue
                         }
                     },
                 singleLine = true,
@@ -831,7 +848,7 @@ private fun NumberInputBox(
     }
 }
 
-// ── Rest time indicator (shown between sets after completing one) ─────────────
+// Rest time indicator
 
 @Composable
 private fun RestTimeIndicator(seconds: Int) {
@@ -858,7 +875,7 @@ private fun RestTimeIndicator(seconds: Int) {
     }
 }
 
-// ── Tactile checkmark button ──────────────────────────────────────────────────
+// Tactile checkmark button
 
 @Composable
 private fun TactileCheckButton(isCompleted: Boolean, onToggle: () -> Unit) {
@@ -898,7 +915,7 @@ private fun TactileCheckButton(isCompleted: Boolean, onToggle: () -> Unit) {
     }
 }
 
-// ── Small BW toggle pill ──────────────────────────────────────────────────────
+// Small bodyweight toggle
 
 @Composable
 private fun SmallToggle(

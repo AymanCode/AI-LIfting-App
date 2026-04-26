@@ -15,19 +15,20 @@ import com.ayman.ecolift.agent.tools.HistorySummary
 import com.ayman.ecolift.agent.tools.ProgressTrend
 import com.ayman.ecolift.agent.tools.SessionSnapshot
 import com.ayman.ecolift.agent.tools.WeightSuggestion
+import com.ayman.ecolift.data.WeightLbs
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 
 /**
- * Phase 6 — single entry point from the UI into the agent layer.
+ * Single entry point from the UI into the IronMind agent layer.
  *
- * Flow:
- *   process(text) → route intent → ground via AgentTools → build patch → confirm gate → apply
+ * Flow: route intent, ground against local workout data, build a typed patch,
+ * require confirmation when needed, then apply through the patch service.
  *
- * [today] is injectable so tests can control date-sensitive behaviour.
- * [engine] is nullable — if null, read results use static formatting only.
+ * [today] is injectable so tests can control date-sensitive behavior.
+ * [engine] is optional; when absent, read results use deterministic formatting.
  */
 class AgentOrchestrator(
     private val router: IntentRouter,
@@ -54,7 +55,7 @@ class AgentOrchestrator(
     suspend fun confirm(requestId: String, patches: List<DbPatch>): AgentTurn {
         return when (val r = patchApplier.applyPatches(requestId, patches, userConfirmed = true)) {
             is PatchResult.Applied  -> AgentTurn.Applied(
-                text    = "Done — ${r.patchCount} change(s) applied.",
+                text    = "Done - ${r.patchCount} change(s) applied.",
                 auditId = r.auditId
             )
             is PatchResult.Rejected -> AgentTurn.Error(r.reason)
@@ -74,7 +75,7 @@ class AgentOrchestrator(
         }
     }
 
-    // ── Write handling ─────────────────────────────────────────────────
+    // Write handling
 
     private suspend fun handleWrite(intent: Intent.Write, userText: String): AgentTurn {
         val patch = generatePatch(intent, userText)
@@ -84,7 +85,7 @@ class AgentOrchestrator(
 
         val requestId = UUID.randomUUID().toString()
 
-        // Gate destructive patches on explicit user confirmation
+        // Gate destructive patches on explicit user confirmation.
         if (DbPatch.isDestructive(patch)) {
             return AgentTurn.NeedsConfirmation(
                 summary   = "Are you sure you want to ${describePatch(patch)}?",
@@ -100,7 +101,7 @@ class AgentOrchestrator(
         }
     }
 
-    // ── Read handling ──────────────────────────────────────────────────
+    // Read handling
 
     private suspend fun handleRead(intent: Intent.Read, userText: String): AgentTurn {
         val text = when (intent.queryType) {
@@ -137,7 +138,7 @@ class AgentOrchestrator(
             }
         }
 
-        // Optionally polish with model
+        // Let a ready local model polish read-only responses; deterministic text is the fallback.
         val final = if (engine?.isReady == true && text.isNotBlank()) {
             try {
                 engine.generateStructured(
@@ -154,7 +155,7 @@ class AgentOrchestrator(
         return AgentTurn.TextResponse(final)
     }
 
-    // ── Patch generation ───────────────────────────────────────────────
+    // Patch generation
 
     private suspend fun generatePatch(intent: Intent.Write, userText: String): DbPatch? =
         when (intent.patchType) {
@@ -209,14 +210,13 @@ class AgentOrchestrator(
         return DbPatch.RenameExercise(exerciseId = ex.exerciseId, newName = newName)
     }
 
-    // ── Extraction helpers ─────────────────────────────────────────────
+    // Extraction helpers
 
     private suspend fun extractAndFindExercise(text: String): ExerciseMatch? {
-        // Strip numbers, units, and common filler words to isolate exercise name
         val candidate = text
             .replace(Regex("""\d+\s*(?:lbs?|kg|pounds?|kilos?|reps?|sets?)?"""), " ")
             .replace(
-                Regex("""(?i)\b(and|the|a|an|at|for|my|last|that|this|to|from|is|was|i|it|x|did|just|finished|add|log|logged|record|delete|remove|erase|get|rid|of|fix|correct|update|edit|change|rename|call|move|reschedule|shift|postpone|wrong|actually|meant)\b"""),
+                Regex("""(?i)\b(show|me|history|progress|trend|trending|how|what|tell|see|view|check|recent|session|sessions|times|trained|worked|hit|doing|been|have|all|much|improving|am|getting|stronger|and|the|a|an|at|for|my|last|that|this|to|from|is|was|i|it|x|did|just|finished|add|log|logged|record|delete|remove|erase|get|rid|of|fix|correct|update|edit|change|rename|call|move|reschedule|shift|postpone|wrong|actually|meant|on|over|time|past|weeks?|months?|days?|today|yesterday)\b"""),
                 " "
             )
             .replace(Regex("""\s+"""), " ")
@@ -231,22 +231,31 @@ class AgentOrchestrator(
     private fun extractWeightAndReps(text: String): Pair<Int?, Int?>? {
         val t = text.lowercase()
 
-        // "NxM" — if first number > 20 it's weight×reps; otherwise sets×reps (weight unknown)
-        val setNotation = Regex("""(\d+)\s*x\s*(\d+)""").find(t)
+        // "NxM": if the first number is greater than 20, treat it as weight x reps; otherwise sets x reps.
+        val setNotation = Regex("""(\d+(?:\.\d+)?)\s*x\s*(\d+)""").find(t)
         if (setNotation != null) {
-            val a = setNotation.groupValues[1].toInt()
+            val aRaw = setNotation.groupValues[1]
+            val a = aRaw.toDoubleOrNull() ?: return null
             val b = setNotation.groupValues[2].toInt()
-            return if (a > 20) Pair(a, b) else Pair(null, b)
+            return if (a > 20) Pair(WeightLbs.parseInputToStorage(aRaw), b) else Pair(null, b)
         }
 
-        val weight = Regex("""(\d+)\s*(?:lbs?|kg|pounds?)""").find(t)?.groupValues?.get(1)?.toIntOrNull()
+        val weight = Regex("""(\d+(?:\.\d+)?)\s*(?:lbs?|kg|pounds?)""")
+            .find(t)
+            ?.groupValues
+            ?.get(1)
+            ?.let(WeightLbs::parseInputToStorage)
         val reps = (Regex("""(\d+)\s*reps?""").find(t) ?: Regex("""\bfor\s+(\d+)\b""").find(t))
             ?.groupValues?.get(1)?.toIntOrNull()
 
         if (weight != null || reps != null) return Pair(weight, reps)
 
-        // Fallback: bare number after a context word — "it was 135", "i meant 135", "to 10 reps"
-        val contextNum = Regex("""(?:was|meant|to|at)\s+(\d+)\b""").find(t)?.groupValues?.get(1)?.toIntOrNull()
+        // Fallback: bare number after a context word, such as "it was 135".
+        val contextNum = Regex("""(?:was|meant|to|at)\s+(\d+(?:\.\d+)?)\b""")
+            .find(t)
+            ?.groupValues
+            ?.get(1)
+            ?.let(WeightLbs::parseInputToStorage)
         return if (contextNum != null) Pair(contextNum, null) else null
     }
 
@@ -277,7 +286,7 @@ class AgentOrchestrator(
     private fun extractDate(text: String, todayStr: String): String? =
         DateExtractor.extract(text, LocalDate.parse(todayStr))
 
-    /** Compact session summary kept under ~200 chars so Nano can format it easily. */
+    /** Compact session summary suitable for direct display or model polishing. */
     private fun summarizeSession(snapshot: SessionSnapshot): String {
         if (snapshot.exercises.isEmpty())
             return "No workout logged on ${snapshot.date}."
@@ -285,17 +294,17 @@ class AgentOrchestrator(
             append("On ${snapshot.date}: ")
             snapshot.exercises.joinTo(this, " | ") { ex ->
                 val top = ex.sets.maxByOrNull { it.weightLbs ?: 0 }
-                "${ex.name} (${ex.sets.size} sets, top ${top?.weightLbs ?: "bw"}×${top?.reps ?: 0})"
+                "${ex.name} (${ex.sets.size} sets, top ${top?.weightLbs?.let(WeightLbs::formatStored) ?: "bw"} x ${top?.reps ?: 0})"
             }
         }
     }
 
-    /** Compact progress summary kept under ~200 chars for Nano context. */
+    /** Compact progress summary suitable for direct display or model polishing. */
     private fun summarizeTrend(trend: ProgressTrend): String {
         if (trend.sessionCount == 0) return "No history for ${trend.name} yet."
         return buildString {
             append("${trend.name}: ${trend.sessionCount} sessions. ")
-            if (trend.prWeightLbs != null) append("PR ${trend.prWeightLbs}lbs on ${trend.prDate}. ")
+            if (trend.prWeightLbs != null) append("PR ${WeightLbs.formatStored(trend.prWeightLbs)}lbs on ${trend.prDate}. ")
             if (trend.est1Rm != null)      append("Est 1RM ${trend.est1Rm}lbs. ")
             if (trend.deltaPercent != null) {
                 val dir = if (trend.deltaPercent >= 0) "up" else "down"
@@ -319,10 +328,10 @@ class AgentOrchestrator(
         return null
     }
 
-    // ── Formatting helpers ─────────────────────────────────────────────
+    // Formatting helpers
 
     private fun confirmText(patch: DbPatch): String = when (patch) {
-        is DbPatch.LogSet         -> "Logged ${patch.reps} reps${if (patch.weightLbs != null) " at ${patch.weightLbs} lbs" else ""}."
+        is DbPatch.LogSet         -> "Logged ${patch.reps} reps${if (patch.weightLbs != null) " at ${WeightLbs.formatStored(patch.weightLbs)} lbs" else ""}."
         is DbPatch.EditSet        -> "Set updated."
         is DbPatch.DeleteSet      -> "Set deleted."
         is DbPatch.MoveWorkoutDay -> "Workout moved to ${patch.newDate}."
@@ -339,9 +348,9 @@ class AgentOrchestrator(
         if (history.sessionCount == 0)
             return "No $name history in the last ${history.windowDays} days."
         return buildString {
-            append("$name — ${history.sessionCount} session(s) in the last ${history.windowDays} days. ")
+            append("$name - ${history.sessionCount} session(s) in the last ${history.windowDays} days. ")
             if (history.topSetWeightLbs != null)
-                append("Best set: ${history.topSetWeightLbs} lbs × ${history.topSetReps} reps.")
+                append("Best set: ${WeightLbs.formatStored(history.topSetWeightLbs)} lbs x ${history.topSetReps} reps.")
         }
     }
 
@@ -349,7 +358,7 @@ class AgentOrchestrator(
         WeightSuggestion.Confidence.NO_DATA ->
             "No history for $name yet. Start light and work up."
         else -> {
-            val w = s.suggestedWeightLbs?.let { "$it lbs" } ?: "bodyweight"
+            val w = s.suggestedWeightLbs?.let { "${WeightLbs.formatStored(it)} lbs" } ?: "bodyweight"
             "$name: try $w for ${s.targetReps} reps. ${s.reasoning}"
         }
     }

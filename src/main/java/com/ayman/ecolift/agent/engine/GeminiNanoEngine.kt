@@ -16,7 +16,7 @@ import kotlinx.coroutines.withContext
  * LocalGenAiEngine backed by Gemini Nano via Android AICore.
  *
  * Requires API 31+ and a supported device (Pixel 8+, Galaxy S24+) with
- * AICore system service installed. No model download — model lives in the OS.
+ * AICore system service installed. No model download - model lives in the OS.
  *
  * Detection: [prepareInferenceEngine] connects to AICore; a [ConnectionException]
  * or any other exception means the device isn't supported. [isReady] stays false
@@ -78,7 +78,7 @@ class GeminiNanoEngine(private val context: Context) : LocalGenAiEngine {
 
     private suspend fun generate(prompt: String): String = withContext(Dispatchers.IO) {
         val m = model ?: run {
-            Log.w(tag, "generate() called before warmup — returning empty")
+            Log.w(tag, "generate() called before warmup - returning empty")
             return@withContext ""
         }
         try {

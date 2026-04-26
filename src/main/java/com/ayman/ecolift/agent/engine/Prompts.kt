@@ -3,7 +3,7 @@ package com.ayman.ecolift.agent.engine
 /**
  * Prompt templates for the agent engine.
  *
- * All prompts are plain strings — no model-specific tokens.
+ * All prompts are plain strings - no model-specific tokens.
  * If the underlying model requires special tokens (e.g. <start_of_turn>),
  * wrap them in the engine implementation, not here.
  */
@@ -63,7 +63,7 @@ object Prompts {
     }
 
     /**
-     * Explanation prompt — generates a short human-readable response after applying patches.
+     * Explanation prompt - generates a short human-readable response after applying patches.
      * [appliedPatches] is a plain-English summary of what changed.
      */
     fun explanation(userText: String, appliedPatches: String): String = buildString {
@@ -75,7 +75,7 @@ object Prompts {
     }
 
     /**
-     * Read result formatting prompt — formats query results into plain English.
+     * Read result formatting prompt - formats query results into plain English.
      * [queryType] describes what was queried (e.g. "exercise history", "weight recommendation").
      * [resultJson] is the raw JSON result from AgentTools.
      */
@@ -89,7 +89,7 @@ object Prompts {
     }
 
     /**
-     * Clarification prompt — generates a follow-up question when intent is unclear.
+     * Clarification prompt - generates a follow-up question when intent is unclear.
      */
     fun clarify(userText: String): String = buildString {
         appendLine("You are a workout assistant. The user's request is unclear.")

@@ -41,7 +41,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -50,9 +49,7 @@ import com.ayman.ecolift.ui.theme.AccentTeal
 import com.ayman.ecolift.ui.theme.AccentTeal12
 import com.ayman.ecolift.ui.theme.BorderDefault
 import com.ayman.ecolift.ui.theme.NavBackground
-import com.ayman.ecolift.ui.theme.TextInactive
 import com.ayman.ecolift.ui.theme.TextMuted
-import com.ayman.ecolift.ui.viewmodel.AiViewModel
 
 private data class AppDestination(
     val route: String,
@@ -152,9 +149,35 @@ fun AppNavigation() {
                 .padding(padding),
         ) {
             composable("log") { TodayScreen() }
-            composable("progress") { ProgressScreen() }
+            composable("progress") {
+                ProgressScreen(
+                    onOpenBackups = { navController.navigate("backups") }
+                )
+            }
             composable("ai") { AiScreen() }
-            composable("split") { SplitScreen() }
+            composable("split") {
+                SplitScreen(
+                    onNavigateToLog = { _ ->
+                        // Opens the Log tab; split preselection is not wired yet.
+                        navController.navigate("log") {
+                            launchSingleTop = true
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                        }
+                    },
+                    onNavigateToExerciseProgress = { _ ->
+                        // Opens the Progress tab; exercise preselection is not wired yet.
+                        navController.navigate("progress") {
+                            launchSingleTop = true
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                        }
+                    },
+                )
+            }
+            composable("backups") {
+                BackupScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
     }
 }

@@ -8,6 +8,7 @@ import com.ayman.ecolift.agent.tools.AgentTools
 import com.ayman.ecolift.agent.tools.ExerciseMatch
 import com.ayman.ecolift.agent.tools.HistorySummary
 import com.ayman.ecolift.agent.tools.SetSummary
+import com.ayman.ecolift.data.WeightLbs
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -30,6 +31,7 @@ class OrchestratorEdgeCaseTest {
     private val TODAY = "2026-04-16" // Thursday
     private val BENCH = ExerciseMatch(1L, "Bench Press", isBodyweight = false, score = 0.0)
     private val PULLUP = ExerciseMatch(2L, "Pull Up",    isBodyweight = true,  score = 0.0)
+    private fun lbs(value: Int): Int = WeightLbs.fromWholePounds(value)!!
 
     @Before
     fun setup() {
@@ -93,7 +95,7 @@ class OrchestratorEdgeCaseTest {
         argumentCaptor<List<DbPatch>> {
             verify(applier).applyPatches(any(), capture(), eq(false))
             val p = firstValue.first() as DbPatch.LogSet
-            assertEquals(21, p.weightLbs)
+            assertEquals(lbs(21), p.weightLbs)
             assertEquals(10, p.reps)
         }
     }
@@ -111,7 +113,7 @@ class OrchestratorEdgeCaseTest {
         argumentCaptor<List<DbPatch>> {
             verify(applier).applyPatches(any(), capture(), eq(false))
             val p = firstValue.first() as DbPatch.LogSet
-            assertEquals(135, p.weightLbs)
+            assertEquals(lbs(135), p.weightLbs)
             assertEquals(8, p.reps)
         }
     }
@@ -331,7 +333,7 @@ class OrchestratorEdgeCaseTest {
     @Test
     fun `editSet with 'i meant 145' extracts 145 as weight`() = runTest {
         val existing = SetSummary(setId = 88L, date = TODAY, setNumber = 1,
-                                  weightLbs = 135, reps = 8, isBodyweight = false)
+                                  weightLbs = lbs(135), reps = 8, isBodyweight = false)
         whenever(tools.findExercise(any())).thenReturn(BENCH)
         whenever(tools.getRecentSets(eq(1L), any())).thenReturn(listOf(existing))
         whenever(applier.applyPatches(any(), any(), eq(false)))
@@ -343,7 +345,7 @@ class OrchestratorEdgeCaseTest {
             verify(applier).applyPatches(any(), capture(), eq(false))
             val p = firstValue.first() as DbPatch.EditSet
             assertEquals(88L, p.setId)
-            assertEquals(145, p.weightLbs)
+            assertEquals(lbs(145), p.weightLbs)
         }
     }
 
@@ -406,9 +408,9 @@ class OrchestratorEdgeCaseTest {
     @Test
     fun `setNumber skips non-today sets`() = runTest {
         val yesterday = SetSummary(10L, "2026-04-15", setNumber = 5,
-                                   weightLbs = 135, reps = 8, isBodyweight = false)
+                                   weightLbs = lbs(135), reps = 8, isBodyweight = false)
         val todayOnly = SetSummary(11L, TODAY, setNumber = 2,
-                                   weightLbs = 135, reps = 8, isBodyweight = false)
+                                   weightLbs = lbs(135), reps = 8, isBodyweight = false)
         whenever(tools.findExercise(any())).thenReturn(BENCH)
         whenever(tools.getRecentSets(eq(1L), any())).thenReturn(listOf(yesterday, todayOnly))
         whenever(applier.applyPatches(any(), any(), eq(false)))

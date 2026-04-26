@@ -11,7 +11,7 @@ interface AgentTurnLogDao {
     @Insert
     suspend fun insert(entry: AgentTurnLog): Long
 
-    /** Latest [limit] turns, newest first — observed as a Flow for the debug UI. */
+    /** Latest [limit] turns, newest first - observed as a Flow for the debug UI. */
     @Query("SELECT * FROM agent_turn_log ORDER BY timestamp DESC LIMIT :limit")
     fun observeRecent(limit: Int = 50): Flow<List<AgentTurnLog>>
 

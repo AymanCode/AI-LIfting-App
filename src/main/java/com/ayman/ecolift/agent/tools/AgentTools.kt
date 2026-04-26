@@ -75,7 +75,7 @@ data class ProgressTrend(
     val recentSessions: List<String> // compact "date: WxR" strings, newest first
 )
 
-/** Read-side interface for the agent. No SQL, no arithmetic — pure Kotlin results. */
+/** Read-side interface for the agent. No SQL, no arithmetic - pure Kotlin results. */
 interface AgentTools {
     /** Fuzzy-match an exercise name from the catalog. Returns null if no plausible match. */
     suspend fun findExercise(fuzzyName: String): ExerciseMatch?
@@ -88,7 +88,7 @@ interface AgentTools {
 
     /**
      * Find exercises similar to [exerciseId] using movement-pattern matching.
-     * Full embedding-based similarity will replace this in Phase 4.
+     * Implementations may use pattern matching, embeddings, or another catalog similarity strategy.
      */
     suspend fun getSimilarExercises(exerciseId: Long, k: Int = 5): List<SimilarExercise>
 

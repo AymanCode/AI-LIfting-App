@@ -10,15 +10,6 @@ android {
     namespace = "com.ayman.ecolift"
     compileSdk = 35
 
-    signingConfigs {
-        create("workspaceDebug") {
-            storeFile = file(".android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
-    }
-
     defaultConfig {
         applicationId = "com.ayman.ecolift"
         minSdk = 26
@@ -33,9 +24,6 @@ android {
     }
 
     buildTypes {
-        debug {
-            signingConfig = signingConfigs.getByName("workspaceDebug")
-        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -55,6 +43,9 @@ android {
         compose = true
     }
 
+    androidResources {
+        ignoreAssetsPatterns += "!models"
+    }
 }
 
 ksp {
