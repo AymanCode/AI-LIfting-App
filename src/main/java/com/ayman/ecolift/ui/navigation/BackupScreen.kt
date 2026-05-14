@@ -43,6 +43,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Alignment
+import com.ayman.ecolift.ui.theme.BackgroundPrimary
+import com.ayman.ecolift.ui.theme.ChevronColor
+import com.ayman.ecolift.ui.theme.TextPrimary
 import com.ayman.ecolift.data.LocalBackupInfo
 import com.ayman.ecolift.ui.viewmodel.BackupViewModel
 import java.time.Instant
@@ -126,16 +135,46 @@ fun BackupScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Backups", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = BackgroundPrimary,
+                shadowElevation = 0.dp
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(top = 16.dp, bottom = 12.dp, start = 8.dp, end = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.align(Alignment.CenterStart)
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = ChevronColor
+                        )
                     }
-                },
-            )
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "BACKUPS",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "DATA MANAGEMENT",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = BackgroundPrimary,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
         LazyColumn(
             modifier = Modifier

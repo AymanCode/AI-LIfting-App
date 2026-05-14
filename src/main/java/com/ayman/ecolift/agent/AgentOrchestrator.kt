@@ -213,7 +213,16 @@ class AgentOrchestrator(
     // Extraction helpers
 
     private suspend fun extractAndFindExercise(text: String): ExerciseMatch? {
+        // 1. Explicit @mention has highest priority
+        val mention = Regex("""@([^@\s]+(?: [^@\s]+)*)""").find(text)?.groupValues?.get(1)
+        if (mention != null) {
+            val match = tools.findExercise(mention)
+            if (match != null) return match
+        }
+
+        // 2. Heuristic fallback
         val candidate = text
+            .replace(Regex("""@[^@\s]+(?: [^@\s]+)*"""), " ") // Remove @mention if it failed above
             .replace(Regex("""\d+\s*(?:lbs?|kg|pounds?|kilos?|reps?|sets?)?"""), " ")
             .replace(
                 Regex("""(?i)\b(show|me|history|progress|trend|trending|how|what|tell|see|view|check|recent|session|sessions|times|trained|worked|hit|doing|been|have|all|much|improving|am|getting|stronger|and|the|a|an|at|for|my|last|that|this|to|from|is|was|i|it|x|did|just|finished|add|log|logged|record|delete|remove|erase|get|rid|of|fix|correct|update|edit|change|rename|call|move|reschedule|shift|postpone|wrong|actually|meant|on|over|time|past|weeks?|months?|days?|today|yesterday)\b"""),
@@ -307,8 +316,11 @@ class AgentOrchestrator(
             if (trend.prWeightLbs != null) append("PR ${WeightLbs.formatStored(trend.prWeightLbs)}lbs on ${trend.prDate}. ")
             if (trend.est1Rm != null)      append("Est 1RM ${trend.est1Rm}lbs. ")
             if (trend.deltaPercent != null) {
-                val dir = if (trend.deltaPercent >= 0) "up" else "down"
-                append("$dir ${Math.abs(trend.deltaPercent).toInt()}% last 30 days. ")
+                val dir = if (trend.deltaPercent >= 0.5f) "up (growing)"
+                else if (trend.deltaPercent <= -0.5f) "down (declining)"
+                else "stable (plateau)"
+                val sign = if (trend.deltaPercent >= 0) "+" else ""
+                append("${sign}${String.format(java.util.Locale.US, "%.1f", trend.deltaPercent)}% progress ($dir). ")
             }
             if (trend.recentSessions.isNotEmpty())
                 append("Recent: ${trend.recentSessions.take(3).joinToString(", ")}")

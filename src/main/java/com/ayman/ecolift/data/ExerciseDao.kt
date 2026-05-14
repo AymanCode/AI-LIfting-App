@@ -40,6 +40,18 @@ interface ExerciseDao {
     )
     suspend fun searchByName(query: String, limit: Int): List<Exercise>
 
+    @Query(
+        """
+        SELECT e.* FROM exercise e
+        LEFT JOIN workout_set s ON e.id = s.exerciseId
+        WHERE e.name LIKE '%' || :query || '%'
+        GROUP BY e.id
+        ORDER BY COUNT(s.id) DESC, MAX(s.date) DESC, e.name ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun searchByFrequency(query: String, limit: Int): List<Exercise>
+
     @Query("UPDATE exercise SET name = :newName WHERE id = :id")
     suspend fun updateName(id: Long, newName: String)
 

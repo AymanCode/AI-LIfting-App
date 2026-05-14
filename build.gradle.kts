@@ -1,3 +1,21 @@
+import java.util.Properties
+
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use(::load)
+    }
+}
+
+fun localConfig(name: String, defaultValue: String = ""): String =
+    providers.gradleProperty(name).orNull
+        ?: localProperties.getProperty(name)
+        ?: providers.environmentVariable(name).orNull
+        ?: defaultValue
+
+fun quotedBuildConfig(value: String): String =
+    "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
 plugins {
     id("com.android.application") version "9.1.0"
     kotlin("android") version "2.2.10"
@@ -14,10 +32,21 @@ android {
         applicationId = "com.ayman.ecolift"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
+        buildConfigField("String", "GROQ_API_KEY", quotedBuildConfig(localConfig("GROQ_API_KEY")))
+        buildConfigField(
+            "String",
+            "GROQ_API_BASE_URL",
+            quotedBuildConfig(localConfig("GROQ_API_BASE_URL", "https://api.groq.com/openai/v1"))
+        )
+        buildConfigField(
+            "String",
+            "GROQ_MODEL",
+            quotedBuildConfig(localConfig("GROQ_MODEL", "llama-3.3-70b-versatile"))
+        )
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
         }
@@ -41,6 +70,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     androidResources {
@@ -70,10 +100,10 @@ dependencies {
     implementation("androidx.room:room-runtime:2.7.1")
     implementation("androidx.room:room-ktx:2.7.1")
     ksp("androidx.room:room-compiler:2.7.1")
-    implementation("com.google.mediapipe:tasks-genai:0.10.14")
     implementation("com.google.ai.edge.aicore:aicore:0.0.1-exp02")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation("org.mockito:mockito-core:5.11.0")
     testImplementation("androidx.arch.core:core-testing:2.2.0")

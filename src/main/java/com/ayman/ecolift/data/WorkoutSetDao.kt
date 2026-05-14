@@ -120,6 +120,17 @@ interface WorkoutSetDao {
     @Query("SELECT MAX(date) FROM workout_set WHERE date < :beforeDate")
     suspend fun getLastSessionDate(beforeDate: String): String?
 
+    @Query("SELECT MAX(date) FROM workout_set")
+    suspend fun getLatestWorkoutDate(): String?
+
+    @Query("""
+        SELECT e.name FROM workout_set s
+        JOIN exercise e ON s.exerciseId = e.id
+        ORDER BY s.date DESC, s.id DESC
+        LIMIT 1
+    """)
+    suspend fun getMostRecentExerciseName(): String?
+
     @Query("SELECT * FROM workout_set WHERE date = :date")
     suspend fun getSetsByDate(date: String): List<WorkoutSet>
 

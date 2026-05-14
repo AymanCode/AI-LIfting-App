@@ -48,9 +48,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "ecolift.db"
                 )
+                    .createFromAsset("database/ecolift.db")
                     .addMigrations(*Migrations.ALL_MIGRATIONS)
-                    // Legacy installs can still carry schemas outside the current migration chain.
-                    // Prefer a usable app over a startup crash when Room cannot migrate them.
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance

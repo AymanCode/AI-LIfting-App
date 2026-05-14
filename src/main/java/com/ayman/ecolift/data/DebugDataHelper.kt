@@ -132,4 +132,82 @@ object DebugDataHelper {
             }
         }
     }
+
+    suspend fun seedRequestedData(context: Context) = withContext(Dispatchers.IO) {
+        val db = AppDatabase.getInstance(context)
+        val exDao = db.exerciseDao()
+        val setDao = db.workoutSetDao()
+        val dayDao = db.workoutDayDao()
+
+        suspend fun getOrCreateEx(name: String, muscles: String = "CHEST · TRICEPS", bw: Boolean = false): Long {
+            return exDao.getByExactName(name)?.id
+                ?: exDao.insert(Exercise(name = name, muscleGroups = muscles, isBodyweight = bw))
+        }
+
+        // Data for 2026-04-29
+        val date1 = "2026-04-29"
+        if (dayDao.getByDate(date1) == null) {
+            dayDao.upsert(WorkoutDay(date = date1))
+        }
+
+        val leaningCurlId = getOrCreateEx("Leaning Dumbell Curl", "BICEPS")
+        val rearTetherId = getOrCreateEx("Rear Tether", "BACK · SHOULDERS")
+        val skullCrusherId = getOrCreateEx("Standing Behind The Back Skull Crusher", "TRICEPS")
+        val legExtId = getOrCreateEx("One Legged Extension Machine", "QUADS")
+        val calfRaiseId = getOrCreateEx("Standing Calf Raise Machine", "CALVES")
+        val latRaiseMachId = getOrCreateEx("Lateral Raise Machine", "SHOULDERS")
+        val dipMachId = getOrCreateEx("Dip Machine Weighted", "CHEST · TRICEPS")
+
+        if (setDao.getSetsByDate(date1).isEmpty()) {
+            val sets1 = listOf(
+                WorkoutSet(exerciseId = leaningCurlId, date = date1, setNumber = 1, weightLbs = WeightLbs.fromWholePounds(20), reps = 11, completed = true),
+                WorkoutSet(exerciseId = leaningCurlId, date = date1, setNumber = 2, weightLbs = WeightLbs.fromWholePounds(20), reps = 10, completed = true),
+                WorkoutSet(exerciseId = leaningCurlId, date = date1, setNumber = 3, weightLbs = WeightLbs.fromWholePounds(20), reps = 5, completed = true),
+                WorkoutSet(exerciseId = rearTetherId, date = date1, setNumber = 1, weightLbs = WeightLbs.fromWholePounds(27), reps = 12, completed = true),
+                WorkoutSet(exerciseId = rearTetherId, date = date1, setNumber = 2, weightLbs = WeightLbs.fromWholePounds(47), reps = 9, completed = true),
+                WorkoutSet(exerciseId = rearTetherId, date = date1, setNumber = 3, weightLbs = WeightLbs.fromWholePounds(47), reps = 10, completed = true),
+                WorkoutSet(exerciseId = skullCrusherId, date = date1, setNumber = 1, weightLbs = WeightLbs.fromWholePounds(30), reps = 14, completed = true),
+                WorkoutSet(exerciseId = skullCrusherId, date = date1, setNumber = 2, weightLbs = WeightLbs.fromWholePounds(30), reps = 14, completed = true),
+                WorkoutSet(exerciseId = skullCrusherId, date = date1, setNumber = 3, weightLbs = WeightLbs.fromWholePounds(30), reps = 14, completed = true),
+                WorkoutSet(exerciseId = legExtId, date = date1, setNumber = 1, weightLbs = WeightLbs.fromWholePounds(45), reps = 14, completed = true),
+                WorkoutSet(exerciseId = legExtId, date = date1, setNumber = 2, weightLbs = WeightLbs.fromWholePounds(45), reps = 14, completed = true),
+                WorkoutSet(exerciseId = legExtId, date = date1, setNumber = 3, weightLbs = WeightLbs.fromWholePounds(45), reps = 14, completed = true),
+                WorkoutSet(exerciseId = calfRaiseId, date = date1, setNumber = 1, weightLbs = WeightLbs.fromWholePounds(170), reps = 12, completed = true),
+                WorkoutSet(exerciseId = calfRaiseId, date = date1, setNumber = 2, weightLbs = WeightLbs.fromWholePounds(170), reps = 12, completed = true),
+                WorkoutSet(exerciseId = calfRaiseId, date = date1, setNumber = 3, weightLbs = WeightLbs.fromWholePounds(170), reps = 12, completed = true),
+                WorkoutSet(exerciseId = latRaiseMachId, date = date1, setNumber = 1, weightLbs = WeightLbs.fromWholePounds(45), reps = 14, completed = true),
+                WorkoutSet(exerciseId = latRaiseMachId, date = date1, setNumber = 2, weightLbs = WeightLbs.fromWholePounds(45), reps = 14, completed = true),
+                WorkoutSet(exerciseId = latRaiseMachId, date = date1, setNumber = 3, weightLbs = WeightLbs.fromWholePounds(45), reps = 6, completed = true),
+                WorkoutSet(exerciseId = dipMachId, date = date1, setNumber = 1, weightLbs = WeightLbs.fromWholePounds(180), reps = 13, completed = true),
+                WorkoutSet(exerciseId = dipMachId, date = date1, setNumber = 2, weightLbs = WeightLbs.fromWholePounds(180), reps = 8, completed = true),
+            )
+            setDao.insertAll(sets1)
+        }
+
+        // Data for 2026-04-04
+        val date2 = "2026-04-04"
+        if (dayDao.getByDate(date2) == null) {
+            dayDao.upsert(WorkoutDay(date = date2))
+        }
+
+        val rowMachId = getOrCreateEx("Row Machine", "BACK · BICEPS")
+        val pullUpId = getOrCreateEx("Pull Up", "BACK · BICEPS", bw = true)
+        val latRaiseDbId = getOrCreateEx("Lateral Raise Dumbell", "SHOULDERS")
+
+        if (setDao.getSetsByDate(date2).isEmpty()) {
+            val sets2 = listOf(
+                WorkoutSet(exerciseId = rowMachId, date = date2, setNumber = 1, weightLbs = WeightLbs.fromWholePounds(110), reps = 10, completed = true),
+                WorkoutSet(exerciseId = rowMachId, date = date2, setNumber = 2, weightLbs = WeightLbs.fromWholePounds(110), reps = 8, completed = true),
+                WorkoutSet(exerciseId = rowMachId, date = date2, setNumber = 3, weightLbs = WeightLbs.fromWholePounds(110), reps = 6, completed = true),
+                WorkoutSet(exerciseId = pullUpId, date = date2, setNumber = 1, weightLbs = null, reps = 12, isBodyweight = true, completed = true),
+                WorkoutSet(exerciseId = pullUpId, date = date2, setNumber = 2, weightLbs = null, reps = 10, isBodyweight = true, completed = true),
+                WorkoutSet(exerciseId = latRaiseDbId, date = date2, setNumber = 1, weightLbs = WeightLbs.fromWholePounds(17), reps = 12, completed = true),
+                WorkoutSet(exerciseId = latRaiseDbId, date = date2, setNumber = 2, weightLbs = WeightLbs.fromWholePounds(17), reps = 12, completed = true),
+                WorkoutSet(exerciseId = dipMachId, date = date2, setNumber = 1, weightLbs = WeightLbs.fromWholePounds(180), reps = 10, completed = true),
+                WorkoutSet(exerciseId = dipMachId, date = date2, setNumber = 2, weightLbs = WeightLbs.fromWholePounds(180), reps = 8, completed = true),
+                WorkoutSet(exerciseId = dipMachId, date = date2, setNumber = 3, weightLbs = WeightLbs.fromWholePounds(180), reps = 6, completed = true),
+            )
+            setDao.insertAll(sets2)
+        }
+    }
 }

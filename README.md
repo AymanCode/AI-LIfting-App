@@ -96,6 +96,16 @@ Local files that should not be committed:
 - `.env` if using local AI tooling
 - model files such as `.task`, `.bin`, `.gguf`, or `.litertlm`
 
+Groq Cloud AI configuration:
+
+```properties
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_API_BASE_URL=https://api.groq.com/openai/v1
+```
+
+Put these values in `local.properties`, pass them as Gradle properties, or expose them as shell environment variables before building. `GROQ_API_KEY` is embedded into debug builds through `BuildConfig`, so use a backend proxy instead for any app you distribute publicly.
+
 Run tests and build:
 
 ```powershell

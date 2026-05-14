@@ -12,7 +12,7 @@ import org.junit.Test
 /**
  * Tests for LocalGenAiEngine contract and Prompts templates.
  *
- * MediaPipeGenAiEngine cannot be unit-tested without a real model file —
+ * Device model engines cannot be unit-tested without a real model file —
  * that is covered by manual QA (see phase_4.md acceptance criteria).
  *
  * These tests verify:

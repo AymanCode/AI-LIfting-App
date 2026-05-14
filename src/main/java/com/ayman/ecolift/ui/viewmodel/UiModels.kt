@@ -1,7 +1,10 @@
 package com.ayman.ecolift.ui.viewmodel
 
+import androidx.compose.runtime.Immutable
+import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.data.PendingReview
 
+@Immutable
 data class CycleSlotUi(
     val type: Int,
     val occurrence: Int,
@@ -11,6 +14,7 @@ data class CycleSlotUi(
     val isSelected: Boolean = false,
 )
 
+@Immutable
 data class LogSetUi(
     val id: Long,
     val exerciseId: Long,
@@ -22,6 +26,7 @@ data class LogSetUi(
     val restAfterSeconds: Int? = null,
 )
 
+@Immutable
 data class LogExerciseUi(
     val exerciseId: Long,
     val name: String,
@@ -32,6 +37,7 @@ data class LogExerciseUi(
     val isNewPB: Boolean = false,
 )
 
+@Immutable
 data class LogUiState(
     val currentDate: String,
     val currentDateLabel: String,
@@ -41,19 +47,19 @@ data class LogUiState(
     val cycleOptions: List<CycleSlotUi> = emptyList(),
     val exercises: List<LogExerciseUi> = emptyList(),
     val exerciseInput: String = "",
-    val inlineSuggestions: List<String> = emptyList(),
-    val quickAddExercises: List<ExerciseChipUi> = emptyList(),
+    val predictiveExercises: List<Exercise> = emptyList(),
     val pendingReviews: List<PendingReview> = emptyList(),
     val reviewsExpanded: Boolean = false,
     val restStopwatchSeconds: Int? = null,
 )
 
+@Immutable
 data class ExerciseChipUi(
     val id: Long,
     val name: String,
 )
 
-
+@Immutable
 data class ProgressPointUi(
     val date: String,
     val label: String,
@@ -64,6 +70,7 @@ data class ProgressPointUi(
     val reps: Int = 0, // Added for tooltip
 )
 
+@Immutable
 data class ProgressExerciseUi(
     val exerciseId: Long,
     val name: String,
@@ -74,6 +81,17 @@ data class ProgressExerciseUi(
     val trend: List<Int>, // Last few volumes for sparkline
 )
 
+enum class ProgressOrganizationMode {
+    PROGRESS, SPLIT
+}
+
+@Immutable
+data class ProgressSplitPageUi(
+    val splitId: Long,
+    val name: String,
+    val exercises: List<ProgressExerciseUi>,
+)
+
 enum class TimeframeFilter {
     ONE_MONTH, THREE_MONTHS, SIX_MONTHS, ONE_YEAR, ALL_TIME
 }
@@ -82,8 +100,14 @@ enum class ProgressMetric {
     ESTIMATED_1RM, WEIGHT, VOLUME
 }
 
+@Immutable
 data class ProgressUiState(
     val exercises: List<ProgressExerciseUi> = emptyList(),
+    val organizationMode: ProgressOrganizationMode = ProgressOrganizationMode.PROGRESS,
+    val searchQuery: String = "",
+    val visibleExercises: List<ProgressExerciseUi> = emptyList(),
+    val splitPages: List<ProgressSplitPageUi> = emptyList(),
+    val selectedSplitIndex: Int = 0,
     val selectedExerciseId: Long? = null,
     val selectedExerciseName: String = "",
     val isBodyweight: Boolean = false,
@@ -93,25 +117,31 @@ data class ProgressUiState(
     val stats: ProgressStatsUi? = null
 )
 
+@Immutable
 data class ProgressStatsUi(
     val currentPr: String,
+    val currentPrLbs: Float = 0f,
     val currentPrDelta: Float,
     val est1Rm: String,
     val est1RmDelta: Float,
     val totalVolume: String,
+    val totalVolumeLbs: Int = 0,
     val volumeDelta: Float,
     val workoutCount: Int,
-    val workoutCountDelta: Int
+    val workoutCountDelta: Float,
+    val isPlateau: Boolean = false
 )
 
 // Split tab models
 
+@Immutable
 data class SplitExerciseRef(
     val exerciseId: Long,
     val displayName: String,
     val recentMaxVolume: List<Float> = emptyList(),
 )
 
+@Immutable
 data class Split(
     val id: Long,
     val name: String,
@@ -128,12 +158,14 @@ sealed interface CycleEntry {
     data class RestDay(override val label: String = "Rest") : CycleEntry
 }
 
+@Immutable
 data class SplitCycle(
     val enabled: Boolean,
     val order: List<CycleEntry>,
     val currentIndex: Int,
 )
 
+@Immutable
 data class SplitUiState(
     val cycle: SplitCycle = SplitCycle(false, emptyList(), 0),
     val splits: List<Split> = emptyList(),

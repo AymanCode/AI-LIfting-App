@@ -5,6 +5,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material3.Button
@@ -75,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
+import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ayman.ecolift.ui.viewmodel.AvailableSessionUi
@@ -87,43 +90,15 @@ import com.ayman.ecolift.ui.viewmodel.SplitViewModel
 import kotlin.math.roundToInt
 import java.time.LocalDate
 
-// ============================================================================
-// Theme tokens - terminal-style dark palette
-// ============================================================================
+import com.ayman.ecolift.ui.theme.*
 
-private object SplitTheme {
-    val Background      = Color(0xFF0A0A0B)
-    val Surface         = Color(0xFF141518)
-    val SurfaceSunken   = Color(0xFF101114)
-    val Divider         = Color(0x0FFFFFFF)
-    val ChipBg          = Color(0x0DFFFFFF)
-    val ChipBgDim       = Color(0x08FFFFFF)
-
-    val Accent          = Color(0xFF1DD3B0)
-    val AccentOnAccent  = Color(0xFF04342C)
-    val AccentBorder    = Color(0x381DD3B0)
-    val AccentBgSoft    = Color(0x241DD3B0)
-
-    val TextPrimary     = Color(0xFFF4F4F5)
-    val TextSecondary   = Color(0xFF8A8A8E)
-    val TextTertiary    = Color(0xFF6B6B70)
-    val TextDim         = Color(0xFF5F5F64)
-    val SegmentOff      = Color(0xFF222428)
-    val DangerSoft      = Color(0x26C23A3A)
-    val Danger          = Color(0xFFE57373)
-}
-
-private val LabelCaps = TextStyle(
-    fontSize = 11.sp,
-    fontWeight = FontWeight.Medium,
-    letterSpacing = 1.3.sp,
-    color = SplitTheme.TextTertiary,
-)
+// ... rest of the file ...
 
 // ============================================================================
 // Stateful entry
 // ============================================================================
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SplitScreen(
     viewModel: SplitViewModel = viewModel(),
@@ -134,21 +109,50 @@ fun SplitScreen(
     val availableSessions by viewModel.availableSessions.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
 
-    SplitScreenContent(
-        state = state,
-        availableSessions = availableSessions,
-        onToggleCycle = viewModel::toggleCycle,
-        onLoadSplit = { splitId ->
-            viewModel.advanceCycle()
-            onNavigateToLog(splitId)
+    var detailSplitId by remember { mutableStateOf<Long?>(null) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val splitTypes = remember(state.splits) {
+        state.splits.map { split -> 
+            SplitType(
+                id = split.id, 
+                name = split.name,
+                exerciseCount = split.exercises.size,
+                lastRunLabel = split.lastPerformedEpochDay?.let { relativeAge(it) } ?: "Never run"
+            )
+        }
+    }
+
+    val gymDaysThisMonth = remember(availableSessions) {
+        val map = mutableMapOf<java.time.YearMonth, MutableSet<Int>>()
+        availableSessions.forEach { session ->
+            try {
+                val date = java.time.LocalDate.parse(session.date)
+                val ym = java.time.YearMonth.of(date.year, date.month)
+                map.getOrPut(ym) { mutableSetOf() }.add(date.dayOfMonth)
+            } catch (e: Exception) {
+                // Ignore parsing errors
+            }
+        }
+        map
+    }
+
+    CycleSplitScreen(
+        splits = splitTypes,
+        gymDaysThisMonth = gymDaysThisMonth,
+        splitCycleEnabled = state.cycle.enabled,
+        currentSplitIndex = state.cycle.currentIndex,
+        onToggleSplitCycle = viewModel::toggleCycle,
+        onLoadWorkout = { 
+            val currentId = state.splits.getOrNull(state.cycle.currentIndex)?.id
+            if (currentId != null) {
+                viewModel.advanceCycle()
+                onNavigateToLog(currentId)
+            }
         },
-        onRenameSplit = viewModel::renameSplit,
-        onDeleteSplit = viewModel::deleteSplit,
-        onReorderSplits = viewModel::reorderSplits,
-        onSaveSplitFromDate = viewModel::saveSplitFromDate,
-        onClearSavedExercises = viewModel::clearSavedExercises,
+        onEditSplit = { detailSplitId = it.id },
         onAddSplit = { showAddDialog = true },
-        onOpenExerciseProgress = onNavigateToExerciseProgress,
+        onSplitOptions = { detailSplitId = it.id }
     )
 
     if (showAddDialog) {
@@ -159,6 +163,34 @@ fun SplitScreen(
                 showAddDialog = false
             },
         )
+    }
+
+    val detailSplit = detailSplitId?.let { id -> state.splits.firstOrNull { it.id == id } }
+    if (detailSplit != null) {
+        ModalBottomSheet(
+            onDismissRequest = { detailSplitId = null },
+            sheetState = sheetState,
+            containerColor = BackgroundSurface,
+            dragHandle = { Spacer(Modifier.height(6.dp)) },
+        ) {
+            SplitDetailSheetV2(
+                split = detailSplit,
+                availableSessions = availableSessions,
+                onLoad = {
+                    viewModel.advanceCycle()
+                    onNavigateToLog(detailSplit.id)
+                    detailSplitId = null
+                },
+                onRename = { newName -> viewModel.renameSplit(detailSplit.id, newName) },
+                onDelete = {
+                    viewModel.deleteSplit(detailSplit.id)
+                    detailSplitId = null
+                },
+                onSaveFromDate = { date -> viewModel.saveSplitFromDate(detailSplit.id, date) },
+                onClearSaved = { viewModel.clearSavedExercises(detailSplit.id) },
+                onOpenExerciseProgress = onNavigateToExerciseProgress,
+            )
+        }
     }
 }
 
@@ -186,7 +218,7 @@ private fun SplitScreenContent(
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = SplitTheme.Background,
+        color = BackgroundPrimary,
     ) {
         Column(
             modifier = Modifier
@@ -237,7 +269,7 @@ private fun SplitScreenContent(
                     item {
                         Text(
                             "No splits yet. Add one above - pick any name that fits your routine.",
-                            color = SplitTheme.TextTertiary,
+                            color = TextInactive,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                         )
@@ -246,7 +278,7 @@ private fun SplitScreenContent(
                     item {
                         Text(
                             "Hold + drag a split to reorder",
-                            color = SplitTheme.TextDim,
+                            color = TextInactive,
                             fontSize = 10.sp,
                             letterSpacing = 0.8.sp,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp),
@@ -270,10 +302,10 @@ private fun SplitScreenContent(
         ModalBottomSheet(
             onDismissRequest = { detailSplitId = null },
             sheetState = sheetState,
-            containerColor = SplitTheme.Surface,
+            containerColor = BackgroundSurface,
             dragHandle = { Spacer(Modifier.height(6.dp)) },
         ) {
-            SplitDetailSheet(
+            SplitDetailSheetV2(
                 split = detailSplit,
                 availableSessions = availableSessions,
                 onLoad = {
@@ -301,7 +333,7 @@ private fun SplitScreenContent(
 private fun Header() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = SplitTheme.Background,
+        color = BackgroundPrimary,
         shadowElevation = 0.dp
     ) {
         Column(
@@ -312,17 +344,12 @@ private fun Header() {
         ) {
             Text(
                 text = "Cycle / Split",
-                style = MaterialTheme.typography.headlineMedium
+                style = MaterialTheme.typography.headlineMedium,
+                color = TextPrimary
             )
-            Spacer(Modifier.height(2.dp))
             Text(
                 text = "WORKOUT ROTATION SETTINGS",
-                style = TextStyle(
-                    fontSize = 10.sp,
-                    color = SplitTheme.TextTertiary,
-                    fontWeight = FontWeight.W800,
-                    letterSpacing = 0.08.sp
-                )
+                style = MaterialTheme.typography.labelLarge
             )
         }
     }
@@ -332,8 +359,8 @@ private fun EnableCycleCard(enabled: Boolean, onToggle: (Boolean) -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SplitTheme.Surface),
-        border = BorderStroke(1.dp, SplitTheme.Divider),
+        colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
+        border = BorderStroke(1.dp, BorderDefault),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
@@ -342,14 +369,13 @@ private fun EnableCycleCard(enabled: Boolean, onToggle: (Boolean) -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(
                     "Enable Split Cycle",
-                    color = SplitTheme.TextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
+                    color = TextPrimary,
+                    style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
                     "Pre-load exercises based on your rotation",
-                    color = SplitTheme.TextSecondary,
-                    fontSize = 12.sp,
+                    color = TextInactive,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
             Spacer(Modifier.width(12.dp))
@@ -358,11 +384,11 @@ private fun EnableCycleCard(enabled: Boolean, onToggle: (Boolean) -> Unit) {
                 onCheckedChange = onToggle,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
-                    checkedTrackColor = SplitTheme.Accent,
-                    checkedBorderColor = SplitTheme.Accent,
-                    uncheckedThumbColor = SplitTheme.TextTertiary,
-                    uncheckedTrackColor = SplitTheme.Surface,
-                    uncheckedBorderColor = SplitTheme.TextDim,
+                    checkedTrackColor = AccentTeal,
+                    checkedBorderColor = AccentTeal,
+                    uncheckedThumbColor = TextInactive,
+                    uncheckedTrackColor = BackgroundSurface,
+                    uncheckedBorderColor = BorderSubtle,
                 ),
             )
         }
@@ -380,28 +406,24 @@ private fun TodayCard(
     Card(
         modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SplitTheme.Surface),
-        border = BorderStroke(1.dp, SplitTheme.AccentBorder),
+        colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
+        border = BorderStroke(1.dp, AccentTeal20),
     ) {
         Column(Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(6.dp).clip(CircleShape).background(SplitTheme.Accent))
+                Box(Modifier.size(6.dp).clip(CircleShape).background(AccentTeal))
                 Spacer(Modifier.width(8.dp))
                 Text(
                     "TODAY · DAY ${cycle.currentIndex + 1} OF ${cycle.order.size}",
-                    color = SplitTheme.Accent,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 1.3.sp,
+                    color = AccentTeal,
+                    style = MaterialTheme.typography.labelLarge.copy(color = AccentTeal),
                 )
             }
             Spacer(Modifier.height(6.dp))
             Text(
-                "${today.name} day",
-                color = SplitTheme.TextPrimary,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = (-0.2).sp,
+                "${today.name} Day",
+                color = TextPrimary,
+                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.W800),
             )
             Spacer(Modifier.height(2.dp))
             val exCount = today.exercises.size
@@ -409,8 +431,8 @@ private fun TodayCard(
             val savedBadge = if (today.isSaved) " · saved" else ""
             Text(
                 "$exCount exercises · $durTxt · last run ${relativeAge(today.lastPerformedEpochDay)}$savedBadge",
-                color = SplitTheme.TextSecondary,
-                fontSize = 12.sp,
+                color = TextInactive,
+                style = MaterialTheme.typography.bodySmall,
             )
             if (exCount > 0) {
                 Spacer(Modifier.height(14.dp))
@@ -421,18 +443,18 @@ private fun TodayCard(
                 Button(
                     onClick = onLoad,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = SplitTheme.Accent,
-                        contentColor = SplitTheme.AccentOnAccent,
+                        containerColor = AccentTeal,
+                        contentColor = BackgroundPrimary,
                     ),
-                ) { Text("Load workout", fontWeight = FontWeight.Medium, fontSize = 13.sp) }
+                ) { Text("Load Workout", style = MaterialTheme.typography.titleSmall.copy(color = BackgroundPrimary)) }
                 OutlinedButton(
                     onClick = onEdit,
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, Color(0x14FFFFFF)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC8C8CC)),
-                ) { Text("Edit", fontWeight = FontWeight.Medium, fontSize = 13.sp) }
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, BorderSubtle),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
+                ) { Text("Edit", style = MaterialTheme.typography.titleSmall) }
             }
         }
     }
@@ -443,10 +465,10 @@ private fun RotationStrip(cycle: SplitCycle) {
     Card(
         modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SplitTheme.SurfaceSunken),
+        colors = CardDefaults.cardColors(containerColor = BackgroundElevated),
     ) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 13.dp)) {
-            Text("ROTATION", style = LabelCaps)
+            Text("ROTATION", style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(11.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 cycle.order.forEachIndexed { index, entry ->
@@ -460,12 +482,12 @@ private fun RotationStrip(cycle: SplitCycle) {
                                 .fillMaxWidth()
                                 .height(4.dp)
                                 .clip(RoundedCornerShape(2.dp))
-                                .background(if (isCurrent) SplitTheme.Accent else SplitTheme.SegmentOff)
+                                .background(if (isCurrent) AccentTeal else BorderSubtle)
                         )
                         Spacer(Modifier.height(7.dp))
                         Text(
                             text = entry.label,
-                            color = if (isCurrent) SplitTheme.Accent else SplitTheme.TextTertiary,
+                            color = if (isCurrent) AccentTeal else TextInactive,
                             fontSize = 11.sp,
                             fontWeight = if (isCurrent) FontWeight.Medium else FontWeight.Normal,
                             textAlign = TextAlign.Center,
@@ -485,10 +507,10 @@ private fun SectionHeader(label: String, actionLabel: String, onAction: () -> Un
             .padding(bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, style = LabelCaps, modifier = Modifier.weight(1f))
+        Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
         Text(
             text = actionLabel,
-            color = SplitTheme.Accent,
+            color = AccentTeal,
             fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
             letterSpacing = 1.sp,
@@ -613,10 +635,10 @@ private fun SplitCard(
             .graphicsLayerSafe(translationY, isDragging)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = SplitTheme.Surface),
+        colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
         border = BorderStroke(
             1.dp,
-            if (isDragging) SplitTheme.AccentBorder else SplitTheme.Divider,
+            if (isDragging) AccentTeal35 else BorderDefault,
         ),
     ) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 13.dp)) {
@@ -624,7 +646,7 @@ private fun SplitCard(
                 Icon(
                     imageVector = Icons.Default.DragHandle,
                     contentDescription = null,
-                    tint = SplitTheme.TextDim,
+                    tint = TextInactive,
                     modifier = Modifier.size(16.dp).padding(top = 2.dp),
                 )
                 Spacer(Modifier.width(8.dp))
@@ -632,7 +654,7 @@ private fun SplitCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             split.name,
-                            color = SplitTheme.TextPrimary,
+                            color = TextPrimary,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium,
                         )
@@ -648,13 +670,20 @@ private fun SplitCard(
                     Spacer(Modifier.height(3.dp))
                     Text(
                         "${split.exercises.size} exercises · last run ${relativeAge(split.lastPerformedEpochDay)}",
-                        color = SplitTheme.TextSecondary,
+                        color = TextInactive,
                         fontSize = 11.sp,
                     )
                 }
+                val firstVol = split.recentVolume.firstOrNull() ?: 0f
+                val lastVol = split.recentVolume.lastOrNull() ?: 0f
+                val volColor = when {
+                    split.recentVolume.size < 2 -> if (isToday) AccentTeal else TextInactive
+                    lastVol >= firstVol -> AccentTeal
+                    else -> ErrorRed
+                }
                 MiniSparkline(
                     values = split.recentVolume,
-                    color = if (isToday) SplitTheme.Accent else SplitTheme.TextDim,
+                    color = volColor,
                     modifier = Modifier.width(56.dp).height(22.dp),
                 )
             }
@@ -662,7 +691,7 @@ private fun SplitCard(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     split.exercises.joinToString(" · ") { it.displayName.shortened() },
-                    color = SplitTheme.TextDim,
+                    color = TextInactive,
                     fontSize = 11.sp,
                     maxLines = 1,
                 )
@@ -684,12 +713,12 @@ private fun TodayBadge() {
     Box(
         Modifier
             .clip(RoundedCornerShape(5.dp))
-            .background(SplitTheme.AccentBgSoft)
+            .background(AccentTeal15)
             .padding(horizontal = 7.dp, vertical = 2.dp)
     ) {
         Text(
             "TODAY",
-            color = SplitTheme.Accent,
+            color = AccentTeal,
             fontSize = 10.sp,
             fontWeight = FontWeight.Medium,
             letterSpacing = 0.5.sp,
@@ -702,12 +731,12 @@ private fun SavedBadge() {
     Box(
         Modifier
             .clip(RoundedCornerShape(5.dp))
-            .background(SplitTheme.ChipBg)
+            .background(BackgroundSubtle)
             .padding(horizontal = 7.dp, vertical = 2.dp)
     ) {
         Text(
             "SAVED",
-            color = SplitTheme.TextSecondary,
+            color = TextInactive,
             fontSize = 10.sp,
             fontWeight = FontWeight.Medium,
             letterSpacing = 0.5.sp,
@@ -734,12 +763,12 @@ private fun Chip(text: String, dim: Boolean) {
     Box(
         Modifier
             .clip(RoundedCornerShape(100.dp))
-            .background(if (dim) SplitTheme.ChipBgDim else SplitTheme.ChipBg)
+            .background(if (dim) BackgroundSubtle else BackgroundElevated)
             .padding(horizontal = 9.dp, vertical = 4.dp)
     ) {
         Text(
             text,
-            color = if (dim) SplitTheme.TextTertiary else Color(0xFFC8C8CC),
+            color = if (dim) TextInactive else TextPrimary,
             fontSize = 11.sp,
         )
     }
@@ -749,6 +778,7 @@ private fun Chip(text: String, dim: Boolean) {
 // Detail sheet (rename + save-from-day + exercise list + delete)
 // ============================================================================
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SplitDetailSheet(
     split: Split,
@@ -770,10 +800,10 @@ private fun SplitDetailSheet(
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
-            .padding(top = 4.dp, bottom = 24.dp)
+            .padding(top = 12.dp, bottom = 24.dp)
     ) {
-        Text("SPLIT · CLICK NAME TO RENAME", style = LabelCaps.copy(color = SplitTheme.Accent))
-        Spacer(Modifier.height(6.dp))
+        Text("SPLIT · CLICK NAME TO RENAME", style = MaterialTheme.typography.labelLarge.copy(color = AccentTeal))
+        Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = name,
             onValueChange = { name = it },
@@ -781,14 +811,14 @@ private fun SplitDetailSheet(
             textStyle = TextStyle(
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Medium,
-                color = SplitTheme.TextPrimary,
+                color = TextPrimary,
             ),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = SplitTheme.AccentBorder,
+                focusedBorderColor = AccentTeal,
                 unfocusedBorderColor = Color.Transparent,
-                focusedContainerColor = SplitTheme.SurfaceSunken,
+                focusedContainerColor = BackgroundElevated,
                 unfocusedContainerColor = Color.Transparent,
-                cursorColor = SplitTheme.Accent,
+                cursorColor = AccentTeal,
             ),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -801,7 +831,7 @@ private fun SplitDetailSheet(
         val durTxt = if (split.estimatedDurationMin > 0) "~${split.estimatedDurationMin} min" else "no history"
         Text(
             "${split.exercises.size} exercises · last run ${relativeAge(split.lastPerformedEpochDay)} · $durTxt",
-            color = SplitTheme.TextSecondary,
+            color = TextInactive,
             fontSize = 12.sp,
         )
 
@@ -812,15 +842,15 @@ private fun SplitDetailSheet(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = SplitTheme.Accent,
-                    contentColor = SplitTheme.AccentOnAccent,
+                    containerColor = AccentTeal,
+                    contentColor = BackgroundPrimary,
                 ),
             ) { Text("Load into log", fontWeight = FontWeight.Medium, fontSize = 13.sp) }
             OutlinedButton(
                 onClick = { confirmDelete = true },
                 shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, SplitTheme.DangerSoft),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = SplitTheme.Danger),
+                border = BorderStroke(1.dp, ErrorRedSoft),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
             ) {
                 Icon(Icons.Default.Delete, null, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(4.dp))
@@ -830,11 +860,11 @@ private fun SplitDetailSheet(
 
         Spacer(Modifier.height(22.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("EXERCISES", style = LabelCaps, modifier = Modifier.weight(1f))
+            Text("EXERCISES", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
             if (split.isSaved) {
                 Text(
                     "CLEAR SAVED",
-                    color = SplitTheme.TextTertiary,
+                    color = TextInactive,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
                     letterSpacing = 1.sp,
@@ -848,22 +878,52 @@ private fun SplitDetailSheet(
         Spacer(Modifier.height(10.dp))
 
         if (split.exercises.isEmpty()) {
-            Text(
-                "This split has no saved exercises yet.",
-                color = SplitTheme.TextTertiary,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(vertical = 4.dp),
-            )
-            Spacer(Modifier.height(10.dp))
-            Button(
-                onClick = { showSavePicker = true },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = SplitTheme.AccentBgSoft,
-                    contentColor = SplitTheme.Accent,
-                ),
-            ) { Text("Save from a workout day", fontWeight = FontWeight.Medium, fontSize = 13.sp) }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.FitnessCenter,
+                    contentDescription = null,
+                    tint = AccentTeal.copy(alpha = 0.4f),
+                    modifier = Modifier.size(48.dp),
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "No exercises yet",
+                    color = TextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Save exercises from a past workout to build this split",
+                    color = TextInactive,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = { showSavePicker = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AccentTeal,
+                        contentColor = Color.White,
+                    ),
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Add Exercises", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                }
+            }
         } else {
             split.exercises.forEach { ex ->
                 ExerciseProgressRow(
@@ -878,8 +938,8 @@ private fun SplitDetailSheet(
                     onClick = { showSavePicker = true },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, SplitTheme.AccentBorder),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SplitTheme.Accent),
+                    border = BorderStroke(1.dp, AccentTeal),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentTeal),
                 ) { Text("Save this list as the split", fontWeight = FontWeight.Medium, fontSize = 13.sp) }
             }
         }
@@ -908,15 +968,342 @@ private fun SplitDetailSheet(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SplitDetailSheetV2(
+    split: Split,
+    availableSessions: List<AvailableSessionUi>,
+    onLoad: () -> Unit,
+    onRename: (String) -> Unit,
+    onDelete: () -> Unit,
+    onSaveFromDate: (String) -> Unit,
+    onClearSaved: () -> Unit,
+    onOpenExerciseProgress: (exerciseId: Long) -> Unit,
+) {
+    var showSavePicker by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    var name by remember(split.id) { mutableStateOf(split.name) }
+    val durationText = if (split.estimatedDurationMin > 0) "~${split.estimatedDurationMin} min" else "No history"
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .padding(top = 12.dp, bottom = 24.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .width(42.dp)
+                .height(4.dp)
+                .clip(RoundedCornerShape(100.dp))
+                .background(BorderDefault),
+        )
+
+        Spacer(Modifier.height(18.dp))
+        Text(
+            text = "Edit split",
+            style = MaterialTheme.typography.labelLarge,
+            color = AccentTeal,
+            fontWeight = FontWeight.W800,
+        )
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            singleLine = true,
+            textStyle = TextStyle(
+                fontSize = 24.sp,
+                fontWeight = FontWeight.W800,
+                color = TextPrimary,
+            ),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = AccentTeal,
+                unfocusedBorderColor = BorderDefault,
+                focusedContainerColor = BackgroundSurface,
+                unfocusedContainerColor = BackgroundSurface,
+                cursorColor = AccentTeal,
+            ),
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        LaunchedEffect(name) {
+            if (name.isNotBlank() && name.trim() != split.name) onRename(name.trim())
+        }
+
+        Spacer(Modifier.height(12.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SplitMetricPill("${split.exercises.size} exercises")
+            SplitMetricPill("Last run ${relativeAge(split.lastPerformedEpochDay)}")
+            SplitMetricPill(durationText)
+        }
+
+        Spacer(Modifier.height(20.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = onLoad,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AccentTeal,
+                    contentColor = Color.White,
+                ),
+            ) {
+                Text("Start workout", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.White)
+            }
+            OutlinedButton(
+                onClick = { confirmDelete = true },
+                modifier = Modifier.height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, ErrorRedSoft),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
+            ) {
+                Icon(Icons.Default.Delete, null, modifier = Modifier.size(14.dp), tint = ErrorRed)
+                Spacer(Modifier.width(5.dp))
+                Text("Delete", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = ErrorRed)
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Exercises", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+                Text("Tap any lift to view progress", color = TextInactive, fontSize = 11.sp)
+            }
+            if (split.isSaved) {
+                Text(
+                    "Reset",
+                    color = TextInactive,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onClearSaved() }
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+
+        if (split.exercises.isEmpty()) {
+            EmptySplitExercises(onAddExercises = { showSavePicker = true })
+        } else {
+            split.exercises.forEach { exercise ->
+                SplitExerciseEditRow(
+                    ref = exercise,
+                    onClick = { onOpenExerciseProgress(exercise.exerciseId) },
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { showSavePicker = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, AccentTeal),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentTeal),
+            ) {
+                Text(
+                    "Update exercises from a workout",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                    color = AccentTeal,
+                )
+            }
+        }
+    }
+
+    if (showSavePicker) {
+        SaveFromDayDialog(
+            sessions = availableSessions,
+            onDismiss = { showSavePicker = false },
+            onPick = { date ->
+                onSaveFromDate(date)
+                showSavePicker = false
+            },
+        )
+    }
+
+    if (confirmDelete) {
+        ConfirmDeleteDialog(
+            splitName = split.name,
+            onDismiss = { confirmDelete = false },
+            onConfirm = {
+                confirmDelete = false
+                onDelete()
+            },
+        )
+    }
+}
+
+@Composable
+private fun SplitMetricPill(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(100.dp))
+            .background(AccentTeal07)
+            .border(1.dp, AccentTeal12, RoundedCornerShape(100.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        Text(
+            text = text,
+            color = TextSecondary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
+private fun EmptySplitExercises(onAddExercises: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.FitnessCenter,
+            contentDescription = null,
+            tint = AccentTeal.copy(alpha = 0.45f),
+            modifier = Modifier.size(46.dp),
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "No exercises yet",
+            color = TextPrimary,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Choose a previous workout to fill this split.",
+            color = TextInactive,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = onAddExercises,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AccentTeal,
+                contentColor = Color.White,
+            ),
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Add exercises", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
+        }
+    }
+}
+
+@Composable
+private fun SplitExerciseEditRow(ref: SplitExerciseRef, onClick: () -> Unit) {
+    val trend = ref.recentMaxVolume
+    val delta = trend.deltaPercentOrNull()
+    val first = trend.firstOrNull() ?: 0f
+    val last = trend.lastOrNull() ?: 0f
+    val trendColor = when {
+        trend.size < 2 -> TextInactive
+        last >= first -> AccentTeal
+        else -> ErrorRed
+    }
+    val trendLabel = when {
+        trend.isEmpty() -> "No history yet"
+        delta == null -> "Recent trend steady"
+        delta > 0 -> "+${"%.1f".format(delta)}% over last ${trend.size} sessions"
+        delta < 0 -> "${"%.1f".format(delta)}% over last ${trend.size} sessions"
+        else -> "Recent trend steady"
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
+        border = BorderStroke(1.dp, BorderSubtle),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(AccentTeal10),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.FitnessCenter,
+                    contentDescription = null,
+                    tint = AccentTeal,
+                    modifier = Modifier.size(17.dp),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    ref.displayName,
+                    color = TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    trendLabel,
+                    color = when {
+                        trend.isEmpty() || delta == null -> TextInactive
+                        delta > 0 -> AccentTeal
+                        delta < 0 -> ErrorRed
+                        else -> TextInactive
+                    },
+                    fontSize = 11.sp,
+                )
+            }
+            MiniSparkline(
+                values = trend,
+                color = trendColor,
+                modifier = Modifier.width(64.dp).height(22.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(">", color = TextInactive, fontSize = 16.sp)
+        }
+    }
+}
+
 @Composable
 private fun ExerciseProgressRow(ref: SplitExerciseRef, onClick: () -> Unit) {
     val trend = ref.recentMaxVolume
     val delta = trend.deltaPercentOrNull()
 
+    val first = trend.firstOrNull() ?: 0f
+    val last = trend.lastOrNull() ?: 0f
+    val trendColor = when {
+        trend.size < 2 -> TextInactive
+        last >= first -> AccentTeal
+        else -> ErrorRed
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = SplitTheme.SurfaceSunken),
+        colors = CardDefaults.cardColors(containerColor = BackgroundElevated),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -925,7 +1312,7 @@ private fun ExerciseProgressRow(ref: SplitExerciseRef, onClick: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(
                     ref.displayName,
-                    color = SplitTheme.TextPrimary,
+                    color = TextPrimary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                 )
@@ -939,20 +1326,21 @@ private fun ExerciseProgressRow(ref: SplitExerciseRef, onClick: () -> Unit) {
                         else -> "steady"
                     },
                     color = when {
-                        delta == null -> SplitTheme.TextSecondary
-                        delta > 0 -> SplitTheme.Accent
-                        else -> SplitTheme.TextSecondary
+                        trend.isEmpty() || delta == null -> TextInactive
+                        delta > 0 -> AccentTeal
+                        delta < 0 -> ErrorRed
+                        else -> TextInactive
                     },
                     fontSize = 11.sp,
                 )
             }
             MiniSparkline(
                 values = trend,
-                color = if ((delta ?: 0f) > 0) SplitTheme.Accent else SplitTheme.TextDim,
+                color = trendColor,
                 modifier = Modifier.width(64.dp).height(22.dp),
             )
             Spacer(Modifier.width(10.dp))
-            Text("›", color = SplitTheme.TextTertiary, fontSize = 20.sp)
+            Text("›", color = TextInactive, fontSize = 20.sp)
         }
     }
 }
@@ -968,8 +1356,8 @@ private fun AddSplitDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
         Card(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = SplitTheme.Surface),
-            border = BorderStroke(1.dp, SplitTheme.Divider),
+            colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
+            border = BorderStroke(1.dp, BorderDefault),
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -977,41 +1365,41 @@ private fun AddSplitDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
             ) {
                 Text(
                     "Add split",
-                    color = SplitTheme.TextPrimary,
+                    color = TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
                     "Name it whatever makes sense to you - \"Upper A\", \"Heavy day\", \"Arms\", anything.",
-                    color = SplitTheme.TextSecondary,
+                    color = TextInactive,
                     fontSize = 11.sp,
                 )
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    placeholder = { Text("Split name", color = SplitTheme.TextTertiary) },
+                    placeholder = { Text("Split name", color = TextInactive) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = SplitTheme.AccentBorder,
-                        unfocusedBorderColor = SplitTheme.Divider,
-                        focusedContainerColor = SplitTheme.SurfaceSunken,
-                        unfocusedContainerColor = SplitTheme.SurfaceSunken,
-                        cursorColor = SplitTheme.Accent,
-                        focusedTextColor = SplitTheme.TextPrimary,
-                        unfocusedTextColor = SplitTheme.TextPrimary,
+                        focusedBorderColor = AccentTeal,
+                        unfocusedBorderColor = BorderSubtle,
+                        focusedContainerColor = BackgroundElevated,
+                        unfocusedContainerColor = BackgroundElevated,
+                        cursorColor = AccentTeal,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
                     ),
                 )
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = SplitTheme.TextSecondary)
+                        Text("Cancel", color = TextInactive)
                     }
                     Spacer(Modifier.width(8.dp))
                     Button(
                         onClick = { if (name.isNotBlank()) onConfirm(name.trim()) },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = SplitTheme.Accent,
-                            contentColor = SplitTheme.AccentOnAccent,
+                            containerColor = AccentTeal,
+                            contentColor = BackgroundPrimary,
                         ),
                     ) { Text("Add") }
                 }
@@ -1030,8 +1418,8 @@ private fun ConfirmDeleteDialog(
         Card(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = SplitTheme.Surface),
-            border = BorderStroke(1.dp, SplitTheme.Divider),
+            colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
+            border = BorderStroke(1.dp, BorderDefault),
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -1039,24 +1427,24 @@ private fun ConfirmDeleteDialog(
             ) {
                 Text(
                     "Delete \"$splitName\"?",
-                    color = SplitTheme.TextPrimary,
+                    color = TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
                     "Past workout days stay logged. Only the split entry and its saved exercise list are removed.",
-                    color = SplitTheme.TextSecondary,
+                    color = TextInactive,
                     fontSize = 12.sp,
                 )
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = SplitTheme.TextSecondary)
+                        Text("Cancel", color = TextInactive)
                     }
                     Spacer(Modifier.width(8.dp))
                     Button(
                         onClick = onConfirm,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFC23A3A),
+                            containerColor = ErrorRed,
                             contentColor = Color.White,
                         ),
                     ) {
@@ -1080,8 +1468,8 @@ private fun SaveFromDayDialog(
         Card(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = SplitTheme.Surface),
-            border = BorderStroke(1.dp, SplitTheme.Divider),
+            colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
+            border = BorderStroke(1.dp, BorderDefault),
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -1089,20 +1477,20 @@ private fun SaveFromDayDialog(
             ) {
                 Text(
                     "Pick a workout day",
-                    color = SplitTheme.TextPrimary,
+                    color = TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
                     "The exercises from that day become this split's saved list. Reps/weights stay with the log itself.",
-                    color = SplitTheme.TextSecondary,
+                    color = TextInactive,
                     fontSize = 11.sp,
                 )
 
                 if (sessions.isEmpty()) {
                     Text(
                         "No logged workouts yet. Log a session in the Log tab first, then come back.",
-                        color = SplitTheme.TextTertiary,
+                        color = TextInactive,
                         fontSize = 12.sp,
                     )
                 } else {
@@ -1114,7 +1502,7 @@ private fun SaveFromDayDialog(
                             val s = sessions[i]
                             Card(
                                 shape = RoundedCornerShape(10.dp),
-                                colors = CardDefaults.cardColors(containerColor = SplitTheme.SurfaceSunken),
+                                colors = CardDefaults.cardColors(containerColor = BackgroundElevated),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { onPick(s.date) },
@@ -1123,14 +1511,14 @@ private fun SaveFromDayDialog(
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
                                             s.date,
-                                            color = SplitTheme.TextPrimary,
+                                            color = TextPrimary,
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Medium,
                                             modifier = Modifier.weight(1f),
                                         )
                                         Text(
                                             "${s.exerciseCount} exercises",
-                                            color = SplitTheme.TextTertiary,
+                                            color = TextInactive,
                                             fontSize = 11.sp,
                                         )
                                     }
@@ -1138,7 +1526,7 @@ private fun SaveFromDayDialog(
                                         Spacer(Modifier.height(3.dp))
                                         Text(
                                             s.preview.joinToString(" · "),
-                                            color = SplitTheme.TextDim,
+                                            color = TextInactive,
                                             fontSize = 11.sp,
                                             maxLines = 1,
                                         )
@@ -1151,7 +1539,7 @@ private fun SaveFromDayDialog(
 
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = SplitTheme.TextSecondary)
+                        Text("Cancel", color = TextInactive)
                     }
                 }
             }

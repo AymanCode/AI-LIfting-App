@@ -30,6 +30,10 @@ object TransferRatios {
         (MovementPattern.HorizontalPress to MovementPattern.ChestFly) to 0.55,
         (MovementPattern.HorizontalPress to MovementPattern.Triceps) to 0.45,
 
+        // Vertical press / Shoulders
+        (MovementPattern.VerticalPress to MovementPattern.Shoulders) to 0.40,
+        (MovementPattern.HorizontalPress to MovementPattern.Shoulders) to 0.30,
+
         // Pull family
         (MovementPattern.VerticalPull to MovementPattern.HorizontalPull) to 0.90,
 

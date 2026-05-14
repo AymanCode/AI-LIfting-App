@@ -50,6 +50,9 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
     private val turnLogDao      = db.agentTurnLogDao()
     private val pendingReviewDao = db.pendingReviewDao()
 
+    private val workoutSetDao = db.workoutSetDao()
+    private val exerciseDao = db.exerciseDao()
+
     // Track which review IDs have already been surfaced so the chat does not repeat them.
     private val notifiedReviewIds = mutableSetOf<Long>()
 
@@ -86,13 +89,24 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
     // Exposed state
 
     val uiState: StateFlow<AiUiState> = combine(
-        _input, _msgs, _confirm, _busy
-    ) { input, msgs, confirm, busy ->
+        _input, _msgs, _confirm, _busy, exerciseDao.observeAll()
+    ) { input, msgs, confirm, busy, exercises ->
+        val query = input.substringAfterLast('@', "").takeIf { input.contains('@') && !input.substringAfterLast('@').contains(' ') }
+        val availableNames = if (query != null) {
+            exercises.filter { it.name.contains(query, ignoreCase = true) }
+                .sortedByDescending { it.name.startsWith(query, ignoreCase = true) }
+                .map { it.name }
+                .distinct()
+        } else {
+            exercises.map { it.name }.distinct().sorted()
+        }
+
         AiUiState(
             isModelReady  = true,
             messages      = msgs,
-            shortcuts     = SHORTCUTS,
+            shortcuts     = buildDynamicShortcuts(exercises),
             input         = input,
+            availableExerciseNames = availableNames,
             isWorking     = busy,
             pendingAction = confirm?.let {
                 AiPendingActionUi(
@@ -105,8 +119,38 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
-        AiUiState(isModelReady = true, messages = listOf(WELCOME), shortcuts = SHORTCUTS)
+        AiUiState(isModelReady = true, messages = listOf(WELCOME), shortcuts = emptyList())
     )
+
+    private suspend fun buildDynamicShortcuts(exercises: List<com.ayman.ecolift.data.Exercise>): List<AiShortcutUi> {
+        val shortcuts = mutableListOf<AiShortcutUi>()
+
+        // 1. Trend for most recently logged exercise
+        val recentExercise = workoutSetDao.getMostRecentExerciseName()
+        if (recentExercise != null) {
+            shortcuts += AiShortcutUi(
+                title = "Trend for $recentExercise",
+                subtitle = "Analyze your recent progress",
+                prompt = "How is my $recentExercise trending?"
+            )
+        }
+
+        // 2. Analyze last workout
+        val lastDate = workoutSetDao.getLatestWorkoutDate()
+        if (lastDate != null) {
+            shortcuts += AiShortcutUi(
+                title = "Analyze last workout",
+                subtitle = "Check your session on $lastDate",
+                prompt = "Analyze my workout from $lastDate"
+            )
+        }
+
+        // 3. Defaults
+        shortcuts += AiShortcutUi("Log a set", "Quick-log weight and reps", "bench press 185 x 5")
+        shortcuts += AiShortcutUi("Fix a mistake", "Correct historical data", "Actually my bench on Monday was 225")
+
+        return shortcuts.take(4)
+    }
 
     /** Last 50 turns for the debug sheet, newest first. */
     val recentTurns: StateFlow<List<AgentTurnLog>> = turnLogDao
