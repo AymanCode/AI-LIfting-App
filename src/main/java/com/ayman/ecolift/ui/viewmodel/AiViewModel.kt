@@ -4,14 +4,18 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ayman.ecolift.BuildConfig
 import com.ayman.ecolift.ai.AiActionPreview
 import com.ayman.ecolift.ai.AiConversationTurn
 import com.ayman.ecolift.ai.AiExecutionResult
+import com.ayman.ecolift.ai.AiModelAgent
 import com.ayman.ecolift.ai.AiRuntimeContext
+import com.ayman.ecolift.ai.AiModelStatus
 import com.ayman.ecolift.ai.AiToolCall
 import com.ayman.ecolift.ai.AiToolExecutor
-import com.ayman.ecolift.ai.GemmaAgent
+import com.ayman.ecolift.ai.GroqCloudAgent
 import com.ayman.ecolift.ai.GymContextManifestRepository
+import com.ayman.ecolift.ai.IronMindFallbacks
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.Cycle
 import com.ayman.ecolift.data.Exercise
@@ -42,7 +46,12 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     private val tempSessionSwapRepository = TempSessionSwapRepository(database)
     private val pendingReviewRepository = PendingReviewRepository(database)
     private val manifestRepository = GymContextManifestRepository(application, database)
-    private val gemmaAgent = GemmaAgent(application)
+    private val groqAgent = GroqCloudAgent(
+        apiKey = BuildConfig.GROQ_API_KEY,
+        baseUrl = BuildConfig.GROQ_API_BASE_URL,
+        model = BuildConfig.GROQ_MODEL,
+    )
+    private val modelAgent: AiModelAgent = groqAgent
     private val toolExecutor = AiToolExecutor(
         exerciseRepository = exerciseRepository,
         setRepository = setRepository,
@@ -66,7 +75,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     private val pendingPreview = MutableStateFlow<AiActionPreview?>(null)
     private val selectedImageUri = MutableStateFlow<Uri?>(null)
     private val isWorking = MutableStateFlow(false)
-    private val modelStatus = MutableStateFlow(gemmaAgent.getStatus())
+    private val modelStatus = MutableStateFlow(modelAgent.getStatus())
     private var nextMessageId = 2L
 
     private val currentDay = workoutRepository.observeWorkoutDay(today)
@@ -125,6 +134,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 workoutDays = workoutDays,
                 exercises = core.exercises,
             ),
+            exerciseProgressJson = buildExerciseProgressJson(today, core.exercises),
             manifestJson = manifestRepository.buildManifest(today).toString(),
         )
     }.stateIn(
@@ -141,6 +151,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             availableExercises = emptyList(),
             lastSessionJson = "{}",
             currentTargetSessionJson = "{}",
+            exerciseProgressJson = "{}",
             manifestJson = "{}",
         ),
     )
@@ -233,11 +244,12 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         pendingToolCall.value = null
         pendingPreview.value = null
         val attachedImage = selectedImageUri.value
-        modelStatus.value = gemmaAgent.getStatus()
-        if (!modelStatus.value.isReady) {
+        val status = modelAgent.getStatus()
+        modelStatus.value = status
+        if (!status.isReady) {
             appendMessage(
                 isUser = false,
-                text = buildMissingModelMessage(modelStatus.value.modelPath),
+                text = buildUnavailableModelMessage(status),
                 isError = true,
             )
             return
@@ -251,7 +263,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     message = message.text,
                 )
             }
-            val result = gemmaAgent.respond(prompt, history, runtime, attachedImage)
+            val result = modelAgent.respond(prompt, history, runtime, attachedImage)
             result.onSuccess { output ->
                 selectedImageUri.value = null
                 if (output.assistantMessage.isNotBlank()) {
@@ -272,7 +284,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             }.onFailure { error ->
                 appendMessage(
                     isUser = false,
-                    text = error.message ?: "Gemma failed to produce a valid local action.",
+                    text = IronMindFallbacks.userFacingServiceFailure(error),
                     isError = true,
                 )
             }
@@ -308,7 +320,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         )
         pendingToolCall.value = result.pendingToolCall
         pendingPreview.value = result.pendingPreview
-        modelStatus.value = gemmaAgent.getStatus()
+        modelStatus.value = modelAgent.getStatus()
     }
 
     private fun appendMessage(isUser: Boolean, text: String, isError: Boolean = false) {
@@ -358,14 +370,13 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         return shortcuts.take(4)
     }
 
-    private fun buildMissingModelMessage(modelPath: String?): String {
-        return buildString {
-            append("Gemma E2B is not ready on this device yet.")
-            if (!modelPath.isNullOrBlank()) {
-                append(" Expected model path: ")
-                append(modelPath)
-            }
-        }
+    private fun buildUnavailableModelMessage(status: AiModelStatus): String {
+        return IronMindFallbacks.SERVICE_FAILURE
+    }
+
+    override fun onCleared() {
+        modelAgent.close()
+        super.onCleared()
     }
 
     private suspend fun buildLastSessionJson(
@@ -462,6 +473,54 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             .put("exercises", exerciseArray)
     }
 
+    private suspend fun buildExerciseProgressJson(
+        today: String,
+        exercises: List<Exercise>,
+    ): String {
+        val summaries = setRepository.getAllTimeMaxWeights()
+        val exerciseMap = exercises.associateBy(Exercise::id)
+        val exerciseArray = JSONArray(
+            summaries
+                .mapNotNull { max ->
+                    val exercise = exerciseMap[max.exerciseId] ?: return@mapNotNull null
+                    val recentSets = setRepository.getRecentHistoryForExercise(max.exerciseId, today)
+                    val recentSessions = recentSets
+                        .groupBy(WorkoutSet::date)
+                        .entries
+                        .sortedByDescending { it.key }
+                        .take(6)
+                        .map { (date, sets) ->
+                            val topSet = sets.maxByOrNull { it.weightLbs ?: 0 }
+                            JSONObject()
+                                .put("date", date)
+                                .put("topWeightLbs", topSet?.weightLbs?.let(WeightLbs::toLbs))
+                                .put("topReps", topSet?.reps)
+                                .put("setCount", sets.size)
+                                .put("estimatedOneRepMax", topSet?.estimatedOneRepMax())
+                        }
+                    JSONObject()
+                        .put("name", exercise.name)
+                        .put("isBodyweight", exercise.isBodyweight)
+                        .put("allTimeMaxWeightLbs", WeightLbs.toLbs(max.maxWeight))
+                        .put("sessionCount", recentSets.map(WorkoutSet::date).distinct().size)
+                        .put("recentSessions", JSONArray(recentSessions))
+                }
+                .sortedByDescending { item -> item.optInt("sessionCount") }
+                .take(12)
+        )
+        return JSONObject()
+            .put("asOfDate", today)
+            .put("exercises", exerciseArray)
+            .toString()
+    }
+
+    private fun WorkoutSet.estimatedOneRepMax(): Int? {
+        val weight = weightLbs ?: return null
+        val reps = reps ?: return null
+        if (reps <= 0) return null
+        return (WeightLbs.toLbs(weight) * (1f + reps / 30f)).toInt()
+    }
+
     private fun nextExpectedSlotType(
         today: String,
         numTypes: Int,
@@ -501,6 +560,7 @@ data class AiUiState(
     val messages: List<AiMessageUi> = emptyList(),
     val shortcuts: List<AiShortcutUi> = emptyList(),
     val input: String = "",
+    val availableExerciseNames: List<String> = emptyList(),
     val attachedImageLabel: String? = null,
     val pendingAction: AiPendingActionUi? = null,
     val isWorking: Boolean = false,

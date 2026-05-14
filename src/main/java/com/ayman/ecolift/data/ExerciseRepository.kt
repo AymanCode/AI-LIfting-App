@@ -58,6 +58,11 @@ class ExerciseRepository(private val exerciseDao: ExerciseDao) {
             .take(limit)
     }
 
+    suspend fun getPredictive(query: String, limit: Int = 4): List<Exercise> {
+        if (query.isBlank()) return emptyList()
+        return exerciseDao.searchByFrequency(query.trim(), limit)
+    }
+
     fun normalizeName(name: String): String {
         return name
             .trim()

@@ -47,7 +47,7 @@ data class AiModelOutput(
     val rawResponse: String,
 )
 
-data class GemmaStatus(
+data class AiModelStatus(
     val isReady: Boolean,
     val headline: String,
     val detail: String,
@@ -65,6 +65,7 @@ data class AiRuntimeContext(
     val availableExercises: List<String>,
     val lastSessionJson: String = "{}",
     val currentTargetSessionJson: String = "{}",
+    val exerciseProgressJson: String = "{}",
     val manifestJson: String = "{}",
 )
 

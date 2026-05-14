@@ -14,6 +14,7 @@ enum class MovementPattern {
     Curl,
     Triceps,
     Calves,
+    Shoulders,
     Unknown,
 }
 
@@ -31,13 +32,14 @@ object ExercisePatternMatcher {
                 normalized.contains("bench") || normalized.contains("chest press") || normalized.contains("machine press") -> MovementPattern.HorizontalPress
                 normalized.contains("shoulder press") || normalized.contains("overhead press") -> MovementPattern.VerticalPress
                 normalized.contains("fly") || normalized.contains("pec deck") -> MovementPattern.ChestFly
-                normalized.contains("pull up") || normalized.contains("lat pulldown") || normalized.contains("chin up") -> MovementPattern.VerticalPull
-                normalized.contains("row") -> MovementPattern.HorizontalPull
-                normalized.contains("squat") || normalized.contains("leg press") -> MovementPattern.Squat
+                normalized.contains("pull up") || normalized.contains("lat pulldown") || normalized.contains("chin up") || normalized.contains("vertical pull") -> MovementPattern.VerticalPull
+                normalized.contains("row") || normalized.contains("tether") || normalized.contains("face pull") -> MovementPattern.HorizontalPull
+                normalized.contains("squat") || normalized.contains("leg press") || normalized.contains("leg extension") -> MovementPattern.Squat
                 normalized.contains("deadlift") || normalized.contains("rdl") || normalized.contains("hinge") -> MovementPattern.Hinge
                 normalized.contains("curl") -> MovementPattern.Curl
-                normalized.contains("pushdown") || normalized.contains("tricep") || normalized.contains("dip") -> MovementPattern.Triceps
+                normalized.contains("pushdown") || normalized.contains("tricep") || normalized.contains("dip") || normalized.contains("skull crusher") || normalized.contains("skullcrusher") -> MovementPattern.Triceps
                 normalized.contains("calf") -> MovementPattern.Calves
+                normalized.contains("raise") || normalized.contains("lateral") || normalized.contains("front raise") -> MovementPattern.Shoulders
                 else -> MovementPattern.Unknown
             }
         }

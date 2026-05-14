@@ -16,10 +16,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Populate mock data for testing (only once or for debug)
-        // lifecycleScope.launch {
-        //     DebugDataHelper.populateMockData(applicationContext)
-        // }
+        // Populate requested data
+        lifecycleScope.launch {
+            DebugDataHelper.seedRequestedData(applicationContext)
+        }
 
         enableEdgeToEdge()
         setContent {

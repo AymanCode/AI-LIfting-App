@@ -53,5 +53,11 @@ val Typography = Typography(
         fontWeight = FontWeight.W800,
         fontSize = 8.sp,
         letterSpacing = 0.06.sp
+    ),
+    labelLarge = TextStyle(
+        fontSize = 10.sp,
+        fontWeight = FontWeight.W800,
+        letterSpacing = 0.08.sp,
+        color = TextInactive
     )
 )

@@ -38,6 +38,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private val currentDate = MutableStateFlow(WorkoutDates.today())
     private val _sessionSets = MutableStateFlow<List<WorkoutSet>>(emptyList())
     private val exerciseInput = MutableStateFlow("")
+    private val predictiveSuggestions = MutableStateFlow<List<Exercise>>(emptyList())
     private val reviewsExpanded = MutableStateFlow(false)
     private val restStopwatchSeconds = MutableStateFlow<Int?>(null)
     private val _restTimes = MutableStateFlow<Map<Long, Int>>(emptyMap())
@@ -91,10 +92,11 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private val uiInputs = combine(
         currentDate,
         exerciseInput,
+        predictiveSuggestions,
         reviewsExpanded,
         restStopwatchSeconds
-    ) { date, input, expanded, stopwatch ->
-        UiInputs(date = date, input = input, expanded = expanded, restStopwatch = stopwatch)
+    ) { date, input, suggestions, expanded, stopwatch ->
+        UiInputs(date = date, input = input, suggestions = suggestions, expanded = expanded, restStopwatch = stopwatch)
     }
 
     private val scheduleSnapshot = combine(workoutDays, currentDay, _sessionSets) {
@@ -157,6 +159,13 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateExerciseInput(value: String) {
         exerciseInput.value = value
+        if (value.isNotBlank()) {
+            viewModelScope.launch {
+                predictiveSuggestions.value = exerciseRepository.getPredictive(value)
+            }
+        } else {
+            predictiveSuggestions.value = emptyList()
+        }
     }
 
     fun addExerciseFromInput() {
@@ -165,13 +174,15 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             addExercise(rawInput)
             exerciseInput.value = ""
+            predictiveSuggestions.value = emptyList()
         }
     }
 
-    fun useSuggestion(name: String) {
+    fun useSuggestion(exercise: com.ayman.ecolift.data.Exercise) {
         viewModelScope.launch {
-            addExercise(name)
+            addSet(exercise.id)
             exerciseInput.value = ""
+            predictiveSuggestions.value = emptyList()
         }
     }
 
@@ -316,10 +327,12 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private fun startStopwatch() {
         stopwatchJob?.cancel()
         restStopwatchSeconds.value = 0
+        val startTime = System.currentTimeMillis()
         stopwatchJob = viewModelScope.launch {
             while (true) {
-                kotlinx.coroutines.delay(1000)
-                restStopwatchSeconds.update { (it ?: 0) + 1 }
+                kotlinx.coroutines.delay(500)
+                val elapsedMillis = System.currentTimeMillis() - startTime
+                restStopwatchSeconds.value = (elapsedMillis / 1000).toInt()
             }
         }
     }
@@ -351,16 +364,22 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun buildUiState(inputs: UiInputs, snapshot: DbSnapshot, restTimes: Map<Long, Int> = emptyMap()): LogUiState {
-        val exerciseMap = snapshot.exercises.associateBy(Exercise::id)
-        val suggestions = buildSuggestions(inputs.input, snapshot.exercises)
+        val exerciseMap = snapshot.exercises.associateBy { it.id }
         
-        // Quick-add: Removed as requested
-        val quickAdd = emptyList<ExerciseChipUi>()
+        // Filter exercises based on search input (case-insensitive)
+        val filteredSets = if (inputs.input.isNotBlank()) {
+            val query = inputs.input.lowercase()
+            snapshot.currentSets.filter { set ->
+                exerciseMap[set.exerciseId]?.name?.lowercase()?.contains(query) == true
+            }
+        } else {
+            snapshot.currentSets
+        }
 
-        val groupedExercises = snapshot.currentSets
+        val groupedExercises = filteredSets
             .groupBy(WorkoutSet::exerciseId)
             .entries
-            .sortedByDescending { entry -> entry.value.maxOfOrNull(WorkoutSet::id) ?: 0L }
+            .let(::orderLogExerciseGroups)
             .mapNotNull { entry ->
                 val exercise = exerciseMap[entry.key] ?: return@mapNotNull null
                 val sets = entry.value.sortedBy(WorkoutSet::setNumber)
@@ -408,8 +427,8 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                 CycleSlotUi(
                     type = slot.id.toInt(),
                     occurrence = nextOccurrence,
-                    label = "${slot.name} | $nextOccurrence",
-                    shortLabel = "${slot.name.take(1)}$nextOccurrence",
+                    label = slot.name,
+                    shortLabel = slot.name.take(2),
                     isExpected = slot.id == expectedSlotId,
                     isSelected = snapshot.currentDay?.cycleSlotId == slot.id
                 )
@@ -427,8 +446,8 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                 CycleSlotUi(
                     type = snapshot.currentDay.cycleSlotId.toInt(),
                     occurrence = snapshot.currentDay.cycleSlotOccurrence,
-                    label = "${slot?.name ?: "Unknown"} | ${snapshot.currentDay.cycleSlotOccurrence}",
-                    shortLabel = "${slot?.name?.take(1) ?: "U"}${snapshot.currentDay.cycleSlotOccurrence}",
+                    label = slot?.name ?: "Unknown",
+                    shortLabel = slot?.name?.take(2) ?: "Un",
                 )
             } else {
                 null
@@ -437,8 +456,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             cycleOptions = cycleOptions,
             exercises = groupedExercises,
             exerciseInput = inputs.input,
-            inlineSuggestions = suggestions.map { it.exercise.name },
-            quickAddExercises = quickAdd,
+            predictiveExercises = inputs.suggestions,
             pendingReviews = snapshot.pendingReviews,
             reviewsExpanded = inputs.expanded,
             restStopwatchSeconds = inputs.restStopwatch,
@@ -508,9 +526,14 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     }
 }
 
+internal fun orderLogExerciseGroups(
+    groups: Iterable<Map.Entry<Long, List<WorkoutSet>>>,
+): List<Map.Entry<Long, List<WorkoutSet>>> = groups.toList()
+
 private data class UiInputs(
     val date: String,
     val input: String,
+    val suggestions: List<Exercise>,
     val expanded: Boolean,
     val restStopwatch: Int?,
 )
@@ -537,3 +560,4 @@ private data class DbSnapshot(
     val currentSets: List<WorkoutSet>,
     val pendingReviews: List<PendingReview>,
 )
+

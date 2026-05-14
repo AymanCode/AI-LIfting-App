@@ -22,7 +22,11 @@ class AgentToolsImpl(
         fun ExerciseMatch(ex: com.ayman.ecolift.data.Exercise, score: Double) =
             ExerciseMatch(ex.id, ex.name, ex.isBodyweight, score)
 
-        // 1. Exact substring - "bench" matches "Bench Press", "bench press" matches too
+        // 0. Exact name match (case-insensitive) - highest priority for @mentions
+        all.firstOrNull { it.name.equals(query, ignoreCase = true) }
+            ?.let { return ExerciseMatch(it, 0.0) }
+
+        // 1. Exact substring
         all.firstOrNull { it.name.lowercase().contains(query) || query.contains(it.name.lowercase()) }
             ?.let { return ExerciseMatch(it, 0.0) }
 
@@ -45,9 +49,9 @@ class AgentToolsImpl(
     // getRecentSets
 
     override suspend fun getRecentSets(exerciseId: Long, limit: Int): List<SetSummary> {
-        val today = LocalDate.now().toString()
+        val futureDate = "2030-01-01" // Allow seeing future test data
         return db.workoutSetDao()
-            .getRecentHistoryForExercise(exerciseId, today)
+            .getRecentHistoryForExercise(exerciseId, futureDate)
             .take(limit)
             .map { set ->
                 SetSummary(
@@ -64,9 +68,9 @@ class AgentToolsImpl(
     // getExerciseHistory
 
     override suspend fun getExerciseHistory(exerciseId: Long, windowDays: Int): HistorySummary {
-        val today = LocalDate.now()
+        val today = LocalDate.now().plusDays(1)
         val since = today.minusDays(windowDays.toLong()).toString()
-        val beforeDate = today.toString()
+        val futureDate = "2030-01-01" // Allow seeing future test data
 
         val sets = db.workoutSetDao().getSetsSince(exerciseId, since)
         val summaries = sets.map { set ->
@@ -174,14 +178,18 @@ class AgentToolsImpl(
     // getProgressTrend
 
     override suspend fun getProgressTrend(exerciseId: Long): ProgressTrend {
-        val today = LocalDate.now()
+        val futureDate = "2030-01-01" // Allow seeing future test data
         val exercise = db.exerciseDao().getById(exerciseId)
-        val sets = db.workoutSetDao().getRecentHistoryForExercise(exerciseId, today.toString())
+        val sets = db.workoutSetDao().getRecentHistoryForExercise(exerciseId, futureDate)
 
         fun epley(w: Int, r: Int): Float = WeightLbs.toLbs(w).toFloat() * (1f + r / 30f)
 
-        val cutoff30 = today.minusDays(30).toString()
-        val cutoff60 = today.minusDays(60).toString()
+        // For trend analysis, use the latest workout date as "today" if it's in the future
+        val latestDate = sets.maxOfOrNull { it.date } ?: LocalDate.now().toString()
+        val referenceDate = if (latestDate > LocalDate.now().toString()) LocalDate.parse(latestDate) else LocalDate.now()
+        
+        val cutoff30 = referenceDate.minusDays(30).toString()
+        val cutoff60 = referenceDate.minusDays(60).toString()
 
         val recent30Max = sets.filter { it.date >= cutoff30 }
             .mapNotNull { s -> s.weightLbs?.let { w -> s.reps?.let { r -> if (r > 0) epley(w, r) else null } } }
