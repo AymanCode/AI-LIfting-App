@@ -1,6 +1,6 @@
 # Architecture
 
-EcoLift is a single-module Android app built around Compose screens, ViewModels, Room repositories, and a bounded AI assistant layer.
+EcoLift is a single-module Android app built around Compose screens, ViewModels, Room repositories, and a bounded assistant layer.
 
 ## Runtime Flow
 
@@ -43,9 +43,9 @@ Weights are stored through `WeightLbs`, which keeps values in tenths of a pound.
 
 Backup exports include workout history, split and cycle data, pending reviews, audit entries, and agent turn logs. Import runs inside a Room transaction after creating a pre-import automatic backup.
 
-## Agent Safety Model
+## Agent Writes
 
-Agent writes are represented as sealed `DbPatch` values instead of free-form database mutations. This keeps the model away from direct SQL and makes assistant behavior testable.
+Agent writes are represented as sealed `DbPatch` values instead of free-form database mutations. This keeps model output away from direct SQL and makes assistant behavior testable.
 
 Safety controls:
 
@@ -58,7 +58,7 @@ Safety controls:
 
 ## Evaluation and Telemetry
 
-The offline eval harness uses `src/test/resources/agent_eval/ironmind_eval_cases.jsonl` to measure routing source, intent accuracy, fallback behavior, patch-field accuracy, and destructive confirmation behavior without calling a live model.
+The offline eval harness uses `src/test/resources/agent_eval/ironmind_eval_cases.jsonl` to measure routing source, intent accuracy, fallback behavior, patch-field accuracy, and destructive confirmation behavior without calling a live model. Additional prompt banks cover realistic offline prompts and opt-in live model rescue cases.
 
 The DuckDB pipeline loads backup exports into these tables:
 

@@ -1,6 +1,6 @@
 # Phase 1: DbPatch Type System and Validation
 
-## What Was Built
+## Overview
 
 `DbPatch` is a sealed interface that represents every database mutation the agent can propose:
 
@@ -34,7 +34,7 @@ The implementation follows the app's actual Room schema:
 
 Unit tests cover serialization, destructive flag behavior, polymorphic lists, valid patches, and rejection paths.
 
-## Deferred Work
+## Follow-Ups
 
 - Database existence checks belong in `PatchService`, not `PatchValidator`.
 - Room round-trip coverage should be added as instrumentation tests.
