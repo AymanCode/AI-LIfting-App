@@ -12,8 +12,7 @@ The app is designed around a simple constraint: workout data should remain usefu
 - Search exercises with fuzzy matching and keep completed-set history.
 - Import older workout logs from plain text, including mixed formats like `135x8`, `135 lb x 8`, and `135 for 8 8 6`.
 - Manage split routines, cycle slots, custom ordering, and saved exercises per split.
-- Review progress through exercise history, trend summaries, estimated strength metrics, sparklines, and detailed set history.
-- Export and restore local workout data without requiring an account or cloud backend.
+- Review progress through exercise history, trend summaries, estimated strength metrics, sparklines, detailed set history, and local backup/restore.
 
 ## IronMind Assistant
 
@@ -64,9 +63,11 @@ The agent is tested with JSONL prompt banks instead of relying only on manual de
 
 Recent local runs:
 
-- 200-case offline eval: 99.5% intent accuracy, 98.5% route-source accuracy, 82.5% rule-path coverage, 9% fallback rate, 98.2% patch-field accuracy, 100% destructive confirmation accuracy, 0 crashes.
-- 120-prompt realistic offline bank: 87.5% deterministic coverage, 12.5% fallback rate, 100% recoverable draft rate, 100% safe fallback preservation, 0 API calls.
+- 200-case offline eval: 99.5% intent accuracy and 9% fallback rate.
+- 120-prompt realistic offline bank: 87.5% deterministic coverage and 12.5% fallback rate.
 - 24-prompt live AI rescue eval: 24/24 successful cases, 100% target agreement, 100% DB-ready mutation rate, 100% model-output parse rate, 0 unsafe silent mutations.
+
+Full reports are written to `build/reports/agent-eval/summary.json`, `build/reports/agent-eval/realistic-offline-summary.json`, and `build/reports/agent-eval/ai-rescue-summary.json`.
 
 The live eval uses capped completions, retry/backoff, and optional spacing between prompts. A live case only passes when the output is usable by the app: write cases must produce expected patch fields, destructive requests must require confirmation, read cases must avoid mutation, and ambiguous cases must preserve the original user text.
 
