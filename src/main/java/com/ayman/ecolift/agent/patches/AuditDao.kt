@@ -2,6 +2,7 @@ package com.ayman.ecolift.agent.patches
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.ayman.ecolift.agent.model.AuditEntity
 
@@ -10,9 +11,15 @@ interface AuditDao {
     @Insert
     suspend fun insert(audit: AuditEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(audits: List<AuditEntity>)
+
     @Query("SELECT * FROM audit_log WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): AuditEntity?
 
     @Query("SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getRecent(limit: Int = 20): List<AuditEntity>
+
+    @Query("SELECT * FROM audit_log ORDER BY id ASC")
+    suspend fun getAll(): List<AuditEntity>
 }

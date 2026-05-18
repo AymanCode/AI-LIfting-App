@@ -164,7 +164,7 @@ class OrchestratorEdgeCaseTest {
     // ── Weight alone, no reps → no patch ─────────────────────────────
 
     @Test
-    fun `weight without reps returns clarify`() = runTest {
+    fun `weight without reps returns recoverable draft`() = runTest {
         whenever(tools.findExercise(any())).thenReturn(BENCH)
         whenever(tools.getRecentSets(any(), any())).thenReturn(emptyList())
 
@@ -172,7 +172,8 @@ class OrchestratorEdgeCaseTest {
         // requires reps so returns null → TextResponse.
         val result = orchestrator.process("logged bench 135 lbs")
 
-        assertTrue("Expected TextResponse but got $result", result is AgentTurn.TextResponse)
+        assertTrue("Expected RecoverableFailure but got $result", result is AgentTurn.RecoverableFailure)
+        assertEquals("logged bench 135 lbs", (result as AgentTurn.RecoverableFailure).originalText)
         verify(applier, never()).applyPatches(any(), any(), any())
     }
 

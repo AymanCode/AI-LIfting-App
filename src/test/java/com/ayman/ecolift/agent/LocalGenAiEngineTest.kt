@@ -132,6 +132,20 @@ class LocalGenAiEngineTest {
     }
 
     @Test
+    fun `logSetExtraction teaches model concrete gym aliases and relative date rules`() {
+        val prompt = Prompts.logSetExtraction(
+            userText = "forgot to log yesterday calves 90 for 12,10,8",
+            defaultDate = "2026-05-17"
+        )
+
+        assertTrue(prompt.contains("calves -> Standing Calf Raise Machine"))
+        assertTrue(prompt.contains("yesterday"))
+        assertTrue(prompt.contains("2026-05-16"))
+        assertTrue(prompt.contains("plain numbers before 'for' or 'x' are pounds"))
+        assertTrue(prompt.contains("90 for 12, 10, 8"))
+    }
+
+    @Test
     fun `explanation contains user text and patch summary`() {
         val prompt = Prompts.explanation(
             userText = "log 135x8",

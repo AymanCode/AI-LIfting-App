@@ -1,6 +1,7 @@
 package com.ayman.ecolift.agent
 
 import com.ayman.ecolift.agent.model.DbPatch
+import com.ayman.ecolift.agent.engine.LocalGenAiEngine
 import com.ayman.ecolift.agent.patches.PatchApplier
 import com.ayman.ecolift.agent.patches.PatchResult
 import com.ayman.ecolift.agent.router.IntentRouter
@@ -11,6 +12,8 @@ import com.ayman.ecolift.agent.tools.SetSummary
 import com.ayman.ecolift.agent.tools.SimilarExercise
 import com.ayman.ecolift.agent.tools.WeightSuggestion
 import com.ayman.ecolift.data.WeightLbs
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -26,6 +29,19 @@ class AgentOrchestratorTest {
     private val TODAY = "2026-04-16"
     private val BENCH_MATCH = ExerciseMatch(exerciseId = 1L, name = "Bench Press", isBodyweight = false, score = 0.0)
     private fun lbs(value: Int): Int = WeightLbs.fromWholePounds(value)!!
+
+    private class ReadyExtractionEngine(
+        private val extractionJson: String,
+        private val intentLabel: String = "LogSet"
+    ) : LocalGenAiEngine {
+        override val isReady: Boolean = true
+        override suspend fun warmup() = Unit
+        override fun streamText(prompt: String): Flow<String> = flowOf(extractionJson)
+        override suspend fun generateStructured(prompt: String, schema: String): String {
+            return if (prompt.contains("Classify", ignoreCase = true)) intentLabel else extractionJson
+        }
+        override fun close() = Unit
+    }
 
     @Before
     fun setup() {
@@ -92,12 +108,247 @@ class AgentOrchestratorTest {
     }
 
     @Test
-    fun `logSet exercise not found returns TextResponse`() = runTest {
+    fun `messy shorthand log creates multiple patches for one fuzzy matched exercise`() = runTest {
+        whenever(tools.findExercise(eq("Bechh Press"))).thenReturn(BENCH_MATCH)
+        whenever(tools.getRecentSets(eq(1L), any())).thenReturn(emptyList())
+        whenever(patchApplier.applyPatches(any(), any(), eq(false)))
+            .thenReturn(PatchResult.Applied(auditId = 7L, patchCount = 3))
+
+        val result = orchestrator.process("i did Bechh Press 135x7,125x10,.85x5.")
+
+        assertTrue("Expected Applied but got $result", result is AgentTurn.Applied)
+        argumentCaptor<List<DbPatch>> {
+            verify(patchApplier).applyPatches(any(), capture(), eq(false))
+            val patches = firstValue.map { it as DbPatch.LogSet }
+            assertEquals(3, patches.size)
+            assertEquals(listOf(1, 2, 3), patches.map { it.setNumber })
+            assertEquals(listOf(lbs(135), lbs(125), lbs(85)), patches.map { it.weightLbs })
+            assertEquals(listOf(7, 10, 5), patches.map { it.reps })
+            assertTrue(patches.all { it.date == TODAY })
+        }
+    }
+
+    @Test
+    fun `messy unit log reuses weight across comma separated reps on parsed date`() = runTest {
+        whenever(tools.findExercise(eq("Bechh Press"))).thenReturn(BENCH_MATCH)
+        whenever(tools.getRecentSets(eq(1L), any())).thenReturn(emptyList())
+        whenever(patchApplier.applyPatches(any(), any(), eq(false)))
+            .thenReturn(PatchResult.Applied(auditId = 8L, patchCount = 3))
+
+        orchestrator.process("yesterday i did Bechh Press around 135 pounds for 12 reps, 10, and 8")
+
+        argumentCaptor<List<DbPatch>> {
+            verify(patchApplier).applyPatches(any(), capture(), eq(false))
+            val patches = firstValue.map { it as DbPatch.LogSet }
+            assertEquals(3, patches.size)
+            assertEquals(listOf(lbs(135), lbs(135), lbs(135)), patches.map { it.weightLbs })
+            assertEquals(listOf(12, 10, 8), patches.map { it.reps })
+            assertTrue(patches.all { it.date == "2026-04-15" })
+        }
+    }
+
+    @Test
+    fun `model fallback extracts spoken messy log when deterministic parser cannot`() = runTest {
+        val engine = ReadyExtractionEngine(
+            """
+            {
+              "exerciseQuery": "Bench Press",
+              "date": "2026-04-15",
+              "confidence": 0.91,
+              "sets": [
+                { "weightLbs": 135, "reps": 7 }
+              ]
+            }
+            """.trimIndent()
+        )
+        val modelBackedOrchestrator = AgentOrchestrator(
+            router       = IntentRouter(engine = engine),
+            tools        = tools,
+            patchApplier = patchApplier,
+            engine       = engine,
+            today        = { TODAY }
+        )
+        whenever(tools.findExercise(any())).thenAnswer { invocation ->
+            if (invocation.getArgument<String>(0) == "Bench Press") BENCH_MATCH else null
+        }
+        whenever(tools.getRecentSets(eq(1L), any())).thenReturn(emptyList())
+        whenever(patchApplier.applyPatches(any(), any(), eq(false)))
+            .thenReturn(PatchResult.Applied(auditId = 9L, patchCount = 1))
+
+        val result = modelBackedOrchestrator.process("just did Bechh Press one thirty five for seven")
+
+        assertTrue("Expected Applied but got $result", result is AgentTurn.Applied)
+        argumentCaptor<List<DbPatch>> {
+            verify(patchApplier).applyPatches(any(), capture(), eq(false))
+            val patch = firstValue.single() as DbPatch.LogSet
+            assertEquals(lbs(135), patch.weightLbs)
+            assertEquals(7, patch.reps)
+            assertEquals(TODAY, patch.date)
+        }
+    }
+
+    @Test
+    fun `model fallback does not mutate ambiguous plate based log`() = runTest {
+        val engine = ReadyExtractionEngine(
+            """
+            {
+              "exerciseQuery": "Leg Press",
+              "date": "2026-04-15",
+              "confidence": 0.94,
+              "sets": [
+                { "weightLbs": 135, "reps": 12 },
+                { "weightLbs": 135, "reps": 12 }
+              ]
+            }
+            """.trimIndent()
+        )
+        val modelBackedOrchestrator = AgentOrchestrator(
+            router       = IntentRouter(engine = engine),
+            tools        = tools,
+            patchApplier = patchApplier,
+            engine       = engine,
+            today        = { TODAY }
+        )
+        whenever(tools.findExercise(any())).thenReturn(
+            ExerciseMatch(exerciseId = 9L, name = "Leg Press", isBodyweight = false, score = 0.0)
+        )
+
+        val result = modelBackedOrchestrator.process("leg thing yesterday was like 3 plates for 12 and 12")
+
+        assertTrue("Expected RecoverableFailure but got $result", result is AgentTurn.RecoverableFailure)
+        verify(patchApplier, never()).applyPatches(any(), any(), any())
+    }
+
+    @Test
+    fun `model log extraction uses deterministic date over wrong model date`() = runTest {
+        val engine = ReadyExtractionEngine(
+            """
+            {
+              "exerciseQuery": "Pull Up",
+              "date": "2026-04-16",
+              "confidence": 0.91,
+              "sets": [
+                { "weightLbs": null, "reps": 12 },
+                { "weightLbs": null, "reps": 10 },
+                { "weightLbs": null, "reps": 8 }
+              ]
+            }
+            """.trimIndent()
+        )
+        val pullUp = ExerciseMatch(exerciseId = 2L, name = "Pull Up", isBodyweight = true, score = 0.0)
+        val modelBackedOrchestrator = AgentOrchestrator(
+            router       = IntentRouter(engine = engine),
+            tools        = tools,
+            patchApplier = patchApplier,
+            engine       = engine,
+            today        = { TODAY }
+        )
+        whenever(tools.findExercise(any())).thenReturn(pullUp)
+        whenever(tools.getRecentSets(eq(2L), any())).thenReturn(emptyList())
+        whenever(patchApplier.applyPatches(any(), any(), eq(false)))
+            .thenReturn(PatchResult.Applied(auditId = 11L, patchCount = 3))
+
+        val result = modelBackedOrchestrator.process("yesterday pullups twelve ten eight")
+
+        assertTrue("Expected Applied but got $result", result is AgentTurn.Applied)
+        argumentCaptor<List<DbPatch>> {
+            verify(patchApplier).applyPatches(any(), capture(), eq(false))
+            assertTrue(firstValue.all { (it as DbPatch.LogSet).date == "2026-04-15" })
+        }
+    }
+
+    @Test
+    fun `deterministic only messy log returns recoverable draft without model request`() = runTest {
+        val engine: LocalGenAiEngine = mock()
+        whenever(engine.isReady).thenReturn(true)
+        val deterministicFirstOrchestrator = AgentOrchestrator(
+            router       = IntentRouter(engine = engine),
+            tools        = tools,
+            patchApplier = patchApplier,
+            engine       = engine,
+            today        = { TODAY }
+        )
+
+        val original = "just did Bechh Press one thirty five for seven"
+        val result = deterministicFirstOrchestrator.process(
+            original,
+            AgentProcessingOptions(allowModelFallback = false)
+        )
+
+        assertTrue("Expected RecoverableFailure but got $result", result is AgentTurn.RecoverableFailure)
+        val draft = result as AgentTurn.RecoverableFailure
+        assertEquals(original, draft.originalText)
+        assertEquals(TODAY, draft.saveDate)
+        assertTrue(draft.canTryModel)
+        assertTrue(draft.suggestedTemplate.contains("135x8"))
+        verify(engine, never()).generateStructured(any(), any())
+        verify(patchApplier, never()).applyPatches(any(), any(), any())
+    }
+
+    @Test
+    fun `dated workout import applies matched rows and returns unknown rows for review`() = runTest {
+        whenever(tools.findExercise(eq("Bench"))).thenReturn(BENCH_MATCH)
+        whenever(tools.findExercise(eq("Hip Abdction"))).thenReturn(null)
+        whenever(tools.getRecentSets(eq(1L), any())).thenReturn(emptyList())
+        whenever(patchApplier.applyPatches(any(), any(), eq(false)))
+            .thenReturn(PatchResult.Applied(auditId = 77L, patchCount = 3))
+
+        val result = orchestrator.process(
+            """
+            5/12/26
+            Bench 135x8, 155x5, 155x4
+            Hip Abdction 150lbs for 10, 10, 10
+            """.trimIndent()
+        )
+
+        assertTrue("Expected ImportApplied but got $result", result is AgentTurn.ImportApplied)
+        val applied = result as AgentTurn.ImportApplied
+        assertEquals(77L, applied.auditId)
+        assertEquals(1, applied.pendingReviews.size)
+        assertEquals("Hip Abdction 150lbs for 10, 10, 10", applied.pendingReviews.single().rawInput)
+        assertEquals("2026-05-12", applied.pendingReviews.single().dateLogged)
+        argumentCaptor<List<DbPatch>> {
+            verify(patchApplier).applyPatches(any(), capture(), eq(false))
+            val patches = firstValue.map { it as DbPatch.LogSet }
+            assertEquals(3, patches.size)
+            assertEquals(listOf(1, 2, 3), patches.map { it.setNumber })
+            assertTrue(patches.all { it.date == "2026-05-12" })
+            assertEquals(listOf(lbs(135), lbs(155), lbs(155)), patches.map { it.weightLbs })
+            assertEquals(listOf(8, 5, 4), patches.map { it.reps })
+        }
+    }
+
+    @Test
+    fun `dated workout import increments set numbers per exercise and date`() = runTest {
+        val rowMatch = ExerciseMatch(exerciseId = 2L, name = "Barbell Row", isBodyweight = false, score = 0.0)
+        whenever(tools.findExercise(eq("bench"))).thenReturn(BENCH_MATCH)
+        whenever(tools.findExercise(eq("rows"))).thenReturn(rowMatch)
+        whenever(tools.getRecentSets(eq(1L), any())).thenReturn(
+            listOf(SetSummary(10L, "2026-05-03", 2, lbs(175), 5, false))
+        )
+        whenever(tools.getRecentSets(eq(2L), any())).thenReturn(emptyList())
+        whenever(patchApplier.applyPatches(any(), any(), eq(false)))
+            .thenReturn(PatchResult.Applied(auditId = 78L, patchCount = 6))
+
+        val result = orchestrator.process("May 3 - Bench 185 5 5 4; rows 135x10x3")
+
+        assertTrue("Expected ImportApplied but got $result", result is AgentTurn.ImportApplied)
+        argumentCaptor<List<DbPatch>> {
+            verify(patchApplier).applyPatches(any(), capture(), eq(false))
+            val patches = firstValue.map { it as DbPatch.LogSet }
+            assertEquals(listOf(3, 4, 5), patches.filter { it.exerciseId == 1L }.map { it.setNumber })
+            assertEquals(listOf(1, 2, 3), patches.filter { it.exerciseId == 2L }.map { it.setNumber })
+        }
+    }
+
+    @Test
+    fun `logSet exercise not found returns recoverable draft`() = runTest {
         whenever(tools.findExercise(any())).thenReturn(null)
 
         val result = orchestrator.process("bench 135x8")
 
-        assertTrue(result is AgentTurn.TextResponse)
+        assertTrue("Expected RecoverableFailure but got $result", result is AgentTurn.RecoverableFailure)
+        assertEquals("bench 135x8", (result as AgentTurn.RecoverableFailure).originalText)
         verify(patchApplier, never()).applyPatches(any(), any(), any())
     }
 
@@ -166,6 +417,45 @@ class AgentOrchestratorTest {
     }
 
     // ── Undo ─────────────────────────────────────────────────────────
+
+    @Test
+    fun `editSet treats bare number before for as weight and number after for as reps`() = runTest {
+        val existingSet = SetSummary(setId = 78L, date = TODAY, setNumber = 1, weightLbs = lbs(85), reps = 5, isBodyweight = false)
+        whenever(tools.findExercise(any())).thenReturn(BENCH_MATCH)
+        whenever(tools.getRecentSets(eq(1L), any())).thenReturn(listOf(existingSet))
+        whenever(patchApplier.applyPatches(any(), any(), eq(false)))
+            .thenReturn(PatchResult.Applied(auditId = 12L, patchCount = 1))
+
+        val result = orchestrator.process("fix my last set it was 95 for 8")
+
+        assertTrue("Expected Applied but got $result", result is AgentTurn.Applied)
+        argumentCaptor<List<DbPatch>> {
+            verify(patchApplier).applyPatches(any(), capture(), eq(false))
+            val patch = firstValue.first() as DbPatch.EditSet
+            assertEquals(lbs(95), patch.weightLbs)
+            assertEquals(8, patch.reps)
+        }
+    }
+
+    @Test
+    fun `editSet extracts spoken weight and reps for historical correction`() = runTest {
+        val deadlift = ExerciseMatch(exerciseId = 5L, name = "Deadlift", isBodyweight = false, score = 0.0)
+        val existingSet = SetSummary(setId = 79L, date = TODAY, setNumber = 1, weightLbs = lbs(275), reps = 3, isBodyweight = false)
+        whenever(tools.findExercise(any())).thenReturn(deadlift)
+        whenever(tools.getRecentSets(eq(5L), any())).thenReturn(listOf(existingSet))
+        whenever(patchApplier.applyPatches(any(), any(), eq(false)))
+            .thenReturn(PatchResult.Applied(auditId = 13L, patchCount = 1))
+
+        val result = orchestrator.process("for last saturday I think my deadlift top set should say three fifteen for four not 275")
+
+        assertTrue("Expected Applied but got $result", result is AgentTurn.Applied)
+        argumentCaptor<List<DbPatch>> {
+            verify(patchApplier).applyPatches(any(), capture(), eq(false))
+            val patch = firstValue.first() as DbPatch.EditSet
+            assertEquals(lbs(315), patch.weightLbs)
+            assertEquals(4, patch.reps)
+        }
+    }
 
     @Test
     fun `undo delegates to patchApplier and returns Applied`() = runTest {

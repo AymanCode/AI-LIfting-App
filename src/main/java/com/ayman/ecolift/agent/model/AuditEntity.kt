@@ -2,8 +2,10 @@ package com.ayman.ecolift.agent.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 @Entity(tableName = "audit_log")
+@Serializable
 data class AuditEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val requestId: String,

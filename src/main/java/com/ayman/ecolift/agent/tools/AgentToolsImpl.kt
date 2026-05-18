@@ -13,7 +13,7 @@ class AgentToolsImpl(
     // findExercise
 
     override suspend fun findExercise(fuzzyName: String): ExerciseMatch? {
-        val query = fuzzyName.trim().lowercase()
+        val query = normalizeExerciseQuery(fuzzyName.trim().lowercase())
         if (query.isEmpty()) return null
 
         val all = db.exerciseDao().getAll()
@@ -45,6 +45,14 @@ class AgentToolsImpl(
 
         return ExerciseMatch(best, score)
     }
+
+    private fun normalizeExerciseQuery(query: String): String =
+        when (query) {
+            "calves", "calfs", "calf raises", "standing calves" -> "calf raise"
+            "pullups", "pull ups" -> "pull up"
+            "ohp" -> "overhead press"
+            else -> query
+        }
 
     // getRecentSets
 

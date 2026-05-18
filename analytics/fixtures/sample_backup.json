@@ -1,0 +1,156 @@
+{
+  "metadata": {
+    "formatVersion": 1,
+    "createdAtEpochMs": 1778889600000,
+    "source": "test-fixture",
+    "appDbVersion": 13
+  },
+  "cycle": {
+    "id": 1,
+    "numTypes": 2,
+    "isActive": true,
+    "nextSessionType": 0
+  },
+  "exercises": [
+    {
+      "id": 1,
+      "name": "Bench Press",
+      "muscleGroups": "CHEST",
+      "isBodyweight": false,
+      "createdAt": 1778803200000
+    },
+    {
+      "id": 2,
+      "name": "Back Squat",
+      "muscleGroups": "LEGS",
+      "isBodyweight": false,
+      "createdAt": 1778803200000
+    }
+  ],
+  "workoutDays": [
+    {
+      "date": "2026-05-11",
+      "cycleSlotType": null,
+      "cycleSlotOccurrence": 1,
+      "alternativeForDate": null,
+      "cycleSlotId": 10
+    },
+    {
+      "date": "2026-05-13",
+      "cycleSlotType": null,
+      "cycleSlotOccurrence": 1,
+      "alternativeForDate": null,
+      "cycleSlotId": 11
+    }
+  ],
+  "workoutSets": [
+    {
+      "id": 100,
+      "exerciseId": 1,
+      "date": "2026-05-11",
+      "setNumber": 1,
+      "weightLbs": 1850,
+      "reps": 5,
+      "isBodyweight": false,
+      "completed": true,
+      "restTimeSeconds": 180
+    },
+    {
+      "id": 101,
+      "exerciseId": 1,
+      "date": "2026-05-11",
+      "setNumber": 2,
+      "weightLbs": 1350,
+      "reps": 8,
+      "isBodyweight": false,
+      "completed": true,
+      "restTimeSeconds": 150
+    },
+    {
+      "id": 102,
+      "exerciseId": 2,
+      "date": "2026-05-13",
+      "setNumber": 1,
+      "weightLbs": 2250,
+      "reps": 5,
+      "isBodyweight": false,
+      "completed": true,
+      "restTimeSeconds": 240
+    }
+  ],
+  "pendingReviews": [
+    {
+      "id": 200,
+      "rawInput": "bench maybe 185x5",
+      "dateLogged": "2026-05-11",
+      "resolved": false
+    }
+  ],
+  "cycleSlots": [
+    {
+      "id": 10,
+      "name": "Push",
+      "orderIndex": 0
+    },
+    {
+      "id": 11,
+      "name": "Legs",
+      "orderIndex": 1
+    }
+  ],
+  "splitExercises": [
+    {
+      "id": 300,
+      "splitId": 10,
+      "exerciseId": 1,
+      "orderIndex": 0
+    },
+    {
+      "id": 301,
+      "splitId": 11,
+      "exerciseId": 2,
+      "orderIndex": 0
+    }
+  ],
+  "tempSessionSwaps": [],
+  "auditEntries": [
+    {
+      "id": 500,
+      "requestId": "req-1",
+      "timestamp": 1778889600000,
+      "serializedPatches": "[{\"type\":\"LogSet\"}]",
+      "serializedInverse": "[{\"type\":\"DeleteSet\"}]",
+      "userConfirmed": false,
+      "isUndo": false
+    },
+    {
+      "id": 501,
+      "requestId": "undo-req-1",
+      "timestamp": 1778889700000,
+      "serializedPatches": "[{\"type\":\"DeleteSet\"}]",
+      "serializedInverse": "[{\"type\":\"LogSet\"}]",
+      "userConfirmed": true,
+      "isUndo": true
+    }
+  ],
+  "agentTurns": [
+    {
+      "id": 600,
+      "timestamp": 1778889600000,
+      "userText": "bench 185x5",
+      "turnKind": "Applied",
+      "latencyMs": 12,
+      "errorMessage": null,
+      "auditId": 500
+    },
+    {
+      "id": 601,
+      "timestamp": 1778889700000,
+      "userText": "fix the thing",
+      "turnKind": "Error",
+      "latencyMs": 30,
+      "errorMessage": "Could not parse request",
+      "auditId": null
+    }
+  ]
+}

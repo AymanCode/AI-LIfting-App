@@ -5,16 +5,23 @@ import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayman.ecolift.agent.AgentOrchestrator
+import com.ayman.ecolift.agent.AgentProcessingOptions
 import com.ayman.ecolift.agent.AgentTurn
+import com.ayman.ecolift.agent.PendingReviewCleanupParser
+import com.ayman.ecolift.agent.WorkoutImportTextParser
 import com.ayman.ecolift.agent.engine.GeminiNanoEngine
 import com.ayman.ecolift.agent.engine.LocalGenAiEngine
+import com.ayman.ecolift.agent.model.DbPatch
 import com.ayman.ecolift.agent.model.AgentTurnLog
 import com.ayman.ecolift.agent.patches.PatchService
 import com.ayman.ecolift.agent.patches.PatchValidator
+import com.ayman.ecolift.agent.patches.PatchResult
 import com.ayman.ecolift.agent.router.IntentRouter
 import com.ayman.ecolift.agent.tools.AgentToolsImpl
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.DebugDataHelper
+import com.ayman.ecolift.data.PendingReview
+import java.util.UUID
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -166,15 +173,106 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
         val text = _input.value.trim().ifEmpty { return }
         _input.value = ""
         push(isUser = true, text = text)
+
+        val cleanupExercise = PendingReviewCleanupParser.extractExerciseName(text)
+        if (cleanupExercise != null) {
+            cleanupPendingReviewsAs(cleanupExercise)
+            return
+        }
+
         viewModelScope.launch {
             _busy.value = true
             val t0  = System.currentTimeMillis()
-            val turn = agent.process(text)
+            val turn = agent.process(
+                text,
+                AgentProcessingOptions(allowModelFallback = false)
+            )
             val ms  = System.currentTimeMillis() - t0
             handleTurn(turn)
             logTurn(text, turn, ms)
             _busy.value = false
         }
+    }
+
+    /**
+     * Batch-resolves pending import rows as one exercise.
+     *
+     * User need: after importing old notes, several rows can fail because the
+     * exercise was misspelled or absent from the catalog. A command like
+     * "all pending rows are Hip Abduction" lets the user repair those rows in
+     * one pass instead of opening each saved line and retyping it manually.
+     */
+    private fun cleanupPendingReviewsAs(exerciseQuery: String) {
+        viewModelScope.launch {
+            _busy.value = true
+            val unresolved = pendingReviewDao.getUnresolved()
+            if (unresolved.isEmpty()) {
+                push(isUser = false, text = "No pending review rows to clean up.")
+                _busy.value = false
+                return@launch
+            }
+
+            val exercise = tools.findExercise(exerciseQuery)
+            if (exercise == null) {
+                push(isUser = false, text = "I couldn't find \"$exerciseQuery\" in your exercise list.")
+                _busy.value = false
+                return@launch
+            }
+
+            val patches = mutableListOf<DbPatch>()
+            val resolvedReviewIds = mutableSetOf<Long>()
+            val nextSetByDate = mutableMapOf<String, Int>()
+
+            for (review in unresolved) {
+                val sets = parseReviewSets(review)
+                if (sets.isEmpty()) continue
+
+                var nextSet = nextSetByDate.getOrPut(review.dateLogged) {
+                    val recent = tools.getRecentSets(exercise.exerciseId, limit = 50)
+                    (recent.filter { it.date == review.dateLogged }.maxOfOrNull { it.setNumber } ?: 0) + 1
+                }
+                for (set in sets) {
+                    patches += DbPatch.LogSet(
+                        exerciseId = exercise.exerciseId,
+                        date = review.dateLogged,
+                        setNumber = nextSet,
+                        weightLbs = if (exercise.isBodyweight) null else set.weightLbs,
+                        reps = set.reps,
+                        isBodyweight = exercise.isBodyweight
+                    )
+                    nextSet += 1
+                }
+                nextSetByDate[review.dateLogged] = nextSet
+                resolvedReviewIds += review.id
+            }
+
+            if (patches.isEmpty()) {
+                push(isUser = false, text = "I found pending rows, but none had enough weight and rep detail to apply safely.")
+                _busy.value = false
+                return@launch
+            }
+
+            when (val result = service.applyPatches(UUID.randomUUID().toString(), patches, userConfirmed = false)) {
+                is PatchResult.Applied -> {
+                    for (id in resolvedReviewIds) pendingReviewDao.markResolved(id)
+                    val rows = resolvedReviewIds.size
+                    push(isUser = false, text = "Resolved $rows pending row(s) as ${exercise.name} and imported ${result.patchCount} set(s).")
+                    _undoEvent.tryEmit(AgentTurn.Applied("Resolved pending review rows.", result.auditId))
+                }
+                is PatchResult.Rejected -> push(isUser = false, text = "Couldn't clean up pending rows: ${result.reason}")
+                is PatchResult.Failed -> push(isUser = false, text = result.error, isError = true)
+            }
+            _busy.value = false
+        }
+    }
+
+    private fun parseReviewSets(review: PendingReview): List<WorkoutImportTextParser.ParsedSet> {
+        val importDraft = WorkoutImportTextParser.parse(review.rawInput, review.dateLogged)
+        if (importDraft != null && importDraft.entries.isNotEmpty()) {
+            return importDraft.entries.flatMap { it.sets }
+        }
+        val single = com.ayman.ecolift.agent.LogSetTextParser.parseOneExercise(review.rawInput)
+        return single?.sets?.map { WorkoutImportTextParser.ParsedSet(it.weightLbs, it.reps) }.orEmpty()
     }
 
     fun confirmPending() {
@@ -202,6 +300,45 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch { turnLogDao.clearAll() }
     }
 
+    fun editRecoveryDraft(originalText: String) {
+        _input.value = originalText
+    }
+
+    fun useRecoveryTemplate(template: String) {
+        _input.value = template
+    }
+
+    fun saveRecoveryForReview(originalText: String, saveDate: String) {
+        val raw = originalText.trim()
+        if (raw.isBlank()) return
+        viewModelScope.launch {
+            pendingReviewDao.insert(
+                PendingReview(
+                    rawInput = raw,
+                    dateLogged = saveDate
+                )
+            )
+            push(isUser = false, text = "Saved for review. You can clean it up later without retyping it.")
+        }
+    }
+
+    fun tryRecoveryWithModel(originalText: String) {
+        val text = originalText.trim()
+        if (text.isBlank()) return
+        viewModelScope.launch {
+            _busy.value = true
+            val t0 = System.currentTimeMillis()
+            val turn = agent.process(
+                text,
+                AgentProcessingOptions(allowModelFallback = true)
+            )
+            val ms = System.currentTimeMillis() - t0
+            handleTurn(turn)
+            logTurn(text, turn, ms)
+            _busy.value = false
+        }
+    }
+
     fun seedDebugData() {
         viewModelScope.launch {
             DebugDataHelper.seed(getApplication())
@@ -221,7 +358,43 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
                 push(isUser = false, text = turn.text)
                 _undoEvent.tryEmit(turn)
             }
+            is AgentTurn.RecoverableFailure -> {
+                push(
+                    isUser = false,
+                    text = "${turn.title}\n${turn.detail}",
+                    recovery = AiRecoveryActionUi(
+                        title = turn.title,
+                        detail = turn.detail,
+                        originalText = turn.originalText,
+                        suggestedTemplate = turn.suggestedTemplate,
+                        saveDate = turn.saveDate,
+                        canTryModel = turn.canTryModel
+                    )
+                )
+            }
+            is AgentTurn.ImportApplied -> {
+                push(isUser = false, text = turn.text)
+                persistPendingReviewDrafts(turn.pendingReviews)
+                if (turn.auditId != null) {
+                    _undoEvent.tryEmit(AgentTurn.Applied(turn.text, turn.auditId))
+                }
+            }
             is AgentTurn.Error -> push(isUser = false, text = turn.message, isError = true)
+        }
+    }
+
+    private fun persistPendingReviewDrafts(drafts: List<AgentTurn.PendingReviewDraft>) {
+        if (drafts.isEmpty()) return
+        viewModelScope.launch {
+            for (draft in drafts) {
+                val id = pendingReviewDao.insert(
+                    PendingReview(
+                        rawInput = draft.rawInput,
+                        dateLogged = draft.dateLogged
+                    )
+                )
+                notifiedReviewIds += id
+            }
         }
     }
 
@@ -237,8 +410,21 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
         runCatching { turnLogDao.insert(entry) }  // Fire-and-forget; never crash the UI.
     }
 
-    private fun push(isUser: Boolean, text: String, isError: Boolean = false) {
-        _msgs.update { it + AiMessageUi(id = nextId++, isUser = isUser, text = text, isError = isError) }
+    private fun push(
+        isUser: Boolean,
+        text: String,
+        isError: Boolean = false,
+        recovery: AiRecoveryActionUi? = null
+    ) {
+        _msgs.update {
+            it + AiMessageUi(
+                id = nextId++,
+                isUser = isUser,
+                text = text,
+                isError = isError,
+                recovery = recovery
+            )
+        }
     }
     // Constants
 

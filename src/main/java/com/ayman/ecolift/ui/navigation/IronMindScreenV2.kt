@@ -60,7 +60,8 @@ sealed class IronMindMessage {
     data class AiMessage(
         val text: String,
         val timestamp: String,
-        val statsCard: StatsPayload? = null
+        val statsCard: StatsPayload? = null,
+        val recovery: RecoveryPayload? = null
     ) : IronMindMessage()
     object AiThinking : IronMindMessage()
 }
@@ -74,6 +75,22 @@ data class StatsPayload(
 )
 
 data class QuickAction(val label: String, val query: String)
+
+data class RecoveryPayload(
+    val title: String,
+    val detail: String,
+    val originalText: String,
+    val suggestedTemplate: String,
+    val saveDate: String,
+    val canTryModel: Boolean
+)
+
+enum class RecoveryAction {
+    EditOriginal,
+    UseTemplate,
+    SaveForReview,
+    TryAi
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -215,6 +232,7 @@ private fun StatRow(label: String, value: String) {
 @Composable
 fun AiMessageBubble(
     message: IronMindMessage.AiMessage,
+    onRecoveryAction: (RecoveryPayload, RecoveryAction) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -264,6 +282,13 @@ fun AiMessageBubble(
                             modifier = Modifier.padding(top = 10.dp)
                         )
                     }
+                    if (message.recovery != null) {
+                        RecoveryDraftSection(
+                            recovery = message.recovery,
+                            onAction = onRecoveryAction,
+                            modifier = Modifier.padding(top = 10.dp)
+                        )
+                    }
                 }
             }
             Text(
@@ -274,6 +299,86 @@ fun AiMessageBubble(
             )
         }
         Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun RecoveryDraftSection(
+    recovery: RecoveryPayload,
+    onAction: (RecoveryPayload, RecoveryAction) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        HorizontalDivider(
+            modifier = Modifier.padding(bottom = 8.dp),
+            color = Color(0xFF1C1C1E).copy(alpha = 0.1f)
+        )
+        Text(
+            text = "Original",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF8E8E93)
+        )
+        Text(
+            text = recovery.originalText,
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            color = Color(0xFF1C1C1E),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp)
+                .background(Color(0xFFF2F0EB), RoundedCornerShape(8.dp))
+                .padding(horizontal = 8.dp, vertical = 7.dp)
+        )
+        Text(
+            text = "Template",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF8E8E93),
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        Text(
+            text = recovery.suggestedTemplate,
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            color = Color(0xFF1C1C1E),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp)
+                .background(Color(0xFFF2F0EB), RoundedCornerShape(8.dp))
+                .padding(horizontal = 8.dp, vertical = 7.dp)
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            AssistChip(
+                onClick = { onAction(recovery, RecoveryAction.EditOriginal) },
+                label = { Text("Edit", style = MaterialTheme.typography.labelMedium) },
+                modifier = Modifier.weight(1f)
+            )
+            AssistChip(
+                onClick = { onAction(recovery, RecoveryAction.UseTemplate) },
+                label = { Text("Use template", style = MaterialTheme.typography.labelMedium) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            AssistChip(
+                onClick = { onAction(recovery, RecoveryAction.SaveForReview) },
+                label = { Text("Save", style = MaterialTheme.typography.labelMedium) },
+                modifier = Modifier.weight(1f)
+            )
+            AssistChip(
+                onClick = { onAction(recovery, RecoveryAction.TryAi) },
+                enabled = recovery.canTryModel,
+                label = { Text(if (recovery.canTryModel) "Try AI" else "AI offline", style = MaterialTheme.typography.labelMedium) },
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
@@ -451,6 +556,7 @@ fun IronMindScreen(
     onSend: () -> Unit,
     onQuickAction: (QuickAction) -> Unit,
     onSettings: () -> Unit,
+    onRecoveryAction: (RecoveryPayload, RecoveryAction) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -494,7 +600,10 @@ fun IronMindScreen(
             items(messages.reversed(), key = { it.hashCode() }) { message ->
                 when (message) {
                     is IronMindMessage.UserMessage -> UserMessageBubble(message = message)
-                    is IronMindMessage.AiMessage -> AiMessageBubble(message = message)
+                    is IronMindMessage.AiMessage -> AiMessageBubble(
+                        message = message,
+                        onRecoveryAction = onRecoveryAction
+                    )
                     is IronMindMessage.AiThinking -> AiThinkingBubble() // Handled above, but exhaustive
                 }
             }

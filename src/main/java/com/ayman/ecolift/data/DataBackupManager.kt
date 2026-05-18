@@ -3,6 +3,8 @@ package com.ayman.ecolift.data
 import android.content.Context
 import android.net.Uri
 import androidx.room.withTransaction
+import com.ayman.ecolift.agent.model.AgentTurnLog
+import com.ayman.ecolift.agent.model.AuditEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -37,6 +39,8 @@ data class UserDataBackup(
     val cycleSlots: List<CycleSlot>,
     val splitExercises: List<SplitExercise>,
     val tempSessionSwaps: List<TempSessionSwap>,
+    val auditEntries: List<AuditEntity> = emptyList(),
+    val agentTurns: List<AgentTurnLog> = emptyList(),
 )
 
 data class LocalBackupInfo(
@@ -178,6 +182,8 @@ object DataBackupManager {
         val cycleSlots = db.cycleSlotDao().getAll()
         val splitExercises = db.splitExerciseDao().getAll()
         val tempSessionSwaps = db.tempSessionSwapDao().getAll()
+        val auditEntries = db.auditDao().getAll()
+        val agentTurns = db.agentTurnLogDao().getAll()
         val cycle = db.cycleDao().getCycle()
         return UserDataBackup(
             metadata = BackupMetadata(
@@ -193,6 +199,8 @@ object DataBackupManager {
             cycleSlots = cycleSlots,
             splitExercises = splitExercises,
             tempSessionSwaps = tempSessionSwaps,
+            auditEntries = auditEntries,
+            agentTurns = agentTurns,
         )
     }
 
@@ -208,6 +216,8 @@ object DataBackupManager {
             if (snapshot.pendingReviews.isNotEmpty()) db.pendingReviewDao().insertAll(snapshot.pendingReviews)
             if (snapshot.splitExercises.isNotEmpty()) db.splitExerciseDao().insertAll(snapshot.splitExercises)
             if (snapshot.tempSessionSwaps.isNotEmpty()) db.tempSessionSwapDao().insertAll(snapshot.tempSessionSwaps)
+            if (snapshot.auditEntries.isNotEmpty()) db.auditDao().insertAll(snapshot.auditEntries)
+            if (snapshot.agentTurns.isNotEmpty()) db.agentTurnLogDao().insertAll(snapshot.agentTurns)
         }
     }
 
@@ -263,6 +273,8 @@ object DataBackupManager {
             cycleSlots.size +
             splitExercises.size +
             tempSessionSwaps.size +
+            auditEntries.size +
+            agentTurns.size +
             if (cycle != null) 1 else 0
         return BackupResult(
             entryCount = entryCount,

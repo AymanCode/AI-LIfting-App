@@ -1,7 +1,11 @@
 package com.ayman.ecolift.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ayman.ecolift.ui.viewmodel.LogViewModel
@@ -9,8 +13,20 @@ import com.ayman.ecolift.data.WeightLbs
 import androidx.compose.ui.Modifier
 
 @Composable
-fun TodayScreen(viewModel: LogViewModel = viewModel(), modifier: Modifier = Modifier) {
+fun TodayScreen(
+    viewModel: LogViewModel = viewModel(),
+    modifier: Modifier = Modifier,
+    initialSplitId: Long? = null,
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var consumedInitialSplit by rememberSaveable(initialSplitId) { mutableStateOf(false) }
+
+    LaunchedEffect(initialSplitId) {
+        if (initialSplitId != null && !consumedInitialSplit) {
+            viewModel.assignCycleSlot(initialSplitId)
+            consumedInitialSplit = true
+        }
+    }
 
     val cycleSlotLabel = uiState.cycleSlot?.shortLabel
     val splits = uiState.cycleOptions.map { option ->

@@ -1,0 +1,200 @@
+{"id":"log_001","text":"bench press 135 lbs for 8 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1350,"expectedReps":8}
+{"id":"log_002","text":"bench press 185x5","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1850,"expectedReps":5}
+{"id":"log_003","text":"log a set bench press 155 lbs for 10 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1550,"expectedReps":10}
+{"id":"log_004","text":"logged bench press 165 lbs 6 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1650,"expectedReps":6}
+{"id":"log_005","text":"just finished bench press 3x10 at 145","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1450,"expectedReps":10}
+{"id":"log_006","text":"back squat 225 lbs for 5 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":2250,"expectedReps":5}
+{"id":"log_007","text":"squat 245x3","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":2450,"expectedReps":3}
+{"id":"log_008","text":"log a set back squat 205 lbs for 8 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":2050,"expectedReps":8}
+{"id":"log_009","text":"logged squat 185 lbs 10 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1850,"expectedReps":10}
+{"id":"log_010","text":"just did squat 275 lbs for 2 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":2750,"expectedReps":2}
+{"id":"log_011","text":"deadlift 315 lbs for 5 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":3150,"expectedReps":5}
+{"id":"log_012","text":"deadlift 365x3","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":3650,"expectedReps":3}
+{"id":"log_013","text":"log a set deadlift 295 lbs for 6 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":2950,"expectedReps":6}
+{"id":"log_014","text":"logged deadlift 275 lbs 8 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":2750,"expectedReps":8}
+{"id":"log_015","text":"just finished deadlift 225 lbs for 10 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":2250,"expectedReps":10}
+{"id":"log_016","text":"overhead press 95 lbs for 8 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":950,"expectedReps":8}
+{"id":"log_017","text":"overhead press 115x5","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1150,"expectedReps":5}
+{"id":"log_018","text":"log a set overhead press 105 lbs for 6 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1050,"expectedReps":6}
+{"id":"log_019","text":"logged shoulder press 85 lbs 10 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":850,"expectedReps":10}
+{"id":"log_020","text":"just did overhead press 75 lbs for 12 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":750,"expectedReps":12}
+{"id":"log_021","text":"barbell row 135 lbs for 10 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1350,"expectedReps":10}
+{"id":"log_022","text":"barbell row 155x8","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1550,"expectedReps":8}
+{"id":"log_023","text":"log a set barbell row 145 lbs for 9 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1450,"expectedReps":9}
+{"id":"log_024","text":"logged row 125 lbs 12 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1250,"expectedReps":12}
+{"id":"log_025","text":"just finished row 165 lbs for 6 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1650,"expectedReps":6}
+{"id":"log_026","text":"pull up 25 lbs for 8 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":250,"expectedReps":8}
+{"id":"log_027","text":"pull up 45x5","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":450,"expectedReps":5}
+{"id":"log_028","text":"log a set pull up 10 lbs for 12 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":100,"expectedReps":12}
+{"id":"log_029","text":"logged pullup 15 lbs 10 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":150,"expectedReps":10}
+{"id":"log_030","text":"just did pull up 35 lbs for 6 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":350,"expectedReps":6}
+{"id":"log_031","text":"dumbbell curl 30 lbs for 12 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":300,"expectedReps":12}
+{"id":"log_032","text":"curl 35x10","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":350,"expectedReps":10}
+{"id":"log_033","text":"log a set dumbbell curl 25 lbs for 15 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":250,"expectedReps":15}
+{"id":"log_034","text":"logged curls 40 lbs 8 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":400,"expectedReps":8}
+{"id":"log_035","text":"leg press 405 lbs for 10 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":4050,"expectedReps":10}
+{"id":"log_036","text":"leg press 455x8","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":4550,"expectedReps":8}
+{"id":"log_037","text":"lat pulldown 120 lbs for 12 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1200,"expectedReps":12}
+{"id":"log_038","text":"pulldown 140x8","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1400,"expectedReps":8}
+{"id":"log_039","text":"incline bench press 135 lbs for 8 reps","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1350,"expectedReps":8}
+{"id":"log_040","text":"incline bench 155x5","expectedIntent":"LogSet","expectedSource":"RULE","expectedPatchType":"LogSet","expectedWeightLbs":1550,"expectedReps":5}
+{"id":"edit_001","text":"fix my last bench press to 185 lbs","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedWeightLbs":1850}
+{"id":"edit_002","text":"fix my last squat to 225 lbs","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedWeightLbs":2250}
+{"id":"edit_003","text":"fix my last deadlift to 315 lbs","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedWeightLbs":3150}
+{"id":"edit_004","text":"fix my last overhead press to 95 lbs","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedWeightLbs":950}
+{"id":"edit_005","text":"fix my last row to 135 lbs","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedWeightLbs":1350}
+{"id":"edit_006","text":"update my last bench press to 8 reps","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedReps":8}
+{"id":"edit_007","text":"update my last squat to 6 reps","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedReps":6}
+{"id":"edit_008","text":"update my last deadlift to 5 reps","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedReps":5}
+{"id":"edit_009","text":"update my last pull up to 10 reps","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedReps":10}
+{"id":"edit_010","text":"update my last curl to 12 reps","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedReps":12}
+{"id":"edit_011","text":"that was wrong bench press was 175","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedWeightLbs":1750}
+{"id":"edit_012","text":"that was wrong squat was 245","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedWeightLbs":2450}
+{"id":"edit_013","text":"that was wrong deadlift was 335","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedWeightLbs":3350}
+{"id":"edit_014","text":"correct my last incline bench to 145 lbs","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedWeightLbs":1450}
+{"id":"edit_015","text":"correct my last lat pulldown to 130 lbs","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedWeightLbs":1300}
+{"id":"edit_016","text":"i meant bench press at 165","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedWeightLbs":1650}
+{"id":"edit_017","text":"i meant squat at 235","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedWeightLbs":2350}
+{"id":"edit_018","text":"wrong weight on that last deadlift","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet"}
+{"id":"edit_019","text":"edit my last leg press to 400 lbs","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedWeightLbs":4000}
+{"id":"edit_020","text":"change that pull up to 8 reps","expectedIntent":"EditSet","expectedSource":"RULE","expectedPatchType":"EditSet","expectedReps":8}
+{"id":"delete_001","text":"delete my last bench press set","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_002","text":"delete my last squat set","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_003","text":"delete my last deadlift set","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_004","text":"delete my last overhead press set","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_005","text":"delete my last row set","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_006","text":"remove my last bench press entry","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_007","text":"remove my last squat entry","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_008","text":"remove my last deadlift entry","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_009","text":"remove my last curl entry","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_010","text":"remove my last pull up entry","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_011","text":"erase that bench press set","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_012","text":"erase that squat set","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_013","text":"erase that deadlift set","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_014","text":"get rid of that bench press entry","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_015","text":"get rid of that squat entry","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_016","text":"get rid of that row entry","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_017","text":"take out that bench press set","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_018","text":"take out that leg press set","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_019","text":"delete my last incline bench set","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"delete_020","text":"remove my last lat pulldown entry","expectedIntent":"DeleteSet","expectedSource":"RULE","expectedPatchType":"DeleteSet","expectDestructiveConfirmation":true}
+{"id":"rename_001","text":"rename bench press to barbell bench","expectedIntent":"RenameExercise","expectedSource":"RULE","expectedPatchType":"RenameExercise","expectDestructiveConfirmation":true}
+{"id":"rename_002","text":"rename squat to back squat","expectedIntent":"RenameExercise","expectedSource":"RULE","expectedPatchType":"RenameExercise","expectDestructiveConfirmation":true}
+{"id":"rename_003","text":"rename deadlift to conventional deadlift","expectedIntent":"RenameExercise","expectedSource":"RULE","expectedPatchType":"RenameExercise","expectDestructiveConfirmation":true}
+{"id":"rename_004","text":"rename overhead press to strict press","expectedIntent":"RenameExercise","expectedSource":"RULE","expectedPatchType":"RenameExercise","expectDestructiveConfirmation":true}
+{"id":"rename_005","text":"rename barbell row to bent over row","expectedIntent":"RenameExercise","expectedSource":"RULE","expectedPatchType":"RenameExercise","expectDestructiveConfirmation":true}
+{"id":"rename_006","text":"call it flat bench press","expectedIntent":"RenameExercise","expectedSource":"RULE","expectedPatchType":"RenameExercise","expectDestructiveConfirmation":true}
+{"id":"rename_007","text":"call it high bar squat","expectedIntent":"RenameExercise","expectedSource":"RULE","expectedPatchType":"RenameExercise","expectDestructiveConfirmation":true}
+{"id":"rename_008","text":"call it weighted pull up","expectedIntent":"RenameExercise","expectedSource":"RULE","expectedPatchType":"RenameExercise","expectDestructiveConfirmation":true}
+{"id":"rename_009","text":"change the name of bench press to competition bench","expectedIntent":"RenameExercise","expectedSource":"RULE","expectedPatchType":"RenameExercise","expectDestructiveConfirmation":true}
+{"id":"rename_010","text":"change the name of squat to low bar squat","expectedIntent":"RenameExercise","expectedSource":"RULE","expectedPatchType":"RenameExercise","expectDestructiveConfirmation":true}
+{"id":"rename_011","text":"change name of deadlift to sumo deadlift","expectedIntent":"RenameExercise","expectedSource":"RULE","expectedPatchType":"RenameExercise","expectDestructiveConfirmation":true}
+{"id":"rename_012","text":"rename incline bench to incline barbell bench","expectedIntent":"RenameExercise","expectedSource":"RULE","expectedPatchType":"RenameExercise","expectDestructiveConfirmation":true}
+{"id":"rename_013","text":"rename lat pulldown to wide grip pulldown","expectedIntent":"RenameExercise","expectedSource":"RULE","expectedPatchType":"RenameExercise","expectDestructiveConfirmation":true}
+{"id":"rename_014","text":"rename dumbbell curl to alternating curl","expectedIntent":"RenameExercise","expectedSource":"RULE","expectedPatchType":"RenameExercise","expectDestructiveConfirmation":true}
+{"id":"rename_015","text":"rename leg press to sled leg press","expectedIntent":"RenameExercise","expectedSource":"RULE","expectedPatchType":"RenameExercise","expectDestructiveConfirmation":true}
+{"id":"move_001","text":"move my workout to monday","expectedIntent":"MoveWorkoutDay","expectedSource":"RULE","expectedPatchType":"MoveWorkoutDay"}
+{"id":"move_002","text":"move my workout to tuesday","expectedIntent":"MoveWorkoutDay","expectedSource":"RULE","expectedPatchType":"MoveWorkoutDay"}
+{"id":"move_003","text":"move my workout to wednesday","expectedIntent":"MoveWorkoutDay","expectedSource":"RULE","expectedPatchType":"MoveWorkoutDay"}
+{"id":"move_004","text":"move my workout to thursday","expectedIntent":"MoveWorkoutDay","expectedSource":"RULE","expectedPatchType":"MoveWorkoutDay"}
+{"id":"move_005","text":"move my workout to friday","expectedIntent":"MoveWorkoutDay","expectedSource":"RULE","expectedPatchType":"MoveWorkoutDay"}
+{"id":"move_006","text":"move my workout to saturday","expectedIntent":"MoveWorkoutDay","expectedSource":"RULE","expectedPatchType":"MoveWorkoutDay"}
+{"id":"move_007","text":"move my workout to sunday","expectedIntent":"MoveWorkoutDay","expectedSource":"RULE","expectedPatchType":"MoveWorkoutDay"}
+{"id":"move_008","text":"reschedule my workout to tomorrow","expectedIntent":"MoveWorkoutDay","expectedSource":"RULE","expectedPatchType":"MoveWorkoutDay"}
+{"id":"move_009","text":"reschedule my workout to friday","expectedIntent":"MoveWorkoutDay","expectedSource":"RULE","expectedPatchType":"MoveWorkoutDay"}
+{"id":"move_010","text":"shift my workout to saturday","expectedIntent":"MoveWorkoutDay","expectedSource":"RULE","expectedPatchType":"MoveWorkoutDay"}
+{"id":"move_011","text":"shift my workout to monday","expectedIntent":"MoveWorkoutDay","expectedSource":"RULE","expectedPatchType":"MoveWorkoutDay"}
+{"id":"move_012","text":"postpone my workout to tomorrow","expectedIntent":"MoveWorkoutDay","expectedSource":"RULE","expectedPatchType":"MoveWorkoutDay"}
+{"id":"move_013","text":"move today to next week","expectedIntent":"MoveWorkoutDay","expectedSource":"RULE","expectedPatchType":"MoveWorkoutDay"}
+{"id":"move_014","text":"move monday workout to tuesday","expectedIntent":"MoveWorkoutDay","expectedSource":"RULE","expectedPatchType":"MoveWorkoutDay"}
+{"id":"move_015","text":"move friday workout to sunday","expectedIntent":"MoveWorkoutDay","expectedSource":"RULE","expectedPatchType":"MoveWorkoutDay"}
+{"id":"date_001","text":"what did i do today","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_002","text":"what did i do yesterday","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_003","text":"what did i do last monday","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_004","text":"what did i do last tuesday","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_005","text":"what was my workout on may 3rd","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_006","text":"what was my workout on 2026-05-01","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_007","text":"show me my workout from yesterday","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_008","text":"show me my workout for last friday","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_009","text":"what did i train on april 10","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_010","text":"what did i train on last saturday","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_011","text":"my session on may 1","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_012","text":"my session on yesterday","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_013","text":"what exercises did i do today","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_014","text":"what exercises did i do yesterday","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_015","text":"what did i lift on may 2","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_016","text":"what did i lift on last sunday","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_017","text":"show workout for 2026-05-10","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_018","text":"show workout for last wednesday","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_019","text":"what did i do on april 12","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"date_020","text":"what did i do on last thursday","expectedIntent":"QueryDate","expectedSource":"RULE"}
+{"id":"progress_001","text":"how is my bench press trending","expectedIntent":"QueryProgress","expectedSource":"RULE"}
+{"id":"progress_002","text":"how is my squat trending","expectedIntent":"QueryProgress","expectedSource":"RULE"}
+{"id":"progress_003","text":"how has my deadlift progressed","expectedIntent":"QueryProgress","expectedSource":"RULE"}
+{"id":"progress_004","text":"bench press over time","expectedIntent":"QueryProgress","expectedSource":"RULE"}
+{"id":"progress_005","text":"progress on squat","expectedIntent":"QueryProgress","expectedSource":"RULE"}
+{"id":"progress_006","text":"am i improving on bench press","expectedIntent":"QueryProgress","expectedSource":"RULE"}
+{"id":"progress_007","text":"am i getting stronger on deadlift","expectedIntent":"QueryProgress","expectedSource":"RULE"}
+{"id":"progress_008","text":"my gains on overhead press","expectedIntent":"QueryProgress","expectedSource":"RULE"}
+{"id":"progress_009","text":"how much have i improved on row","expectedIntent":"QueryProgress","expectedSource":"RULE"}
+{"id":"progress_010","text":"how much stronger is my squat","expectedIntent":"QueryProgress","expectedSource":"RULE"}
+{"id":"progress_011","text":"gained on bench press","expectedIntent":"QueryProgress","expectedSource":"RULE"}
+{"id":"progress_012","text":"how has my pull up changed over time","expectedIntent":"QueryProgress","expectedSource":"RULE"}
+{"id":"rec_001","text":"how much should i bench press today","expectedIntent":"AskRecommendation","expectedSource":"RULE"}
+{"id":"rec_002","text":"what weight should i use for squat","expectedIntent":"AskRecommendation","expectedSource":"RULE"}
+{"id":"rec_003","text":"recommend a weight for deadlift","expectedIntent":"AskRecommendation","expectedSource":"RULE"}
+{"id":"rec_004","text":"suggest a weight for overhead press","expectedIntent":"AskRecommendation","expectedSource":"RULE"}
+{"id":"rec_005","text":"what should i use for row","expectedIntent":"AskRecommendation","expectedSource":"RULE"}
+{"id":"rec_006","text":"starting weight for incline bench","expectedIntent":"AskRecommendation","expectedSource":"RULE"}
+{"id":"rec_007","text":"how heavy should pull ups be","expectedIntent":"AskRecommendation","expectedSource":"RULE"}
+{"id":"rec_008","text":"how many pounds for leg press","expectedIntent":"AskRecommendation","expectedSource":"RULE"}
+{"id":"similar_001","text":"similar exercise to bench press","expectedIntent":"AskSimilar","expectedSource":"RULE"}
+{"id":"similar_002","text":"alternative to squat","expectedIntent":"AskSimilar","expectedSource":"RULE"}
+{"id":"similar_003","text":"instead of deadlift what can i do","expectedIntent":"AskSimilar","expectedSource":"RULE"}
+{"id":"similar_004","text":"substitute for overhead press","expectedIntent":"AskSimilar","expectedSource":"RULE"}
+{"id":"similar_005","text":"replace barbell row","expectedIntent":"AskSimilar","expectedSource":"RULE"}
+{"id":"similar_006","text":"what else can i do for pull ups","expectedIntent":"AskSimilar","expectedSource":"RULE"}
+{"id":"similar_007","text":"alternatives for curls","expectedIntent":"AskSimilar","expectedSource":"RULE"}
+{"id":"history_001","text":"show me my bench press history","expectedIntent":"AskHistory","expectedSource":"RULE"}
+{"id":"history_002","text":"my history for squat","expectedIntent":"AskHistory","expectedSource":"RULE"}
+{"id":"history_003","text":"last time i did deadlift","expectedIntent":"AskHistory","expectedSource":"RULE"}
+{"id":"history_004","text":"when did i bench press","expectedIntent":"AskHistory","expectedSource":"RULE"}
+{"id":"history_005","text":"my personal record on squat","expectedIntent":"AskHistory","expectedSource":"RULE"}
+{"id":"model_001","text":"capture my bench working set from this session","expectedIntent":"LogSet","expectedSource":"MODEL","agent":false}
+{"id":"model_002","text":"please file that squat top set","expectedIntent":"LogSet","expectedSource":"MODEL","agent":false}
+{"id":"model_003","text":"record the heavy deadlift effort I mentioned","expectedIntent":"LogSet","expectedSource":"MODEL","agent":false}
+{"id":"model_004","text":"adjust the bench entry from earlier","expectedIntent":"EditSet","expectedSource":"MODEL","agent":false}
+{"id":"model_005","text":"correct the squat number from before","expectedIntent":"EditSet","expectedSource":"MODEL","agent":false}
+{"id":"model_006","text":"drop the mistaken row entry from the log","expectedIntent":"DeleteSet","expectedSource":"MODEL","agent":false}
+{"id":"model_007","text":"remove the accidental curl record from earlier","expectedIntent":"DeleteSet","expectedSource":"MODEL","agent":false}
+{"id":"model_008","text":"change the exercise label for my main press","expectedIntent":"RenameExercise","expectedSource":"MODEL","agent":false}
+{"id":"model_009","text":"move the training day I planned","expectedIntent":"MoveWorkoutDay","expectedSource":"MODEL","agent":false}
+{"id":"model_010","text":"push the session I had scheduled","expectedIntent":"MoveWorkoutDay","expectedSource":"MODEL","agent":false}
+{"id":"model_011","text":"was bench stronger lately","expectedIntent":"QueryProgress","expectedSource":"MODEL","agent":false}
+{"id":"model_012","text":"is my squat moving in the right direction","expectedIntent":"QueryProgress","expectedSource":"MODEL","agent":false}
+{"id":"model_013","text":"tell me how deadlift has been going","expectedIntent":"AskHistory","expectedSource":"MODEL","agent":false}
+{"id":"model_014","text":"pull up recap please","expectedIntent":"AskHistory","expectedSource":"MODEL","agent":false}
+{"id":"model_015","text":"need a substitute movement for bench","expectedIntent":"AskSimilar","expectedSource":"MODEL","agent":false}
+{"id":"model_016","text":"give me another option for rows","expectedIntent":"AskSimilar","expectedSource":"MODEL","agent":false}
+{"id":"model_017","text":"choose a sensible curl load","expectedIntent":"AskRecommendation","expectedSource":"MODEL","agent":false}
+{"id":"model_018","text":"pick a working weight for leg press","expectedIntent":"AskRecommendation","expectedSource":"MODEL","agent":false}
+{"id":"model_019","text":"recap the training I did on that date","expectedIntent":"QueryDate","expectedSource":"MODEL","agent":false}
+{"id":"model_020","text":"show that previous workout day","expectedIntent":"QueryDate","expectedSource":"MODEL","agent":false}
+{"id":"fallback_001","text":"make it better somehow","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_002","text":"do the thing from earlier","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_003","text":"that one was weird","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_004","text":"handle my gym stuff","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_005","text":"you know what I mean","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_006","text":"fix the situation","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_007","text":"the previous thing was off","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_008","text":"organize my lifting better","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_009","text":"what should happen now","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_010","text":"I messed something up","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_011","text":"the app state feels wrong","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_012","text":"help with my plan","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_013","text":"make today's training smarter","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_014","text":"something changed and I forgot","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_015","text":"clean up the confusing part","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_016","text":"what was that workout thing","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_017","text":"prepare me for lifting","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
+{"id":"fallback_018","text":"I need help with recovery choices","expectedIntent":"Clarify","expectedSource":"FALLBACK","agent":false}
