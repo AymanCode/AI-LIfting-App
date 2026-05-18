@@ -1,84 +1,51 @@
-# Portfolio Summary
+# Project Summary
 
-EcoLift should read as more than a workout app. The recruiter-facing story is that I shipped quickly with AI coding agents, then proved engineering depth by adding the harnesses, tests, data protections, and analytics that make AI-generated behavior measurable and safe.
+EcoLift is a local-first Android workout tracker with an assistant layer called IronMind. The first MVP was built in 2 to 3 days, then the project was expanded around safer assistant behavior, database reliability, local backups, and offline analytics.
 
-## Recruiter Read
+The main engineering choices are:
 
-In a short scan, this project should communicate:
+- keep workout data local by default
+- route common assistant requests through deterministic Kotlin code before model fallback
+- represent assistant writes as typed `DbPatch` values instead of raw database operations
+- validate patches before Room transactions
+- require confirmation for destructive changes
+- record audit rows and inverse patches for undo
+- keep unresolved user text as a recoverable draft when parsing is unsafe
+- load backup exports into DuckDB for workout and agent telemetry
 
-- Fast shipping, backed by ownership of specs, module boundaries, and review.
-- AI engineering, measured with offline evals instead of demo-only behavior.
-- SWE depth, proven through CI, Room migrations, backup tests, typed patches, transactions, audit logs, and undo.
-- Data engineering judgment, shown through DuckDB marts and data-quality views over local backup exports.
+## Agent Flow
 
-## Resume-Ready Bullets
+IronMind routes user text through `IntentRouter`, uses `AgentTools` to ground requests against local data, and produces `DbPatch` objects for write operations. The model layer is optional. If deterministic parsing cannot safely resolve a request, the app either falls back to a model or preserves the original input for review.
 
-Use the first three bullets for a tight project entry. Add the fourth when space allows or when applying to AI, platform, or data-leaning roles.
+The assistant supports routine logging, dated imports, historical corrections, destructive changes with confirmation, progress questions, similar-exercise lookup, and weight recommendations.
 
-- Shipped a local-first Android workout MVP in 2 to 3 days by converting architecture specs into agent-executable tasks, module boundaries, and review gates for Kotlin, Room, and Compose.
-- Built a 200-case offline agent eval harness to measure intent routing, slot extraction, fallback quality, patch-field accuracy, and destructive-action safety across workout requests.
-- Cut routine model calls by routing common workout commands through deterministic Kotlin rules before LLM fallback, reaching 82.5 percent rule-path coverage and a 9 percent fallback rate in the latest 200-case local eval.
-- Hardened AI-proposed workout edits with typed `DbPatch` validation, Room transactions, audit logs, one-tap undo, zero-loss migration tests, backup round-trips, and DuckDB telemetry.
+## Evaluation
 
-## Role Framing
+The agent evals are split into three prompt banks:
 
-The best framing for this project is **system architect and harness engineer**.
+- `ironmind_eval_cases.jsonl`: 200 offline cases for routing, intent accuracy, fallback behavior, patch-field accuracy, and destructive confirmation behavior.
+- `ironmind_realistic_prompt_bank.jsonl`: 120 realistic prompts for messy historical logs, dated imports, corrections, destructive requests, ambiguous rows, and read-only questions.
+- `ironmind_ai_rescue_cases.jsonl`: 24 hard prompts for live model rescue when deterministic routing leaves a case unresolved.
 
-Key responsibilities demonstrated:
-
-- Defined agent boundaries so model output cannot mutate the database directly.
-- Designed deterministic routing and fallback behavior for natural-language workout requests.
-- Built typed mutation objects, validation gates, audit logs, and undo flows around AI-proposed edits.
-- Added automated evals to measure assistant behavior instead of relying on demos.
-- Hardened persistence with Room migrations, backup verification, and CI.
-- Modeled exported app data in DuckDB for telemetry and data-quality checks.
-
-## Interview Talking Points
-
-- The agent is intentionally hybrid. Rules handle routine requests, model fallback handles ambiguous language, and clarification prevents unsafe guessing.
-- `DbPatch` is the safety boundary. It converts AI intent into typed, reviewable operations before Room sees any write.
-- The eval harness makes the AI layer measurable. It tracks intent accuracy, fallback rate, route-source coverage, patch-field accuracy, and destructive confirmation behavior.
-- The persistence layer is local-first and reliability-focused. Migrations, backups, audit logs, undo, and test coverage support the data-integrity story.
-- The DuckDB pipeline shows data engineering judgment without adding unnecessary cloud infrastructure to a local-first app.
-
-## Current Verification Snapshot
-
-Latest local agent eval summary:
+Recent local runs:
 
 ```text
-offline eval cases: 200
-intent accuracy: 99.5%
-route-source accuracy: 98.5%
-rule-path coverage: 82.5%
-fallback rate: 9%
-destructive confirmation accuracy: 100%
-patch-field accuracy: 98.2%
-crashes: 0
+200-case offline eval: 99.5% intent accuracy, 9% fallback rate
+120-prompt realistic offline bank: 87.5% deterministic coverage, 12.5% fallback rate
+24-prompt live AI rescue eval: 24/24 successful cases, 0 unsafe silent mutations
 ```
 
-Latest realistic offline prompt bank:
+Full reports are written under `build/reports/agent-eval/`.
 
-```text
-prompts: 120
-deterministic coverage: 87.5%
-fallback rate: 12.5%
-recoverable draft rate: 100%
-safe fallback preservation: 100%
-API calls: 0
-```
+## Data and Persistence
 
-Latest 24-prompt live AI rescue eval:
+Room stores exercises, workout days, workout sets, split and cycle data, pending review rows, audit entries, and agent turn logs. The current schema version is 13, with exported schemas under `schemas/`.
 
-```text
-successful cases: 24/24
-target agreement: 100%
-DB-ready mutation rate: 100%
-model-output parse rate: 100%
-unsafe silent mutations: 0
-max completion tokens: 300
-```
+Backup export/import includes workout history, split data, pending reviews, audit rows, and agent turns. Import creates a pre-import automatic backup and runs the restore inside a Room transaction.
 
-Core verification commands:
+The DuckDB loader in `analytics/` turns backup JSON into dimensions, fact tables, and views for weekly volume, personal records, adherence, undo rate, agent error rate, and data-quality checks.
+
+## Verification Commands
 
 ```powershell
 .\gradlew.bat testDebugUnitTest

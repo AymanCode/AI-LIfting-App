@@ -42,7 +42,7 @@ Run the AI rescue eval fixture check without network:
 .\gradlew.bat testDebugUnitTest --tests "com.ayman.ecolift.agent.AiRescueEvalTest"
 ```
 
-Run the opt-in live API rescue eval for hard prompts:
+Run the opt-in live API rescue eval:
 
 ```powershell
 $env:AI_RESCUE_EVAL_ENABLED="true"
@@ -74,12 +74,12 @@ python -m unittest analytics.test_load_backup
 
 ## Current Coverage
 
-The verification suite covers:
+The test suite covers:
 
 - Intent routing, model fallback, and rule-matcher edge cases.
 - 200-case offline agent eval metrics for intent accuracy, route-source coverage, fallback rate, patch-field accuracy, and destructive confirmation behavior.
 - 120-prompt realistic offline prompt bank for messy logs, dated imports, historical corrections, destructive requests, ambiguous rows, and read-only queries. The report records deterministic coverage, fallback rate, target agreement, mutation resolution, recoverable draft rate, destructive safety, category metrics, target metrics, and per-case outcomes without API calls.
-- 24-prompt AI rescue eval bank for hard cases that deterministic routing often leaves to model fallback. The default test validates the fixture without network access. The opt-in live run measures model rescue rate, target agreement, mutation resolution, patch type accuracy, patch-field accuracy, destructive safety, rate-limit retries, API failures, and progress-analysis response coverage.
+- 24-prompt AI rescue eval bank for cases that deterministic routing often leaves to model fallback. The default test validates the fixture without network access. The opt-in live run measures model rescue rate, target agreement, mutation resolution, patch type accuracy, patch-field accuracy, destructive safety, rate-limit retries, API failures, and progress-analysis response coverage.
 - AI rescue success is stricter than intent classification. A write case passes only when the target action is correct, confirmation behavior is correct, and expected fields such as exercise, date, weight, reps, and set count match the fixture. A read or clarify case passes only when it avoids mutation and returns a usable response instead of a generic unresolved message.
 - Date extraction.
 - Patch validation and patch service behavior.
