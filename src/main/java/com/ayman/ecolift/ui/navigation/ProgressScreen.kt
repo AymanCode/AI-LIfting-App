@@ -1,6 +1,7 @@
 package com.ayman.ecolift.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -15,9 +16,16 @@ import kotlin.math.abs
 fun ProgressScreen(
     viewModel: ProgressViewModel = viewModel(),
     onOpenBackups: () -> Unit = {},
+    initialExerciseId: Long? = null,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(initialExerciseId) {
+        if (initialExerciseId != null) {
+            viewModel.selectExercise(initialExerciseId)
+        }
+    }
 
     if (uiState.selectedExerciseId != null) {
         val dataPoints = uiState.chartPoints.map { pt ->

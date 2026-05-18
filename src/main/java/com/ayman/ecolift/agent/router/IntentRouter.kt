@@ -26,7 +26,7 @@ class IntentRouter(
         enum class Source { RULE, MODEL, FALLBACK }
     }
 
-    suspend fun route(userText: String): RoutingResult {
+    suspend fun route(userText: String, allowModelFallback: Boolean = true): RoutingResult {
         // 1. Rule fast path
         val ruleMatch = RuleMatcher.match(userText)
         if (ruleMatch != null) {
@@ -35,7 +35,7 @@ class IntentRouter(
 
         // 2. Model fallback
         val eng = engine
-        if (eng != null && eng.isReady) {
+        if (allowModelFallback && eng != null && eng.isReady) {
             val intent = classifyWithModel(userText, eng)
             if (intent != null) {
                 return RoutingResult(intent, RoutingResult.Source.MODEL, 0.70f)
@@ -43,7 +43,7 @@ class IntentRouter(
         }
 
         // 3. Clarify fallback
-        val question = if (eng != null && eng.isReady) {
+        val question = if (allowModelFallback && eng != null && eng.isReady) {
             tryGenerateClarification(userText, eng)
         } else {
             "Could you be more specific? I wasn't sure what you meant."

@@ -2,6 +2,7 @@ package com.ayman.ecolift.agent.model
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
@@ -11,6 +12,9 @@ interface AgentTurnLogDao {
     @Insert
     suspend fun insert(entry: AgentTurnLog): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(entries: List<AgentTurnLog>)
+
     /** Latest [limit] turns, newest first - observed as a Flow for the debug UI. */
     @Query("SELECT * FROM agent_turn_log ORDER BY timestamp DESC LIMIT :limit")
     fun observeRecent(limit: Int = 50): Flow<List<AgentTurnLog>>
@@ -18,6 +22,9 @@ interface AgentTurnLogDao {
     /** One-shot fetch for tests. */
     @Query("SELECT * FROM agent_turn_log ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getRecent(limit: Int = 50): List<AgentTurnLog>
+
+    @Query("SELECT * FROM agent_turn_log ORDER BY id ASC")
+    suspend fun getAll(): List<AgentTurnLog>
 
     @Query("DELETE FROM agent_turn_log")
     suspend fun clearAll()

@@ -25,6 +25,7 @@ class AgentToolsImplTest {
     private val benchPress = Exercise(id = 1L, name = "Bench Press", isBodyweight = false)
     private val pullUp = Exercise(id = 2L, name = "Pull Up", isBodyweight = true)
     private val inclineBench = Exercise(id = 3L, name = "Incline Bench Press", isBodyweight = false)
+    private val calfRaise = Exercise(id = 4L, name = "Standing Calf Raise Machine", isBodyweight = false)
     private fun lbs(value: Int): Int = WeightLbs.fromWholePounds(value)!!
 
     @Before
@@ -54,6 +55,15 @@ class AgentToolsImplTest {
         val result = tools.findExercise("bench pres") // typo
         assertNotNull(result)
         assertEquals(1L, result!!.exerciseId)
+    }
+
+    @Test
+    fun `findExercise maps common body-part alias to concrete exercise`() = runTest {
+        whenever(exerciseDao.getAll()).thenReturn(listOf(benchPress, pullUp, calfRaise))
+        val result = tools.findExercise("calves")
+        assertNotNull(result)
+        assertEquals(calfRaise.id, result!!.exerciseId)
+        assertEquals(0.0, result.score, 0.001)
     }
 
     @Test

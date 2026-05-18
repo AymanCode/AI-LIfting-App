@@ -5,13 +5,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ayman.ecolift.ui.viewmodel.AiViewModel
+import com.ayman.ecolift.ui.viewmodel.OrchestratorViewModel
 import java.time.format.DateTimeFormatter
 import java.time.LocalTime
 
 @Composable
 fun AiScreen(
-    viewModel: AiViewModel = viewModel(),
+    viewModel: OrchestratorViewModel = viewModel(),
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -34,7 +34,17 @@ fun AiScreen(
                         lastSession = uiState.pendingAction?.title,
                         sessionCount = null
                     )
-                } else null
+                } else null,
+                recovery = msg.recovery?.let {
+                    RecoveryPayload(
+                        title = it.title,
+                        detail = it.detail,
+                        originalText = it.originalText,
+                        suggestedTemplate = it.suggestedTemplate,
+                        saveDate = it.saveDate,
+                        canTryModel = it.canTryModel
+                    )
+                }
             )
         }
     }
@@ -58,6 +68,17 @@ fun AiScreen(
         onQuickAction = { action ->
             viewModel.applyShortcut(action.query)
             viewModel.sendMessage()
+        },
+        onRecoveryAction = { recovery, action ->
+            when (action) {
+                RecoveryAction.EditOriginal -> viewModel.editRecoveryDraft(recovery.originalText)
+                RecoveryAction.UseTemplate -> viewModel.useRecoveryTemplate(recovery.suggestedTemplate)
+                RecoveryAction.SaveForReview -> viewModel.saveRecoveryForReview(
+                    originalText = recovery.originalText,
+                    saveDate = recovery.saveDate
+                )
+                RecoveryAction.TryAi -> viewModel.tryRecoveryWithModel(recovery.originalText)
+            }
         },
         onSettings = { },
         modifier = modifier

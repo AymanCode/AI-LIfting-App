@@ -151,6 +151,13 @@ class RuleMatcherEdgeCaseTest {
     // ── LogSet fallback by keyword only ───────────────────────────────
 
     @Test
+    fun `recommendation wins over embedded set notation evidence`() {
+        val match = RuleMatcher.match("what should i use on incline db press if bench is 185x5")
+        assertNotNull(match)
+        assertEquals(ReadType.AskRecommendation, (match!!.intent as Intent.Read).queryType)
+    }
+
+    @Test
     fun `just did without numbers still matches LogSet keyword`() {
         // "just did" is a keyword — orchestrator will later ask for details
         // but the router should still classify as LogSet.

@@ -45,6 +45,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import com.ayman.ecolift.ui.theme.AccentTeal
 import com.ayman.ecolift.ui.theme.AccentTeal12
 import com.ayman.ecolift.ui.theme.BorderDefault
@@ -56,6 +58,14 @@ private data class AppDestination(
     val icon: ImageVector,
     val label: String,
 )
+
+internal fun buildLogRouteForSplit(splitId: Long): String = "log/$splitId"
+
+internal fun buildProgressRouteForExercise(exerciseId: Long): String = "progress/$exerciseId"
+
+internal fun isRouteSelected(currentRoute: String?, tabRoute: String): Boolean {
+    return currentRoute == tabRoute || currentRoute?.startsWith("$tabRoute/") == true
+}
 
 @Composable
 fun AppNavigation() {
@@ -90,7 +100,7 @@ fun AppNavigation() {
                         modifier = Modifier.height(64.dp)
                     ) {
                         destinations.forEach { destination ->
-                            val selected = currentRoute == destination.route
+                            val selected = isRouteSelected(currentRoute, destination.route)
                             NavigationBarItem(
                                 selected = selected,
                                 onClick = {
@@ -149,24 +159,37 @@ fun AppNavigation() {
                 .padding(padding),
         ) {
             composable("log") { TodayScreen() }
+            composable(
+                route = "log/{splitId}",
+                arguments = listOf(navArgument("splitId") { type = NavType.LongType })
+            ) { entry ->
+                TodayScreen(initialSplitId = entry.arguments?.getLong("splitId"))
+            }
             composable("progress") {
                 ProgressScreen(
+                    onOpenBackups = { navController.navigate("backups") }
+                )
+            }
+            composable(
+                route = "progress/{exerciseId}",
+                arguments = listOf(navArgument("exerciseId") { type = NavType.LongType })
+            ) { entry ->
+                ProgressScreen(
+                    initialExerciseId = entry.arguments?.getLong("exerciseId"),
                     onOpenBackups = { navController.navigate("backups") }
                 )
             }
             composable("ai") { AiScreen() }
             composable("split") {
                 SplitScreen(
-                    onNavigateToLog = { _ ->
-                        // Opens the Log tab; split preselection is not wired yet.
-                        navController.navigate("log") {
+                    onNavigateToLog = { splitId ->
+                        navController.navigate(buildLogRouteForSplit(splitId)) {
                             launchSingleTop = true
                             popUpTo(navController.graph.startDestinationId) { saveState = true }
                         }
                     },
-                    onNavigateToExerciseProgress = { _ ->
-                        // Opens the Progress tab; exercise preselection is not wired yet.
-                        navController.navigate("progress") {
+                    onNavigateToExerciseProgress = { exerciseId ->
+                        navController.navigate(buildProgressRouteForExercise(exerciseId)) {
                             launchSingleTop = true
                             popUpTo(navController.graph.startDestinationId) { saveState = true }
                         }

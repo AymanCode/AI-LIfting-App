@@ -19,10 +19,26 @@ local.properties
 .android-adb-home/
 
 # Tools
+.codex/
 .tools/
 .mcp.json
 .claude/settings.local.json
 .claude/presets/
+
+# Python
+__pycache__/
+*.py[cod]
+*.duckdb
+
+# Local databases and packaged artifacts
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.apk
+*.aab
+!src/main/assets/database/*.db
 
 # OS
 .DS_Store

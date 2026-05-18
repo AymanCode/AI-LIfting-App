@@ -1,5 +1,7 @@
 package com.ayman.ecolift.agent.engine
 
+import java.time.LocalDate
+
 /**
  * Prompt templates for the agent engine.
  *
@@ -63,6 +65,33 @@ object Prompts {
     }
 
     /**
+     * One-exercise workout log extraction prompt.
+     * Used only after deterministic parsing fails.
+     */
+    fun logSetExtraction(userText: String, defaultDate: String): String = buildString {
+        val yesterday = runCatching { LocalDate.parse(defaultDate).minusDays(1).toString() }.getOrNull()
+        appendLine("You are a careful workout coach and log editor extracting one workout logging request into structured JSON.")
+        appendLine("Use this only for a single exercise. If the user mentions multiple exercises, an unclear exercise, or missing set details, return low confidence.")
+        appendLine("Return high confidence when exactly one exercise is present and all set numbers can be recovered from the text.")
+        appendLine("Correct obvious exercise spelling mistakes, but do not invent missing weight, reps, dates, or exercise names.")
+        appendLine("Common aliases: calves -> Standing Calf Raise Machine; pullups -> Pull Up; ohp -> Overhead Press; bechh press -> Bench Press.")
+        appendLine("Convert clear spoken numbers, such as one thirty five -> 135, ninety -> 90, and twelve -> 12.")
+        appendLine("For bodyweight movements, weightLbs may be null when reps are clear.")
+        appendLine("Assume plain numbers before 'for' or 'x' are pounds when a set pattern is clear, even if units are omitted.")
+        appendLine("Plate counts are not exact pounds; return low confidence unless the user gives an exact pound value.")
+        appendLine("For shorthand like 135x7, read it as 135 lb for 7 reps. For '90 for 12, 10, 8', reuse 90 lb across the listed reps.")
+        appendLine("Default date: $defaultDate")
+        if (yesterday != null) {
+            appendLine("Resolve relative dates from the default date, for example yesterday -> $yesterday.")
+        }
+        appendLine()
+        appendLine("User request: $userText")
+        appendLine()
+        appendLine("Output ONLY valid JSON matching this shape:")
+        appendLine(LOG_SET_EXTRACTION_SCHEMA)
+    }
+
+    /**
      * Explanation prompt - generates a short human-readable response after applying patches.
      * [appliedPatches] is a plain-English summary of what changed.
      */
@@ -80,12 +109,12 @@ object Prompts {
      * [resultJson] is the raw JSON result from AgentTools.
      */
     fun formatReadResult(queryType: String, resultJson: String, userText: String): String = buildString {
-        appendLine("You are a terse workout assistant. Summarize this data for the user.")
+        appendLine("You are a concise workout coach reviewing a client's training data.")
         appendLine("Query type: $queryType")
         appendLine("User asked: $userText")
         appendLine("Data: $resultJson")
         appendLine()
-        appendLine("Summary (2-3 sentences max, no markdown):")
+        appendLine("Give a direct 2-3 sentence answer. For progress questions, name the trend and give one practical next step. Do not shame the user, invent data, or give medical advice. No markdown:")
     }
 
     /**
@@ -98,4 +127,15 @@ object Prompts {
         appendLine()
         appendLine("Clarifying question:")
     }
+
+    const val LOG_SET_EXTRACTION_SCHEMA: String = """
+        {
+          "exerciseQuery": "exercise name to fuzzy match",
+          "date": "yyyy-MM-dd or null",
+          "confidence": 0.0,
+          "sets": [
+            { "weightLbs": 135, "reps": 7 }
+          ]
+        }
+    """
 }

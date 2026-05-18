@@ -538,6 +538,7 @@ data class AiMessageUi(
     val isUser: Boolean,
     val text: String,
     val isError: Boolean = false,
+    val recovery: AiRecoveryActionUi? = null,
 )
 
 data class AiShortcutUi(
@@ -550,6 +551,15 @@ data class AiPendingActionUi(
     val title: String,
     val detail: String,
     val confirmLabel: String,
+)
+
+data class AiRecoveryActionUi(
+    val title: String,
+    val detail: String,
+    val originalText: String,
+    val suggestedTemplate: String,
+    val saveDate: String,
+    val canTryModel: Boolean,
 )
 
 data class AiUiState(

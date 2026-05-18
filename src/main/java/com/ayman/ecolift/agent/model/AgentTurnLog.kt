@@ -2,6 +2,7 @@ package com.ayman.ecolift.agent.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 /**
  * Persisted record of one agent turn - written after every [AgentOrchestrator.process] call.
@@ -9,6 +10,7 @@ import androidx.room.PrimaryKey
  * Used for the in-app debug view and future agent-quality analysis.
  */
 @Entity(tableName = "agent_turn_log")
+@Serializable
 data class AgentTurnLog(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
 

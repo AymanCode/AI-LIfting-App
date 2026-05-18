@@ -125,6 +125,7 @@ class IntentRouterTest {
             "135 lbs 8 reps",
             "bench 3x10 at 185",
             "225 pounds for 5",
+            "bench press 135 lb x 7",
             "deadlift 5 x 3 at 315kg",
         ).forEach { text ->
             val match = RuleMatcher.match(text)

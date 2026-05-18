@@ -50,7 +50,6 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                     .createFromAsset("database/ecolift.db")
                     .addMigrations(*Migrations.ALL_MIGRATIONS)
-                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance
                 DataBackupManager.scheduleAutomaticBackup(context.applicationContext, instance)
