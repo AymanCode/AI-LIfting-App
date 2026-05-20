@@ -2,29 +2,154 @@
 
 [![Android CI](https://github.com/AymanCode/AI-LIfting-App/actions/workflows/android-ci.yml/badge.svg)](https://github.com/AymanCode/AI-LIfting-App/actions/workflows/android-ci.yml)
 
-EcoLift is a local-first Android workout tracker built with Kotlin, Jetpack Compose, and Room. It supports fast workout logging, dated workout imports, split management, progress views, local backups, and IronMind, an assistant that can interpret natural-language workout requests without giving a model direct database access.
+EcoLift is a local-first Android workout tracker built with Kotlin, Jetpack Compose, and Room. It supports quick workout logging, split planning, progress review, backups, and natural-language workout edits through an assistant called IronMind.
 
-The app is designed around a simple constraint: workout data should remain useful and recoverable even when AI is unavailable or uncertain. Common requests run through deterministic Kotlin paths first. Ambiguous requests can fall back to a model, and unresolved logs are preserved as editable drafts instead of being discarded.
+The app is designed around a practical constraint: workout data should stay useful and recoverable even when AI is unavailable or uncertain. Common assistant requests run through deterministic Kotlin paths first, model output is converted into typed patches, and uncertain logs are preserved as editable drafts instead of being discarded.
 
-## What It Does
+**Status:** active personal project and prototype. It is not a Play Store production release.
 
-- Log exercises, sets, reps, weights, and rest periods from a mobile-first Compose UI.
-- Search exercises with fuzzy matching and keep completed-set history.
-- Import older workout logs from plain text, including mixed formats like `135x8`, `135 lb x 8`, and `135 for 8 8 6`.
-- Manage split routines, cycle slots, custom ordering, and saved exercises per split.
-- Review progress through exercise history, trend summaries, estimated strength metrics, sparklines, detailed set history, and local backup/restore.
+## Contents
+
+- [Screenshots](#screenshots)
+- [Engineering Approach](#engineering-approach)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Code Map](#code-map)
+- [Getting Started](#getting-started)
+- [Testing](#testing)
+- [IronMind Assistant](#ironmind-assistant)
+- [Analytics](#analytics)
+- [Project Structure](#project-structure)
+- [Documentation](#documentation)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [Support](#support)
+- [License](#license)
+
+## Screenshots
+
+Screenshots are from a debug build running on an Android emulator with local sample workout data.
+
+| Workout log | Progress | IronMind |
+| --- | --- | --- |
+| <img src="docs/assets/ecolift-log.png" width="260" alt="EcoLift workout log screen with exercises and sets"> | <img src="docs/assets/ecolift-progress.png" width="260" alt="EcoLift progress screen with exercise summaries"> | <img src="docs/assets/ecolift-ironmind.png" width="260" alt="EcoLift IronMind assistant screen"> |
+
+## Engineering Approach
+
+EcoLift keeps the core workout experience local and predictable. Room owns the workout history, split state, backups, audit rows, and assistant turn logs. Migrations are exported through schema version 13 and covered by migration tests so database changes stay reviewable.
+
+IronMind is an assistant layer around the app, not a database writer. Natural-language requests are routed through deterministic Kotlin paths where possible, and any assistant write is represented as a typed `DbPatch`. Patches are validated before apply, destructive actions require confirmation, and successful writes are recorded with inverse patches for undo.
+
+The project also includes local evaluation and analytics paths. Assistant behavior is measured with JSONL prompt banks, and backup exports can be loaded into DuckDB for workout and agent-quality queries.
+
+## Features
+
+- Mobile-first workout logging for exercises, sets, reps, weights, completion state, and rest timing.
+- Exercise search with fuzzy matching, quick-add behavior, and completed-set history.
+- Plain-text workout import for historical logs, including mixed formats such as `135x8`, `135 lb x 8`, and `135 for 8 8 6`.
+- Split routine management with cycle slots, custom ordering, saved exercises, and suggested next sessions.
+- Progress views with exercise history, trend summaries, estimated strength metrics, sparklines, and detailed set history.
+- Local backup and restore for workout data, split data, audit rows, pending review rows, and agent turns.
+- DuckDB analytics pipeline for querying exported backups outside the app.
+
+## Tech Stack
+
+- Kotlin, Coroutines, StateFlow
+- Jetpack Compose, Material 3, Navigation Compose
+- Room with exported schemas and migrations through version 13
+- MVVM-style ViewModels with repository and DAO boundaries
+- MediaPipe GenAI and Android AICore integration points
+- JUnit, Mockito Kotlin, AndroidX Test, Room migration testing
+- Python and DuckDB for local analytics
+- GitHub Actions for unit tests and debug APK builds
+
+## Code Map
+
+Useful starting points if you want to understand how the app is put together:
+
+- [AppDatabase.kt](src/main/java/com/ayman/ecolift/data/AppDatabase.kt): Room database setup, asset seed, migration wiring, and backup scheduling.
+- [Migrations.kt](src/main/java/com/ayman/ecolift/data/Migrations.kt): schema evolution and migration definitions.
+- [DataBackupManager.kt](src/main/java/com/ayman/ecolift/data/DataBackupManager.kt): local backup, restore, and snapshot handling.
+- [AgentOrchestrator.kt](src/main/java/com/ayman/ecolift/agent/AgentOrchestrator.kt): IronMind request routing, deterministic parsing, model fallback, and response handling.
+- [DbPatch.kt](src/main/java/com/ayman/ecolift/agent/model/DbPatch.kt), [PatchValidator.kt](src/main/java/com/ayman/ecolift/agent/patches/PatchValidator.kt), and [PatchService.kt](src/main/java/com/ayman/ecolift/agent/patches/PatchService.kt): typed assistant mutation pipeline.
+- [InverseComputer.kt](src/main/java/com/ayman/ecolift/agent/patches/InverseComputer.kt): inverse patch generation for undo.
+- [LogViewModel.kt](src/main/java/com/ayman/ecolift/ui/viewmodel/LogViewModel.kt) and [ProgressViewModel.kt](src/main/java/com/ayman/ecolift/ui/viewmodel/ProgressViewModel.kt): UI state, workout calculations, and data coordination.
+- [docs/TESTING.md](docs/TESTING.md): verification commands, CI behavior, current coverage, and known gaps.
+
+## Getting Started
+
+### Requirements
+
+- Android Studio or Android SDK
+- JDK 17
+- Android SDK 35
+- Python 3.11 or newer for analytics tests
+
+### Run the App
+
+Clone the repository:
+
+```powershell
+git clone https://github.com/AymanCode/AI-LIfting-App.git
+cd AI-LIfting-App
+```
+
+Open the project in Android Studio, let Gradle sync, then run the `debug` variant on an emulator or physical Android device.
+
+From the terminal, build or install the debug app with:
+
+```powershell
+.\gradlew.bat assembleDebug
+.\gradlew.bat installDebug
+```
+
+The debug APK is written under `build/outputs/apk/debug/`.
+
+### Local Configuration
+
+Do not commit local settings or model files:
+
+- `local.properties`
+- `.env`
+- model files such as `.task`, `.bin`, `.gguf`, or `.litertlm`
+
+Most app functionality is local. Provider keys are only for local development and opt-in live assistant evals. `AI_RESCUE_EVAL_API_KEY` or `GROQ_API_KEY` can provide a key from the shell environment, and release builds blank the Groq key field. A production version should route cloud model calls through a backend proxy rather than shipping a provider key in the client.
+
+## Testing
+
+Run the core Android verification commands:
+
+```powershell
+.\gradlew.bat testDebugUnitTest
+.\gradlew.bat assembleDebug
+```
+
+Run Android instrumentation tests on an emulator or physical device:
+
+```powershell
+.\gradlew.bat connectedDebugAndroidTest
+```
+
+Run the DuckDB analytics test:
+
+```powershell
+python -m pip install -r analytics\requirements.txt
+python -m unittest analytics.test_load_backup
+```
+
+The full testing guide, live AI rescue eval commands, CI details, coverage notes, and pre-push checklist are in [docs/TESTING.md](docs/TESTING.md).
 
 ## IronMind Assistant
 
-IronMind handles workout requests that are annoying to do manually, especially historical edits and larger text imports. Examples include:
+IronMind handles workout requests that are slow or error-prone to do manually, especially historical edits, text imports, and workout questions. Example requests:
 
 - `yesterday calf raises 90 for 12 10 8`
-- `i did Bechh Press 135x7,125x10,.85x5`
+- `i did bench press 135x7,125x10,85x5`
 - `for last saturday my deadlift top set should say three fifteen for four not 275`
 - `delete the extra squat set from May 10`
 - `what should I use on incline dumbbell press if bench is 185x5`
 
-The assistant is intentionally bounded. It can classify intent, ground requests against local workout data, and propose typed database patches, but it cannot write arbitrary SQL or mutate Room tables directly.
+The assistant can classify intent, ground requests against local workout data, and propose typed database patches. It cannot write arbitrary SQL or mutate Room tables directly.
 
 ```text
 user text
@@ -38,44 +163,21 @@ user text
   -> audit log and undo
 ```
 
-## Data Safety
+Safety controls include typed patch validation, destructive-action confirmation, Room transactions, audit rows with inverse patches, one-tap undo, and recoverable draft cards when a request cannot be safely parsed.
 
-Writes flow through `DbPatch`, a sealed set of typed mutation objects for actions such as log set, edit set, delete set, move workout day, and rename exercise. This keeps assistant behavior testable and keeps model output away from direct database writes.
+### Agent Evaluation
 
-Safety controls include:
-
-- deterministic routing before model fallback
-- confidence-gated model extraction for messy logs
-- typed patch validation before apply
-- destructive-action confirmation
-- Room transactions for atomic writes
-- audit rows with forward and inverse patches
-- one-tap undo through inverse patch replay
-- recoverable draft cards when a request cannot be safely parsed
-
-## Agent Evaluation
-
-The agent is tested with JSONL prompt banks instead of relying only on manual demos. The reports are generated locally and are not committed as build artifacts.
+The agent is tested with JSONL prompt banks instead of relying only on manual demos:
 
 - `ironmind_eval_cases.jsonl`: 200 offline cases for routing, intent accuracy, fallback behavior, patch-field accuracy, and destructive safety.
 - `ironmind_realistic_prompt_bank.jsonl`: 120 realistic prompts for messy historical logs, dated imports, corrections, destructive requests, ambiguous rows, and read-only questions.
-- `ironmind_ai_rescue_cases.jsonl`: 24 hard prompts for live model rescue on cases that deterministic routing is allowed to leave unresolved.
+- `ironmind_ai_rescue_cases.jsonl`: 24 hard prompts for opt-in live model rescue.
 
-Recent local runs:
-
-- 200-case offline eval: 99.5% intent accuracy and 9% fallback rate.
-- 120-prompt realistic offline bank: 87.5% deterministic coverage and 12.5% fallback rate.
-- 24-prompt live AI rescue eval: 24/24 successful cases, 100% target agreement, 100% DB-ready mutation rate, 100% model-output parse rate, 0 unsafe silent mutations.
-
-Full reports are written to `build/reports/agent-eval/summary.json`, `build/reports/agent-eval/realistic-offline-summary.json`, and `build/reports/agent-eval/ai-rescue-summary.json`.
-
-The live eval uses capped completions, retry/backoff, and optional spacing between prompts. A live case only passes when the output is usable by the app: write cases must produce expected patch fields, destructive requests must require confirmation, read cases must avoid mutation, and ambiguous cases must preserve the original user text.
+Recent local eval snapshots reported 99.5% offline intent accuracy, 87.5% deterministic realistic-bank coverage, and 24/24 successful live rescue cases with no unsafe silent mutations. Regenerate the reports before relying on those numbers.
 
 ## Analytics
 
-The `analytics/` folder contains a DuckDB loader for backup exports. It turns local backup JSON into fact and dimension tables that can be queried outside the app.
-
-Tables:
+The `analytics/` folder contains a DuckDB loader for backup exports. It turns local backup JSON into queryable fact and dimension tables:
 
 - `dim_exercise`
 - `dim_date`
@@ -85,92 +187,6 @@ Tables:
 - `fact_patch_audit`
 
 Views cover weekly volume, personal records, workout adherence, undo rate, agent error rate, and data-quality issues.
-
-## Tech Stack
-
-- Kotlin, Coroutines, StateFlow
-- Jetpack Compose, Material 3, Navigation Compose
-- Room with exported schemas and migrations through version 13
-- MVVM-style ViewModels with repository and DAO boundaries
-- MediaPipe GenAI and Android AICore integration points
-- JUnit, Mockito Kotlin, AndroidX Test, Room migration testing
-- Python and DuckDB for local analytics
-- GitHub Actions for unit tests and debug APK builds
-
-## Run Locally
-
-Requirements:
-
-- Android Studio or Android SDK
-- JDK 17
-- Android SDK 35
-- Python 3.11 or newer for analytics tests
-
-Local files that should not be committed:
-
-- `local.properties`
-- `.env`
-- model files such as `.task`, `.bin`, `.gguf`, or `.litertlm`
-
-Run the Android unit tests and build a debug APK:
-
-```powershell
-.\gradlew.bat testDebugUnitTest
-.\gradlew.bat assembleDebug
-```
-
-Run Android instrumentation tests on an emulator or physical device:
-
-```powershell
-.\gradlew.bat connectedDebugAndroidTest
-```
-
-Run the offline agent eval:
-
-```powershell
-.\gradlew.bat testDebugUnitTest --tests "com.ayman.ecolift.agent.AgentEvalHarnessTest"
-Get-Content build\reports\agent-eval\summary.json
-```
-
-Run the realistic offline prompt bank:
-
-```powershell
-.\gradlew.bat testDebugUnitTest --tests "com.ayman.ecolift.agent.RealisticPromptBankOfflineEvalTest"
-Get-Content build\reports\agent-eval\realistic-offline-summary.json
-```
-
-Run the AI rescue fixture check without network:
-
-```powershell
-.\gradlew.bat testDebugUnitTest --tests "com.ayman.ecolift.agent.AiRescueEvalTest"
-```
-
-Run the full 24-prompt live AI rescue eval when intentionally spending API quota:
-
-```powershell
-$env:AI_RESCUE_EVAL_ENABLED="true"
-$env:GROQ_API_KEY="<provider key>"
-$env:AI_RESCUE_EVAL_MODEL="llama-3.3-70b-versatile"
-$env:AI_RESCUE_EVAL_MAX_CASES="24"
-$env:AI_RESCUE_EVAL_CASE_DELAY_MS="5000"
-$env:AI_RESCUE_EVAL_MAX_TOKENS="300"
-$env:AI_RESCUE_EVAL_MAX_RETRIES="4"
-$env:AI_RESCUE_EVAL_INITIAL_BACKOFF_MS="3000"
-.\gradlew.bat testDebugUnitTest --tests "com.ayman.ecolift.agent.AiRescueEvalTest"
-Get-Content build\reports\agent-eval\ai-rescue-summary.json
-```
-
-The live eval uses an OpenAI-compatible chat completions endpoint. `AI_RESCUE_EVAL_API_KEY` or `GROQ_API_KEY` can provide the provider key from the shell environment, with `AI_RESCUE_EVAL_API_KEY` taking precedence. `AI_RESCUE_EVAL_BASE_URL` defaults to `https://api.groq.com/openai/v1`.
-
-Provider keys are for local development and evals only. `local.properties` is ignored, release builds blank the Groq key field, and a production-distributed app should route cloud model calls through a backend proxy rather than shipping a provider key in the client.
-
-Run the DuckDB analytics pipeline:
-
-```powershell
-python -m pip install -r analytics\requirements.txt
-python analytics\load_backup.py --input analytics\fixtures\sample_backup.json --out build\analytics\sample.duckdb
-python -m unittest analytics.test_load_backup
-```
 
 ## Project Structure
 
@@ -196,11 +212,26 @@ docs/         Architecture, testing, and implementation docs
 
 ## Documentation
 
-- [Project Summary](docs/PORTFOLIO.md)
+- [Project summary](docs/PORTFOLIO.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Testing](docs/TESTING.md)
 - [Agent implementation notes](docs/agent/phase_1.md)
 
-## Repository Notes
+## Roadmap
 
-Build outputs, IDE files, local settings, generated caches, debug signing artifacts, Python caches, DuckDB files, and large model files are ignored. Before publishing changes, run the verification commands and check `git status --short` for accidental local artifacts.
+- Add Compose UI tests for the primary log, progress, split, and IronMind flows.
+- Add a real-device smoke test for local/on-device AI behavior with a model installed.
+- Keep live AI rescue evals opt-in so provider quota is spent intentionally.
+- Continue tightening assistant recovery UX for ambiguous imported workout text.
+
+## Contributing
+
+Issues and pull requests are welcome for bugs, docs, tests, and focused UX improvements. Before opening a PR, run the core verification commands from [docs/TESTING.md](docs/TESTING.md) and check `git status --short` for local artifacts.
+
+## Support
+
+Open a GitHub issue for reproducible bugs or setup problems. For implementation details, start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/TESTING.md](docs/TESTING.md).
+
+## License
+
+No open-source license has been selected yet. Until a `LICENSE` file is added, treat this repository as source-available only.
