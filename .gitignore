@@ -6,6 +6,7 @@
 .gradle/
 .gradle-home/
 .gradle-tmp/
+.gradle-user/
 .gradle-user-home/
 build/
 *.class
@@ -15,7 +16,9 @@ build/
 .idea/
 *.iml
 local.properties
-.android/
+.android/*
+!.android/
+!.android/debug.keystore
 .android-adb-home/
 
 # Tools

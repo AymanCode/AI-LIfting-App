@@ -1,6 +1,7 @@
 package com.ayman.ecolift.data
 
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
@@ -38,6 +39,7 @@ class DatabaseHardeningInstrumentedTest {
     @After
     fun tearDown() {
         openDbs.forEach(AppDatabase::close)
+        context.deleteDatabase(LEGACY_SOURCE_DB)
         context.deleteDatabase(BACKUP_SOURCE_DB)
         context.deleteDatabase(BACKUP_TARGET_DB)
     }
@@ -87,6 +89,60 @@ class DatabaseHardeningInstrumentedTest {
         assertEquals(2250, migrated.longFor("SELECT weightLbs FROM workout_set WHERE id = 1"))
         assertEquals(1, migrated.longFor("SELECT COUNT(*) FROM split_exercise WHERE splitId = 10 AND exerciseId = 1"))
         migrated.close()
+    }
+
+    @Test
+    fun legacyVersion1WorkoutRowsMigrateTo13WithoutDroppingData() = runTest {
+        context.deleteDatabase(LEGACY_SOURCE_DB)
+        SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(LEGACY_SOURCE_DB), null).use { db ->
+            db.execSQL(
+                """
+                CREATE TABLE exercise (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    canonicalName TEXT NOT NULL,
+                    aliases TEXT NOT NULL,
+                    createdAt INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                CREATE TABLE workout (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    dateEpochDay INTEGER NOT NULL,
+                    startedAt INTEGER NOT NULL,
+                    endedAt INTEGER
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                CREATE TABLE workout_set (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    workoutId INTEGER NOT NULL,
+                    exerciseId INTEGER NOT NULL,
+                    setOrder INTEGER NOT NULL,
+                    weightLb REAL NOT NULL,
+                    reps INTEGER NOT NULL,
+                    loggedAt INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL("INSERT INTO exercise (id, canonicalName, aliases, createdAt) VALUES (1, 'Bench Press', '', 1)")
+            db.execSQL("INSERT INTO workout (id, dateEpochDay, startedAt, endedAt) VALUES (1, 20589, 1, 2)")
+            db.execSQL("INSERT INTO workout_set (id, workoutId, exerciseId, setOrder, weightLb, reps, loggedAt) VALUES (1, 1, 1, 1, 135.0, 8, 2)")
+            db.execSQL("PRAGMA user_version = 1")
+        }
+
+        val migrated = createDb(LEGACY_SOURCE_DB)
+
+        assertEquals("Bench Press", migrated.exerciseDao().getById(1L)?.name)
+        val migratedSet = migrated.workoutSetDao().getById(1L)
+        assertNotNull(migratedSet)
+        assertEquals("2026-05-16", migratedSet?.date)
+        assertEquals(1350, migratedSet?.weightLbs)
+        assertEquals(8, migratedSet?.reps)
+        assertTrue(migratedSet?.completed == true)
     }
 
     @Test
@@ -180,6 +236,7 @@ class DatabaseHardeningInstrumentedTest {
         }
 
     private companion object {
+        const val LEGACY_SOURCE_DB = "legacy-source.db"
         const val BACKUP_SOURCE_DB = "backup-source.db"
         const val BACKUP_TARGET_DB = "backup-target.db"
     }

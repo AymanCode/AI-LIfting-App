@@ -18,12 +18,21 @@ android {
     namespace = "com.ayman.ecolift"
     compileSdk = 35
 
+    signingConfigs {
+        create("workspaceDebug") {
+            storeFile = file(".android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.ayman.ecolift"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "GROQ_API_KEY", quotedBuildConfig(buildConfigSetting("GROQ_API_KEY")))
@@ -43,6 +52,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("workspaceDebug")
+        }
         release {
             buildConfigField("String", "GROQ_API_KEY", quotedBuildConfig(""))
             isMinifyEnabled = false
