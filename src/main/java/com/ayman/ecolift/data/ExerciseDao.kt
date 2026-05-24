@@ -55,6 +55,9 @@ interface ExerciseDao {
     @Query("UPDATE exercise SET name = :newName WHERE id = :id")
     suspend fun updateName(id: Long, newName: String)
 
+    @Query("UPDATE exercise SET muscleGroups = :muscleGroups WHERE id = :id")
+    suspend fun updateMuscleGroups(id: Long, muscleGroups: String)
+
     @androidx.room.Upsert
     suspend fun upsert(exercise: Exercise): Long
 

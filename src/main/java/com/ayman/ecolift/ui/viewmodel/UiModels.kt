@@ -2,6 +2,7 @@ package com.ayman.ecolift.ui.viewmodel
 
 import androidx.compose.runtime.Immutable
 import com.ayman.ecolift.data.Exercise
+import com.ayman.ecolift.data.UNCLASSIFIED_MUSCLE_GROUPS
 import com.ayman.ecolift.data.PendingReview
 
 @Immutable
@@ -21,6 +22,8 @@ data class LogSetUi(
     val setNumber: Int,
     val weightLbs: Int?,
     val reps: Int?,
+    val suggestedWeightLbs: Int? = null,
+    val suggestedReps: Int? = null,
     val isBodyweight: Boolean,
     val completed: Boolean,
     val restAfterSeconds: Int? = null,
@@ -30,7 +33,7 @@ data class LogSetUi(
 data class LogExerciseUi(
     val exerciseId: Long,
     val name: String,
-    val muscleGroups: String = "CHEST · TRICEPS",
+    val muscleGroups: String = UNCLASSIFIED_MUSCLE_GROUPS,
     val lastSessionHint: String?,
     val sets: List<LogSetUi>,
     val estimated1RM: Int = 0,

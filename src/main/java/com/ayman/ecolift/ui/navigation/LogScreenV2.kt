@@ -2,7 +2,6 @@ package com.ayman.ecolift.ui.navigation
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,10 +15,9 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,6 +31,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -44,6 +43,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
@@ -79,6 +81,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -104,6 +107,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayman.ecolift.ui.theme.AnimatedCounter
@@ -111,6 +115,8 @@ import com.ayman.ecolift.ui.theme.AnimatedVolumeCounter
 import com.ayman.ecolift.ui.theme.bounceClick
 import com.ayman.ecolift.ui.theme.rememberHeavyHaptic
 import com.ayman.ecolift.ui.theme.rememberLightHaptic
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 data class SplitSlot(
@@ -125,7 +131,10 @@ data class LoggedSet(
     val weight: String,
     val reps: String,
     val isBodyweight: Boolean,
-    val isCompleted: Boolean
+    val isCompleted: Boolean,
+    val suggestedWeight: String? = null,
+    val suggestedReps: String? = null,
+    val restSeconds: Int? = null
 )
 
 data class ExerciseLog(
@@ -288,6 +297,7 @@ fun SplitSelectorStrip(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LogSetRow(
     set: LoggedSet,
@@ -303,10 +313,21 @@ fun LogSetRow(
 ) {
     val lightHaptic = rememberLightHaptic()
     val heavyHaptic = rememberHeavyHaptic()
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
 
-    Row(
+    fun requestInputVisibility() {
+        onFocus()
+        scope.launch {
+            delay(220)
+            bringIntoViewRequester.bringIntoView()
+        }
+    }
+
+    Column(
         modifier = modifier
             .fillMaxWidth()
+            .bringIntoViewRequester(bringIntoViewRequester)
             .clip(RoundedCornerShape(8.dp))
             .background(if (set.isCompleted) Color(0xFF4DB6AC).copy(alpha = 0.07f) else Color.Transparent)
             .drawBehind {
@@ -318,101 +339,112 @@ fun LogSetRow(
                     )
                 }
             }
-            .padding(start = 10.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            .padding(start = 10.dp, end = 6.dp, top = 8.dp, bottom = 8.dp)
     ) {
-        // Set number — shows checkmark icon when completed
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(if (set.isCompleted) Color(0xFF4DB6AC) else Color(0xFFF2F0EB)),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            if (set.isCompleted) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(if (set.isCompleted) Color(0xFF4DB6AC) else Color(0xFFF2F0EB)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (set.isCompleted) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
+                } else {
+                    Text(
+                        text = set.setNumber.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF1C1C1E)
+                    )
+                }
+            }
+
+            NumberInputWithSteppers(
+                value = set.weight,
+                suggestedValue = set.suggestedWeight,
+                onValueChange = onWeightChange,
+                onDecrement = { lightHaptic(); onWeightStep(-5) },
+                onIncrement = { lightHaptic(); onWeightStep(5) },
+                modifier = Modifier
+                    .weight(0.38f)
+                    .alpha(if (set.isCompleted) 0.45f else 1f),
+                isLocked = set.isCompleted,
+                placeholder = "LBS",
+                allowDecimal = true,
+                onFocus = ::requestInputVisibility
+            )
+
+            NumberInputWithSteppers(
+                value = set.reps,
+                suggestedValue = set.suggestedReps,
+                onValueChange = onRepsChange,
+                onDecrement = { lightHaptic(); onRepsStep(-1) },
+                onIncrement = { lightHaptic(); onRepsStep(1) },
+                modifier = Modifier
+                    .weight(0.28f)
+                    .alpha(if (set.isCompleted) 0.45f else 1f),
+                isLocked = set.isCompleted,
+                placeholder = "REPS",
+                allowDecimal = false,
+                onFocus = ::requestInputVisibility
+            )
+
+            SuggestionChip(
+                onClick = onToggleBodyweight,
+                label = { Text("BW", style = MaterialTheme.typography.labelSmall) },
+                colors = SuggestionChipDefaults.suggestionChipColors(
+                    containerColor = if (set.isBodyweight) Color(0xFF4DB6AC).copy(alpha = 0.15f) else Color.Transparent,
+                    labelColor = if (set.isBodyweight) Color(0xFF4DB6AC) else Color(0xFF8E8E93)
+                ),
+                border = SuggestionChipDefaults.suggestionChipBorder(
+                    enabled = true,
+                    borderColor = if (set.isBodyweight) Color(0xFF4DB6AC).copy(alpha = 0.4f) else Color(0xFF8E8E93).copy(alpha = 0.25f)
+                ),
+                modifier = Modifier.height(30.dp)
+            )
+
+            IconButton(
+                onClick = {
+                    heavyHaptic()
+                    onCompleteSet()
+                },
+                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            ) {
                 Icon(
-                    Icons.Default.Check,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(14.dp)
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = if (set.isCompleted) "Uncheck set" else "Complete set",
+                    tint = if (set.isCompleted) Color(0xFF4DB6AC) else Color(0xFF8E8E93).copy(alpha = 0.35f),
+                    modifier = Modifier.size(22.dp)
                 )
-            } else {
-                Text(
-                    text = set.setNumber.toString(),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF1C1C1E)
+            }
+
+            IconButton(onClick = onDeleteSet, modifier = Modifier.sizeIn(minWidth = 44.dp, minHeight = 44.dp)) {
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = "Delete set",
+                    tint = Color(0xFF8E8E93).copy(alpha = 0.45f),
+                    modifier = Modifier.size(14.dp)
                 )
             }
         }
 
-        // LBS input — with haptic steppers
-        NumberInputWithSteppers(
-            value = set.weight,
-            onValueChange = onWeightChange,
-            onDecrement = { lightHaptic(); onWeightStep(-5) },
-            onIncrement = { lightHaptic(); onWeightStep(5) },
-            modifier = Modifier
-                .weight(0.35f)
-                .alpha(if (set.isCompleted) 0.45f else 1f),
-            isLocked = set.isCompleted,
-            placeholder = "LBS",
-            onFocus = onFocus
-        )
-
-        // REPS input — with haptic steppers
-        NumberInputWithSteppers(
-            value = set.reps,
-            onValueChange = onRepsChange,
-            onDecrement = { lightHaptic(); onRepsStep(-1) },
-            onIncrement = { lightHaptic(); onRepsStep(1) },
-            modifier = Modifier
-                .weight(0.30f)
-                .alpha(if (set.isCompleted) 0.45f else 1f),
-            isLocked = set.isCompleted,
-            placeholder = "REPS",
-            onFocus = onFocus
-        )
-
-        // BW toggle
-        SuggestionChip(
-            onClick = onToggleBodyweight,
-            label = { Text("BW", style = MaterialTheme.typography.labelSmall) },
-            colors = SuggestionChipDefaults.suggestionChipColors(
-                containerColor = if (set.isBodyweight) Color(0xFF4DB6AC).copy(alpha = 0.15f) else Color.Transparent,
-                labelColor = if (set.isBodyweight) Color(0xFF4DB6AC) else Color(0xFF8E8E93)
-            ),
-            border = SuggestionChipDefaults.suggestionChipBorder(
-                enabled = true,
-                borderColor = if (set.isBodyweight) Color(0xFF4DB6AC).copy(alpha = 0.4f) else Color(0xFF8E8E93).copy(alpha = 0.25f)
-            ),
-            modifier = Modifier.height(30.dp)
-        )
-
-        // Complete: 48dp touch target — heavy haptic on completion
-        IconButton(
-            onClick = {
-                heavyHaptic()
-                onCompleteSet()
-            },
-            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.CheckCircle,
-                contentDescription = if (set.isCompleted) "Uncheck set" else "Complete set",
-                tint = if (set.isCompleted) Color(0xFF4DB6AC) else Color(0xFF8E8E93).copy(alpha = 0.35f),
-                modifier = Modifier.size(22.dp)
-            )
-        }
-
-        // Delete — 44dp touch target
-        IconButton(onClick = onDeleteSet, modifier = Modifier.sizeIn(minWidth = 44.dp, minHeight = 44.dp)) {
-            Icon(
-                Icons.Outlined.Close,
-                contentDescription = "Delete set",
-                tint = Color(0xFF8E8E93).copy(alpha = 0.45f),
-                modifier = Modifier.size(14.dp)
+        set.restSeconds?.let { restSeconds ->
+            Text(
+                text = "Rest ${formatRestDuration(restSeconds)} before set",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF4DB6AC).copy(alpha = 0.78f),
+                modifier = Modifier.padding(start = 40.dp, top = 3.dp)
             )
         }
     }
@@ -434,6 +466,7 @@ fun ExerciseLogCard(
     onRepsChange: (Int, String) -> Unit,
     onRepsStep: (Int, Int) -> Unit,
     onToggleBodyweight: (Int) -> Unit,
+    onSetFocus: (Int) -> Unit,
     modifier: Modifier = Modifier,
     onInteraction: () -> Unit = {}
 ) {
@@ -445,8 +478,9 @@ fun ExerciseLogCard(
         label = "exercise_swipe_offset"
     )
     val completedCardColor = Color(0xFFF3FAF9)
+    val isFullyCompleted = sets.isNotEmpty() && sets.all { it.isCompleted }
     val cardContainerColor by animateColorAsState(
-        targetValue = if (isCollapsed) completedCardColor else Color.White,
+        targetValue = if (isCollapsed || isFullyCompleted) completedCardColor else Color.White,
         animationSpec = tween(durationMillis = 220),
         label = "exercise_card_container_color"
     )
@@ -486,9 +520,6 @@ fun ExerciseLogCard(
     ) {
         AnimatedContent(
             targetState = isCollapsed,
-            modifier = Modifier.animateContentSize(
-                animationSpec = spring(stiffness = 520f, dampingRatio = 0.86f)
-            ),
             transitionSpec = {
                 (fadeIn(animationSpec = tween(durationMillis = 140)) togetherWith
                     fadeOut(animationSpec = tween(durationMillis = 90)))
@@ -505,9 +536,7 @@ fun ExerciseLogCard(
             }
 
             Column(
-                modifier = Modifier
-                    .animateContentSize(animationSpec = spring(stiffness = 650f, dampingRatio = 0.82f))
-                    .padding(vertical = 16.dp)
+                modifier = Modifier.padding(vertical = 16.dp)
             ) {
                 // Header
                 Row(
@@ -533,21 +562,23 @@ fun ExerciseLogCard(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1C1C1E)
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF4DB6AC).copy(alpha = 0.7f))
-                        )
-                        Spacer(Modifier.width(5.dp))
-                        Text(
-                            text = muscleGroups.uppercase(),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF1C1C1E).copy(alpha = 0.45f),
-                            letterSpacing = 1.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                    if (muscleGroups.isNotBlank()) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF4DB6AC).copy(alpha = 0.7f))
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                text = muscleGroups.uppercase(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF1C1C1E).copy(alpha = 0.45f),
+                                letterSpacing = 1.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                     if (previousSession != null) {
                         Text(
@@ -622,7 +653,7 @@ fun ExerciseLogCard(
                         onToggleBodyweight = { onToggleBodyweight(index) },
                         onCompleteSet = { onCompleteSet(index) },
                         onDeleteSet = { onDeleteSet(index) },
-                        onFocus = onInteraction
+                        onFocus = { onSetFocus(index) }
                     )
                 }
             }
@@ -695,22 +726,30 @@ private fun FinishedExerciseRow(
 @Composable
 fun NumberInputWithSteppers(
     value: String,
+    suggestedValue: String? = null,
     onValueChange: (String) -> Unit,
     onDecrement: () -> Unit,
     onIncrement: () -> Unit,
     modifier: Modifier = Modifier,
     isLocked: Boolean = false,
     placeholder: String = "",
+    allowDecimal: Boolean = true,
     onFocus: () -> Unit = {}
 ) {
+    val focusManager = LocalFocusManager.current
+    val displayValue = suggestedValue ?: value
+    val isShowingSuggestion = suggestedValue != null
     var fieldValue by remember {
-        mutableStateOf(TextFieldValue(text = value, selection = TextRange(value.length)))
+        mutableStateOf(TextFieldValue(text = displayValue, selection = TextRange(displayValue.length)))
     }
+    var isFocused by remember { mutableStateOf(false) }
+    var restoreValueOnBlur by remember { mutableStateOf<String?>(null) }
+    var editedSinceFocus by remember { mutableStateOf(false) }
     
     // Sync internal state with external value changes (e.g. from steppers or parent state)
-    LaunchedEffect(value) {
-        if (value != fieldValue.text) {
-            fieldValue = fieldValue.copy(text = value, selection = TextRange(value.length))
+    LaunchedEffect(displayValue) {
+        if (!isFocused && displayValue != fieldValue.text) {
+            fieldValue = fieldValue.copy(text = displayValue, selection = TextRange(displayValue.length))
         }
     }
 
@@ -723,9 +762,8 @@ fun NumberInputWithSteppers(
     ) {
         Box(
             modifier = Modifier
-                .weight(0.25f)
+                .width(34.dp)
                 .fillMaxHeight()
-                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                 .bounceClick { if (!isLocked) onDecrement() },
             contentAlignment = Alignment.Center
         ) {
@@ -736,28 +774,71 @@ fun NumberInputWithSteppers(
             value = fieldValue,
             onValueChange = { newVal ->
                 if (isLocked) return@BasicTextField
-                
-                val filtered = newVal.text.filter { it.isDigit() || it == '.' }
+
+                val restoredText = restoreValueOnBlur
+                if (
+                    !editedSinceFocus &&
+                    restoredText != null &&
+                    fieldValue.text.isBlank() &&
+                    newVal.text == restoredText
+                ) {
+                    return@BasicTextField
+                }
+
+                val previousText = fieldValue.text
+                val inputText = when {
+                    !editedSinceFocus && restoredText != null -> {
+                        replacementCandidate(previous = restoredText, candidate = newVal.text)
+                    }
+                    else -> {
+                        followUpReplacementCandidate(previous = previousText, candidate = newVal.text)
+                    }
+                }
+                editedSinceFocus = true
+
+                val filtered = sanitizeNumberInput(inputText, allowDecimal)
                 val clean = if (filtered.length > 1 && filtered.startsWith("0") && filtered[1] != '.') {
                     filtered.trimStart('0').ifEmpty { "0" }
                 } else {
                     filtered
                 }
                 
-                // Maintain cursor position or selection
-                fieldValue = newVal.copy(text = clean)
+                fieldValue = TextFieldValue(text = clean, selection = TextRange(clean.length))
                 onValueChange(clean)
             },
-            modifier = Modifier.weight(0.5f).onFocusChanged { focusState ->
-                if (focusState.isFocused && !isLocked) {
-                    fieldValue = fieldValue.copy(selection = TextRange(0, fieldValue.text.length))
+            modifier = Modifier.weight(1f).onFocusChanged { focusState ->
+                if (focusState.isFocused && !isLocked && !isFocused) {
+                    restoreValueOnBlur = value.takeIf { it.isNotBlank() }
+                    editedSinceFocus = false
+                    if (fieldValue.text.isNotBlank()) {
+                        fieldValue = TextFieldValue(text = "", selection = TextRange.Zero)
+                    } else {
+                        fieldValue = fieldValue.copy(selection = TextRange.Zero)
+                    }
                     onFocus()
                 }
+                if (!focusState.isFocused && isFocused) {
+                    val restore = restoreValueOnBlur
+                    if (!editedSinceFocus && fieldValue.text.isBlank() && restore != null) {
+                        fieldValue = TextFieldValue(text = restore, selection = TextRange(restore.length))
+                    }
+                    restoreValueOnBlur = null
+                    editedSinceFocus = false
+                }
+                isFocused = focusState.isFocused
             },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = if (allowDecimal) KeyboardType.Decimal else KeyboardType.Number,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
             textStyle = MaterialTheme.typography.bodyMedium.copy(
                 textAlign = TextAlign.Center,
-                color = Color(0xFF1C1C1E)
+                color = if (isShowingSuggestion && !isFocused) {
+                    Color(0xFF1C1C1E).copy(alpha = 0.48f)
+                } else {
+                    Color(0xFF1C1C1E)
+                }
             ),
             singleLine = true,
             enabled = !isLocked,
@@ -773,15 +854,75 @@ fun NumberInputWithSteppers(
         
         Box(
             modifier = Modifier
-                .weight(0.25f)
+                .width(34.dp)
                 .fillMaxHeight()
-                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                 .bounceClick { if (!isLocked) onIncrement() },
             contentAlignment = Alignment.Center
         ) {
             Text("+", color = Color(0xFF8E8E93), fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
     }
+}
+
+private fun replacementCandidate(previous: String, candidate: String): String {
+    if (previous.isBlank() || candidate == previous) return candidate
+    val inserted = when {
+        candidate.startsWith(previous) -> candidate.removePrefix(previous)
+        candidate.endsWith(previous) -> candidate.removeSuffix(previous)
+        candidate.contains(previous) -> candidate.replaceFirst(previous, "")
+        else -> candidate
+    }
+    return normalizeReplacementCandidate(inserted)
+}
+
+private fun followUpReplacementCandidate(previous: String, candidate: String): String {
+    if (previous.isBlank()) return candidate
+    val normalized = normalizeReplacementCandidate(candidate)
+    if (normalized == candidate) return candidate
+    val trimmedNormalized = normalized.trimStart('0')
+    return if (
+        normalized.startsWith(previous) ||
+        trimmedNormalized.startsWith(previous)
+    ) {
+        normalized
+    } else {
+        candidate
+    }
+}
+
+private fun normalizeReplacementCandidate(candidate: String): String {
+    // Some Android decimal keyboards report a whole-text replacement as "old.0N"
+    // when driven by synthetic input. Treat that as the new integer the user typed.
+    return if (
+        candidate.startsWith(".0") &&
+        candidate.drop(2).isNotBlank() &&
+        candidate.drop(2).all { it.isDigit() }
+    ) {
+        candidate.drop(2)
+    } else {
+        candidate
+    }
+}
+
+private fun sanitizeNumberInput(input: String, allowDecimal: Boolean): String {
+    val builder = StringBuilder()
+    var sawDot = false
+    input.forEach { char ->
+        when {
+            char.isDigit() -> builder.append(char)
+            allowDecimal && char == '.' && !sawDot -> {
+                builder.append(char)
+                sawDot = true
+            }
+        }
+    }
+    return builder.toString()
+}
+
+private fun formatRestDuration(seconds: Int): String {
+    val minutes = seconds / 60
+    val remainingSeconds = seconds % 60
+    return if (minutes > 0) "%d:%02d".format(minutes, remainingSeconds) else "${remainingSeconds}s"
 }
 
 fun formatVolume(v: Int): String = if (v >= 1000) "${v / 1000}.${(v % 1000) / 100}k" else "$v"
@@ -944,7 +1085,11 @@ fun SearchBarWithDropdown(
             singleLine = true
         )
         
-        AnimatedVisibility(visible = isSearchActive && results.isNotEmpty()) {
+        AnimatedVisibility(
+            visible = isSearchActive && results.isNotEmpty(),
+            enter = fadeIn(animationSpec = tween(durationMillis = 90)),
+            exit = fadeOut(animationSpec = tween(durationMillis = 60))
+        ) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -965,7 +1110,9 @@ fun SearchBarWithDropdown(
                         ) {
                             Column {
                                 Text(text = result.name, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF1C1C1E))
-                                Text(text = result.muscleGroups, style = MaterialTheme.typography.labelSmall, color = Color(0xFF8E8E93))
+                                if (result.muscleGroups.isNotBlank()) {
+                                    Text(text = result.muscleGroups, style = MaterialTheme.typography.labelSmall, color = Color(0xFF8E8E93))
+                                }
                             }
                             Icon(Icons.Default.Add, contentDescription = "Add", tint = Color(0xFF4DB6AC), modifier = Modifier.size(20.dp))
                         }
@@ -1031,26 +1178,20 @@ fun LogScreen(
     onRepsChange: (Int, Int, String) -> Unit,
     onRepsStep: (Int, Int, Int) -> Unit,
     onToggleBodyweight: (Int, Int) -> Unit,
+    onSetFocused: (Int, Int) -> Unit,
+    onFinishExercise: (Int) -> Unit,
     restTimerSeconds: Int?,
     onCancelRestTimer: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var finishedExerciseIds by remember { mutableStateOf(emptySet<Long>()) }
-    var activeExerciseId by remember { mutableStateOf<Long?>(null) }
     
     LaunchedEffect(dateLabel) {
         finishedExerciseIds = emptySet()
-        activeExerciseId = null
     }
 
     val orderedExercises = exercises
         .mapIndexed { index, exercise -> IndexedExercise(index, exercise) }
-        .let { indexed ->
-            val active = indexed.filter { it.exercise.exerciseId == activeExerciseId }
-            val unfinished = indexed.filter { it.exercise.exerciseId !in finishedExerciseIds && it.exercise.exerciseId != activeExerciseId }
-            val finished = indexed.filter { it.exercise.exerciseId in finishedExerciseIds && it.exercise.exerciseId != activeExerciseId }
-            active + unfinished + finished
-        }
 
     Scaffold(
         modifier = modifier,
@@ -1070,7 +1211,9 @@ fun LogScreen(
                 .padding(innerPadding)
         ) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding(),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -1105,11 +1248,9 @@ fun LogScreen(
                     previousSession = exercise.previousSession,
                     sets = exercise.sets,
                     isCollapsed = isCollapsed,
-                    onAddSet = { onAddSet(i); activeExerciseId = exercise.exerciseId },
+                    onAddSet = { onAddSet(i) },
                     onToggleCollapsed = {
-                        if (!isCollapsed && activeExerciseId == exercise.exerciseId) {
-                            activeExerciseId = null
-                        }
+                        if (!isCollapsed) onFinishExercise(i)
                         finishedExerciseIds = if (isCollapsed) {
                             finishedExerciseIds - exercise.exerciseId
                         } else {
@@ -1123,28 +1264,13 @@ fun LogScreen(
                     onRepsChange = { setIndex, value -> onRepsChange(i, setIndex, value) },
                     onRepsStep = { setIndex, delta -> onRepsStep(i, setIndex, delta) },
                     onToggleBodyweight = { setIndex -> onToggleBodyweight(i, setIndex) },
+                    onSetFocus = { setIndex -> onSetFocused(i, setIndex) },
                     modifier = Modifier.animateItem(),
-                    onInteraction = { activeExerciseId = exercise.exerciseId }
+                    onInteraction = {}
                 )
             }
             if (exercises.isEmpty() && !isSearchActive) {
                 item { EmptyLogState() }
-            }
-        }
-        
-        AnimatedVisibility(
-            visible = restTimerSeconds != null,
-            enter = slideInVertically { it },
-            exit = slideOutVertically { it },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp)
-        ) {
-            if (restTimerSeconds != null) {
-                RestTimerPill(
-                    elapsedSeconds = restTimerSeconds,
-                    onDone = onCancelRestTimer
-                )
             }
         }
     }
@@ -1176,7 +1302,7 @@ fun LogScreenPreview() {
                     previousSession = "Last: 185 × 10",
                     sets = listOf(
                         LoggedSet(1, "185", "10", false, true),
-                        LoggedSet(2, "185", "8", false, true),
+                        LoggedSet(2, "185", "8", false, true, restSeconds = 94),
                         LoggedSet(3, "185", "5", false, false)
                     )
                 ),
@@ -1206,6 +1332,8 @@ fun LogScreenPreview() {
             onRepsChange = { _, _, _ -> },
             onRepsStep = { _, _, _ -> },
             onToggleBodyweight = { _, _ -> },
+            onSetFocused = { _, _ -> },
+            onFinishExercise = {},
             restTimerSeconds = 47,
             onCancelRestTimer = {}
         )

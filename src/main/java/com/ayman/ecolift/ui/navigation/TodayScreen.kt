@@ -51,8 +51,11 @@ fun TodayScreen(
                     setNumber = set.setNumber,
                     weight = if (set.isBodyweight) "" else WeightLbs.formatStored(set.weightLbs),
                     reps = set.reps?.toString() ?: "",
+                    suggestedWeight = if (set.isBodyweight) null else set.suggestedWeightLbs?.let(WeightLbs::formatStored),
+                    suggestedReps = set.suggestedReps?.toString(),
                     isBodyweight = set.isBodyweight,
-                    isCompleted = set.completed
+                    isCompleted = set.completed,
+                    restSeconds = set.restAfterSeconds
                 )
             }
         )
@@ -121,6 +124,12 @@ fun TodayScreen(
         },
         onToggleBodyweight = { exIndex, setIndex ->
             viewModel.toggleBodyweight(uiState.exercises[exIndex].sets[setIndex].id)
+        },
+        onSetFocused = { exIndex, setIndex ->
+            viewModel.focusSetInput(uiState.exercises[exIndex].sets[setIndex].id)
+        },
+        onFinishExercise = { exIndex ->
+            viewModel.finishExercise(uiState.exercises[exIndex].exerciseId)
         },
         restTimerSeconds = uiState.restStopwatchSeconds,
         onCancelRestTimer = viewModel::cancelRestTimer,

@@ -3,6 +3,8 @@ package com.ayman.ecolift.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ayman.ecolift.BuildConfig
+import com.ayman.ecolift.ai.ExerciseMuscleClassifier
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.Cycle
 import com.ayman.ecolift.data.CycleSlot
@@ -34,16 +36,19 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private val workoutRepository = WorkoutRepository(database)
     private val setRepository = SetRepository(database)
     private val pendingReviewRepository = PendingReviewRepository(database)
+    private val muscleClassifier = ExerciseMuscleClassifier(
+        apiKey = BuildConfig.GROQ_API_KEY,
+        baseUrl = BuildConfig.GROQ_API_BASE_URL,
+        model = BuildConfig.GROQ_MODEL,
+    )
 
     private val currentDate = MutableStateFlow(WorkoutDates.today())
     private val _sessionSets = MutableStateFlow<List<WorkoutSet>>(emptyList())
     private val exerciseInput = MutableStateFlow("")
     private val predictiveSuggestions = MutableStateFlow<List<Exercise>>(emptyList())
     private val reviewsExpanded = MutableStateFlow(false)
-    private val restStopwatchSeconds = MutableStateFlow<Int?>(null)
-    private val _restTimes = MutableStateFlow<Map<Long, Int>>(emptyMap())
-    private var stopwatchJob: kotlinx.coroutines.Job? = null
-    private var lastCompletedSetId: Long? = null
+    private val _smartAdjustments = MutableStateFlow<Map<Long, SmartSetAdjustment>>(emptyMap())
+    private var activeRest: ActiveRest? = null
 
     private val _exerciseHints = MutableStateFlow<Map<Long, String?>>(emptyMap())
     private val _exercisePBs = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
@@ -94,9 +99,15 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         exerciseInput,
         predictiveSuggestions,
         reviewsExpanded,
-        restStopwatchSeconds
-    ) { date, input, suggestions, expanded, stopwatch ->
-        UiInputs(date = date, input = input, suggestions = suggestions, expanded = expanded, restStopwatch = stopwatch)
+        _smartAdjustments
+    ) { date, input, suggestions, expanded, smartAdjustments ->
+        UiInputs(
+            date = date,
+            input = input,
+            suggestions = suggestions,
+            expanded = expanded,
+            smartAdjustments = smartAdjustments,
+        )
     }
 
     private val scheduleSnapshot = combine(workoutDays, currentDay, _sessionSets) {
@@ -137,8 +148,8 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    val uiState: StateFlow<LogUiState> = combine(uiInputs, dbSnapshot, _restTimes) { inputs, snapshot, restTimes ->
-        buildUiState(inputs, snapshot, restTimes)
+    val uiState: StateFlow<LogUiState> = combine(uiInputs, dbSnapshot) { inputs, snapshot ->
+        buildUiState(inputs, snapshot)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -150,10 +161,12 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     fun goToPreviousDay() {
+        finishActiveWorkoutDate()
         currentDate.update { WorkoutDates.addDays(it, -1) }
     }
 
     fun goToNextDay() {
+        finishActiveWorkoutDate()
         currentDate.update { WorkoutDates.addDays(it, 1) }
     }
 
@@ -234,34 +247,63 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateWeight(setId: Long, input: String) {
+        beginSetEntry(setId)
+        val before = _sessionSets.value.find { it.id == setId }
+        clearSmartAdjustment(setId)
         updateSetLocal(setId) { set ->
             val value = WeightLbs.parseInputToStorage(input)
             set.copy(weightLbs = value, completed = false)
         }
+        _sessionSets.value.find { it.id == setId }?.let { source ->
+            updateSmartAdjustmentsFrom(source, before)
+        }
     }
 
     fun adjustWeight(setId: Long, delta: Int) {
+        if (adjustSmartWeight(setId, delta)) return
+        beginSetEntry(setId)
+        val before = _sessionSets.value.find { it.id == setId }
+        clearSmartAdjustment(setId)
         updateSetLocal(setId) { set ->
             val current = set.weightLbs ?: 0
             set.copy(weightLbs = (current + delta).coerceAtLeast(0), completed = false)
         }
+        _sessionSets.value.find { it.id == setId }?.let { source ->
+            updateSmartAdjustmentsFrom(source, before)
+        }
     }
 
     fun updateReps(setId: Long, input: String) {
+        beginSetEntry(setId)
+        val before = _sessionSets.value.find { it.id == setId }
+        clearSmartAdjustment(setId)
         updateSetLocal(setId) { set ->
             val value = input.filter { it.isDigit() }.toIntOrNull()
             set.copy(reps = value, completed = false)
         }
+        _sessionSets.value.find { it.id == setId }?.let { source ->
+            updateSmartAdjustmentsFrom(source, before)
+        }
     }
 
     fun adjustReps(setId: Long, delta: Int) {
+        if (adjustSmartReps(setId, delta)) return
+        beginSetEntry(setId)
+        val before = _sessionSets.value.find { it.id == setId }
+        clearSmartAdjustment(setId)
         updateSetLocal(setId) { set ->
             val current = set.reps ?: 0
             set.copy(reps = (current + delta).coerceAtLeast(0), completed = false)
         }
+        _sessionSets.value.find { it.id == setId }?.let { source ->
+            updateSmartAdjustmentsFrom(source, before)
+        }
     }
 
     fun toggleBodyweight(setId: Long) {
+        beginSetEntry(setId)
+        clearSmartAdjustment(setId)
+        clearSmartAdjustmentsFromSource(setId)
         updateSetLocal(setId) { set ->
             val turningOn = !set.isBodyweight
             set.copy(isBodyweight = turningOn, weightLbs = if (turningOn) 0 else set.weightLbs, completed = false)
@@ -269,6 +311,9 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deleteSet(setId: Long) {
+        if (activeRest?.completedSetId == setId) activeRest = null
+        clearSmartAdjustment(setId)
+        clearSmartAdjustmentsFromSource(setId)
         _sessionSets.update { list -> list.filter { it.id != setId } }
         if (setId > 0) {
             viewModelScope.launch {
@@ -290,25 +335,145 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleCompleted(setId: Long) {
+        beginSetEntry(setId)
+        applySmartAdjustment(setId)
         val set = _sessionSets.value.find { it.id == setId } ?: return
         val newCompleted = !set.completed
 
+        updateSetLocal(setId) { it.copy(completed = newCompleted) }
+
         if (newCompleted) {
-            // Record elapsed rest for the previous completed set
-            lastCompletedSetId?.let { prevId ->
-                val elapsed = restStopwatchSeconds.value ?: 0
-                if (elapsed > 0) _restTimes.update { it + (prevId to elapsed) }
+            val hasNextSameExercise = _sessionSets.value.any {
+                it.exerciseId == set.exerciseId && it.id != set.id && !it.completed
             }
-            lastCompletedSetId = setId
-            startStopwatch()
-        } else {
-            if (lastCompletedSetId == setId) {
-                stopStopwatch()
-                lastCompletedSetId = null
+            activeRest = if (hasNextSameExercise) {
+                ActiveRest(
+                    exerciseId = set.exerciseId,
+                    completedSetId = set.id,
+                    startedAtMillis = System.currentTimeMillis(),
+                )
+            } else {
+                null
             }
+        } else if (activeRest?.completedSetId == set.id) {
+            activeRest = null
+        }
+    }
+
+    fun focusSetInput(setId: Long) {
+        clearSmartAdjustment(setId)
+        beginSetEntry(setId)
+    }
+
+    fun beginSetEntry(setId: Long) {
+        val rest = activeRest ?: return
+        val targetSet = _sessionSets.value.find { it.id == setId } ?: return
+        if (targetSet.completed || targetSet.id == rest.completedSetId || targetSet.exerciseId != rest.exerciseId) return
+
+        val elapsedSeconds = ((System.currentTimeMillis() - rest.startedAtMillis) / 1000)
+            .toInt()
+            .coerceAtLeast(1)
+        activeRest = null
+        updateSetLocal(setId) { it.copy(restTimeSeconds = elapsedSeconds) }
+    }
+
+    fun finishExercise(exerciseId: Long) {
+        applySmartAdjustmentsForExercise(exerciseId)
+        if (activeRest?.exerciseId == exerciseId) {
+            activeRest = null
+        }
+    }
+
+    private fun updateSmartAdjustmentsFrom(source: WorkoutSet, beforeSourceEdit: WorkoutSet?) {
+        val siblingSets = _sessionSets.value
+            .filter { it.exerciseId == source.exerciseId && it.id != source.id && !it.completed }
+            .sortedBy { it.setNumber }
+        if (siblingSets.isEmpty()) return
+
+        val existingFromSource = _smartAdjustments.value.values.firstOrNull { it.sourceSetId == source.id }
+        val sourceBaselineReps = existingFromSource?.sourceBaselineReps ?: beforeSourceEdit?.reps ?: source.reps
+        val hasSuggestionValue = source.weightLbs != null || source.reps != null
+        if (!hasSuggestionValue) {
+            clearSmartAdjustmentsFromSource(source.id)
+            return
         }
 
-        updateSetLocal(setId) { it.copy(completed = newCompleted) }
+        _smartAdjustments.update { current ->
+            val next = current
+                .filterValues { it.sourceSetId != source.id }
+                .filterKeys { it != source.id }
+                .toMutableMap()
+
+            siblingSets.forEach { target ->
+                next[target.id] = SmartSetAdjustment(
+                    setId = target.id,
+                    sourceSetId = source.id,
+                    sourceBaselineReps = sourceBaselineReps,
+                    suggestedWeightLbs = source.weightLbs,
+                    suggestedReps = calculateSmartSuggestedReps(
+                        sourceNewReps = source.reps,
+                        sourceBaselineReps = sourceBaselineReps,
+                        targetBaselineReps = target.reps,
+                        sourceSetNumber = source.setNumber,
+                        targetSetNumber = target.setNumber,
+                    ),
+                )
+            }
+            next
+        }
+    }
+
+    private fun adjustSmartWeight(setId: Long, delta: Int): Boolean {
+        val adjustment = _smartAdjustments.value[setId] ?: return false
+        val currentWeight = adjustment.suggestedWeightLbs ?: return false
+        _smartAdjustments.update { current ->
+            current + (setId to adjustment.copy(suggestedWeightLbs = (currentWeight + delta).coerceAtLeast(0)))
+        }
+        return true
+    }
+
+    private fun adjustSmartReps(setId: Long, delta: Int): Boolean {
+        val adjustment = _smartAdjustments.value[setId] ?: return false
+        val currentReps = adjustment.suggestedReps ?: return false
+        _smartAdjustments.update { current ->
+            current + (setId to adjustment.copy(suggestedReps = (currentReps + delta).coerceAtLeast(0)))
+        }
+        return true
+    }
+
+    private fun applySmartAdjustment(setId: Long): Boolean {
+        val adjustment = _smartAdjustments.value[setId] ?: return false
+        val target = _sessionSets.value.find { it.id == setId } ?: return false
+        val updated = target.copy(
+            weightLbs = adjustment.suggestedWeightLbs ?: target.weightLbs,
+            reps = adjustment.suggestedReps ?: target.reps,
+            isBodyweight = if (adjustment.suggestedWeightLbs != null) false else target.isBodyweight,
+            completed = false,
+        )
+        _smartAdjustments.update { it - setId }
+        updateSetLocal(setId) { updated }
+        return true
+    }
+
+    private fun applySmartAdjustmentsForExercise(exerciseId: Long) {
+        _sessionSets.value
+            .filter { it.exerciseId == exerciseId && it.id in _smartAdjustments.value.keys }
+            .map { it.id }
+            .forEach(::applySmartAdjustment)
+    }
+
+    private fun clearSmartAdjustment(setId: Long) {
+        if (setId in _smartAdjustments.value) {
+            _smartAdjustments.update { it - setId }
+        }
+    }
+
+    private fun clearSmartAdjustmentsFromSource(sourceSetId: Long) {
+        if (_smartAdjustments.value.values.any { it.sourceSetId == sourceSetId }) {
+            _smartAdjustments.update { current ->
+                current.filterValues { it.sourceSetId != sourceSetId }
+            }
+        }
     }
 
     private fun updateSetLocal(setId: Long, transform: (WorkoutSet) -> WorkoutSet) {
@@ -324,26 +489,28 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun startStopwatch() {
-        stopwatchJob?.cancel()
-        restStopwatchSeconds.value = 0
-        val startTime = System.currentTimeMillis()
-        stopwatchJob = viewModelScope.launch {
-            while (true) {
-                kotlinx.coroutines.delay(500)
-                val elapsedMillis = System.currentTimeMillis() - startTime
-                restStopwatchSeconds.value = (elapsedMillis / 1000).toInt()
+    fun cancelRestTimer() {
+        activeRest = null
+    }
+
+    private fun finishActiveWorkoutDate() {
+        val leavingDate = currentDate.value
+        activeRest = null
+        classifyFinishedSessionMuscles(leavingDate)
+    }
+
+    private fun classifyFinishedSessionMuscles(date: String) {
+        viewModelScope.launch {
+            val sets = setRepository.getSetsForDate(date)
+            val exercises = exerciseRepository
+                .getByIds(sets.map { it.exerciseId }.distinct())
+                .filter { ExerciseMuscleClassifier.shouldClassify(it) }
+            if (exercises.isEmpty()) return@launch
+
+            muscleClassifier.classifyBatch(exercises).forEach { classification ->
+                exerciseRepository.updateMuscleGroups(classification.exerciseId, classification.muscleGroups)
             }
         }
-    }
-
-    fun cancelRestTimer() {
-        stopStopwatch()
-    }
-
-    private fun stopStopwatch() {
-        stopwatchJob?.cancel()
-        restStopwatchSeconds.value = null
     }
 
     private suspend fun addExercise(rawInput: String) {
@@ -363,7 +530,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         addSet(exercise.id)
     }
 
-    private fun buildUiState(inputs: UiInputs, snapshot: DbSnapshot, restTimes: Map<Long, Int> = emptyMap()): LogUiState {
+    private fun buildUiState(inputs: UiInputs, snapshot: DbSnapshot): LogUiState {
         val exerciseMap = snapshot.exercises.associateBy { it.id }
         
         // Filter exercises based on search input (case-insensitive)
@@ -396,15 +563,18 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                     muscleGroups = exercise.muscleGroups,
                     lastSessionHint = _exerciseHints.value[exercise.id],
                     sets = sets.map { set ->
+                        val smartAdjustment = inputs.smartAdjustments[set.id]
                         LogSetUi(
                             id = set.id,
                             exerciseId = set.exerciseId,
                             setNumber = set.setNumber,
                             weightLbs = set.weightLbs,
                             reps = set.reps,
+                            suggestedWeightLbs = smartAdjustment?.suggestedWeightLbs,
+                            suggestedReps = smartAdjustment?.suggestedReps,
                             isBodyweight = set.isBodyweight,
                             completed = set.completed,
-                            restAfterSeconds = restTimes[set.id],
+                            restAfterSeconds = set.restTimeSeconds,
                         )
                     },
                     estimated1RM = currentMax1RM,
@@ -459,7 +629,6 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             predictiveExercises = inputs.suggestions,
             pendingReviews = snapshot.pendingReviews,
             reviewsExpanded = inputs.expanded,
-            restStopwatchSeconds = inputs.restStopwatch,
         )
     }
 
@@ -535,7 +704,21 @@ private data class UiInputs(
     val input: String,
     val suggestions: List<Exercise>,
     val expanded: Boolean,
-    val restStopwatch: Int?,
+    val smartAdjustments: Map<Long, SmartSetAdjustment>,
+)
+
+private data class ActiveRest(
+    val exerciseId: Long,
+    val completedSetId: Long,
+    val startedAtMillis: Long,
+)
+
+private data class SmartSetAdjustment(
+    val setId: Long,
+    val sourceSetId: Long,
+    val sourceBaselineReps: Int?,
+    val suggestedWeightLbs: Int?,
+    val suggestedReps: Int?,
 )
 
 private data class ScheduleSnapshot(
@@ -560,4 +743,3 @@ private data class DbSnapshot(
     val currentSets: List<WorkoutSet>,
     val pendingReviews: List<PendingReview>,
 )
-
