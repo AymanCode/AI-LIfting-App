@@ -81,6 +81,12 @@ class ExerciseRepository(private val exerciseDao: ExerciseDao) {
         }
     }
 
+    suspend fun updateMuscleGroups(id: Long, muscleGroups: String) {
+        exerciseDao.getById(id)?.let { exercise ->
+            exerciseDao.upsert(exercise.copy(muscleGroups = muscleGroups.trim()))
+        }
+    }
+
     suspend fun deleteExercise(id: Long) {
         exerciseDao.deleteExerciseWithLogs(id)
     }
