@@ -8,6 +8,7 @@ on:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Check out repository
@@ -29,12 +30,15 @@ jobs:
         run: ./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest
 
       - name: Verify APK update path on emulator
+        timeout-minutes: 30
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 30
           target: google_apis
           arch: x86_64
           profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: ./scripts/ci/verify-apk-update.sh
 
       - name: Upload unit test reports
