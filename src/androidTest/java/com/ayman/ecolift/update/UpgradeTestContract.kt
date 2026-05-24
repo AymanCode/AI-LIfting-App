@@ -1,0 +1,16 @@
+package com.ayman.ecolift.update
+
+const val DATABASE_NAME = "ecolift.db"
+const val SENTINEL_EXERCISE_ID = 90101L
+const val SENTINEL_WORKOUT_ID = 90102L
+const val SENTINEL_SET_ID = 90103L
+const val SENTINEL_EXERCISE_NAME = "CI Upgrade Bench Press"
+const val SENTINEL_DATE = "2026-05-23"
+const val SENTINEL_EPOCH_DAY = 20601L
+const val SENTINEL_WEIGHT_LBS = 187
+const val SENTINEL_WEIGHT_TENTHS = 1870
+const val SENTINEL_REPS = 7
+const val SENTINEL_REST_SECONDS = 95
+const val SENTINEL_CREATED_AT = 1_764_052_800_000L
+const val CURRENT_ROOM_SCHEMA_VERSION = 13L
+const val TENTHS_WEIGHT_SCHEMA_VERSION = 13L
