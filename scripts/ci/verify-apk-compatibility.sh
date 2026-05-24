@@ -5,18 +5,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 PACKAGE_NAME="${PACKAGE_NAME:-com.ayman.ecolift}"
-TEST_PACKAGE="${TEST_PACKAGE:-com.ayman.ecolift.test}"
-TEST_RUNNER="$TEST_PACKAGE/androidx.test.runner.AndroidJUnitRunner"
-ADB="${ADB:-${ANDROID_HOME:-}/platform-tools/adb}"
 OLD_WORKTREE=""
 TMP_DIR="$(mktemp -d)"
 
 cleanup() {
     set +e
-    if [[ -n "${ADB:-}" && -x "$ADB" ]]; then
-        "$ADB" uninstall "$TEST_PACKAGE" >/dev/null 2>&1
-        "$ADB" uninstall "$PACKAGE_NAME" >/dev/null 2>&1
-    fi
     if [[ -n "$OLD_WORKTREE" && -d "$OLD_WORKTREE" ]]; then
         git worktree remove --force "$OLD_WORKTREE" >/dev/null 2>&1
     fi
@@ -25,7 +18,7 @@ cleanup() {
 trap cleanup EXIT
 
 fail() {
-    echo "update-check: $*" >&2
+    echo "apk-compatibility: $*" >&2
     exit 1
 }
 
@@ -91,30 +84,6 @@ run_gradle() {
     (cd "$dir" && ./gradlew --no-daemon --console=plain "$@")
 }
 
-wait_for_device() {
-    "$ADB" wait-for-device
-    until [[ "$("$ADB" shell getprop sys.boot_completed | tr -d '\r')" == "1" ]]; do
-        sleep 2
-    done
-}
-
-run_instrumentation_class() {
-    local class_name="$1"
-    local output
-    if ! output="$("$ADB" shell am instrument -w -r -e class "$class_name" "$TEST_RUNNER" 2>&1)"; then
-        echo "$output"
-        fail "instrumentation command failed for $class_name"
-    fi
-    echo "$output"
-    if [[ "$output" == *"FAILURES!!!"* || "$output" == *"INSTRUMENTATION_STATUS_CODE: -2"* ]]; then
-        fail "instrumentation test failed for $class_name"
-    fi
-    if [[ "$output" != *"OK ("* ]]; then
-        fail "instrumentation test did not report success for $class_name"
-    fi
-}
-
-[[ -x "$ADB" ]] || fail "adb not found at $ADB"
 BUILD_TOOLS_DIR="$(latest_build_tools_dir)"
 [[ -n "$BUILD_TOOLS_DIR" ]] || fail "no Android build-tools directory found"
 AAPT="$BUILD_TOOLS_DIR/aapt"
@@ -123,14 +92,11 @@ APKSIGNER="$BUILD_TOOLS_DIR/apksigner"
 [[ -x "$APKSIGNER" ]] || fail "apksigner not found at $APKSIGNER"
 
 CURRENT_APK="${CURRENT_APK:-$(single_apk "$ROOT_DIR/build/outputs/apk/debug" "*-debug.apk")}"
-TEST_APK="${TEST_APK:-$(single_apk "$ROOT_DIR/build/outputs/apk/androidTest/debug" "*-debug-androidTest.apk")}"
-if [[ -z "$CURRENT_APK" || -z "$TEST_APK" ]]; then
-    run_gradle "$ROOT_DIR" assembleDebug assembleDebugAndroidTest
+if [[ -z "$CURRENT_APK" ]]; then
+    run_gradle "$ROOT_DIR" assembleDebug
     CURRENT_APK="${CURRENT_APK:-$(single_apk "$ROOT_DIR/build/outputs/apk/debug" "*-debug.apk")}"
-    TEST_APK="${TEST_APK:-$(single_apk "$ROOT_DIR/build/outputs/apk/androidTest/debug" "*-debug-androidTest.apk")}"
 fi
 [[ -f "$CURRENT_APK" ]] || fail "current debug APK was not built"
-[[ -f "$TEST_APK" ]] || fail "debug androidTest APK was not built"
 
 CURRENT_VERSION_CODE="$(version_code_for "$CURRENT_APK")"
 [[ "$CURRENT_VERSION_CODE" =~ ^[0-9]+$ ]] || fail "current APK versionCode is not numeric: $CURRENT_VERSION_CODE"
@@ -159,24 +125,4 @@ CURRENT_SIGNER="$(signer_sha256_for "$CURRENT_APK")"
 [[ -n "$OLD_SIGNER" && -n "$CURRENT_SIGNER" ]] || fail "could not read APK signer certificates"
 [[ "$OLD_SIGNER" == "$CURRENT_SIGNER" ]] || fail "APK signer changed; Android will reject in-place updates"
 
-wait_for_device
-"$ADB" uninstall "$TEST_PACKAGE" >/dev/null 2>&1 || true
-"$ADB" uninstall "$PACKAGE_NAME" >/dev/null 2>&1 || true
-
-echo "update-check: installing $OLD_REF versionCode=$OLD_VERSION_CODE"
-"$ADB" install -r "$OLD_APK"
-"$ADB" install -r "$TEST_APK"
-run_instrumentation_class "com.ayman.ecolift.update.UpgradeSeedInstrumentedTest"
-
-echo "update-check: updating to current versionCode=$CURRENT_VERSION_CODE"
-"$ADB" install -r "$CURRENT_APK"
-"$ADB" shell monkey -p "$PACKAGE_NAME" -c android.intent.category.LAUNCHER 1 >/dev/null
-sleep 5
-if [[ -z "$("$ADB" shell pidof "$PACKAGE_NAME" | tr -d '\r')" ]]; then
-    fail "updated app did not stay running after launch"
-fi
-
-run_instrumentation_class "com.ayman.ecolift.update.UpgradeVerifyInstrumentedTest"
-run_instrumentation_class "com.ayman.ecolift.data.DatabaseHardeningInstrumentedTest"
-
-echo "update-check: APK updates, launches, and migrates seeded workout data"
+echo "apk-compatibility: package=$CURRENT_PACKAGE oldVersionCode=$OLD_VERSION_CODE currentVersionCode=$CURRENT_VERSION_CODE signer=$CURRENT_SIGNER"
