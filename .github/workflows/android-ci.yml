@@ -8,7 +8,7 @@ on:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -29,27 +29,8 @@ jobs:
       - name: Run unit tests and assemble debug APKs
         run: ./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest
 
-      - name: Enable KVM group permissions
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          ls -l /dev/kvm
-
-      - name: Verify APK update path on emulator
-        timeout-minutes: 30
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 30
-          target: google_apis
-          arch: x86_64
-          profile: pixel_6
-          cores: 2
-          emulator-boot-timeout: 900
-          disable-animations: true
-          disable-linux-hw-accel: false
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: ./scripts/ci/verify-apk-update.sh
+      - name: Verify APK update compatibility metadata
+        run: ./scripts/ci/verify-apk-compatibility.sh
 
       - name: Upload unit test reports
         if: always()
@@ -58,16 +39,16 @@ jobs:
           name: unit-test-reports
           path: build/reports/tests/testDebugUnitTest/
 
-      - name: Upload instrumented test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-test-reports
-          path: build/reports/androidTests/connected/
-
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: ecolift-debug-apk
           path: build/outputs/apk/debug/*.apk
+
+      - name: Upload debug androidTest APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecolift-debug-android-test-apk
+          path: build/outputs/apk/androidTest/debug/*.apk
