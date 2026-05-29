@@ -28,10 +28,30 @@ class SetRepository(private val db: AppDatabase) {
         return newSet.copy(id = insertedId)
     }
 
+    suspend fun addExerciseSession(date: String, exerciseId: Long): List<WorkoutSet> {
+        val currentSets = db.workoutSetDao().getForDateAndExercise(date, exerciseId)
+        if (currentSets.isNotEmpty()) {
+            return listOf(addSet(date, exerciseId))
+        }
+
+        val sessionCopies = buildLastSessionSetCopies(
+            date = date,
+            exerciseId = exerciseId,
+            historyBeforeDate = db.workoutSetDao().getHistoryBeforeDate(exerciseId, date),
+        )
+        if (sessionCopies.isEmpty()) {
+            return listOf(addSet(date, exerciseId))
+        }
+
+        return sessionCopies.map { set ->
+            val insertedId = db.workoutSetDao().insert(set)
+            set.copy(id = insertedId)
+        }
+    }
+
     suspend fun addSetsForExercises(date: String, exerciseIds: List<Long>) {
         exerciseIds.forEach { exId ->
-            // Add 1 default set for each exercise
-            addSet(date, exId)
+            addExerciseSession(date, exId)
         }
     }
 
@@ -97,4 +117,31 @@ class SetRepository(private val db: AppDatabase) {
     suspend fun deleteSet(id: Long) {
         db.workoutSetDao().deleteById(id)
     }
+}
+
+internal fun buildLastSessionSetCopies(
+    date: String,
+    exerciseId: Long,
+    historyBeforeDate: List<WorkoutSet>,
+): List<WorkoutSet> {
+    val lastDate = historyBeforeDate
+        .filter { it.exerciseId == exerciseId && it.date < date }
+        .maxOfOrNull(WorkoutSet::date)
+        ?: return emptyList()
+
+    return historyBeforeDate
+        .filter { it.exerciseId == exerciseId && it.date == lastDate }
+        .sortedBy(WorkoutSet::setNumber)
+        .mapIndexed { index, template ->
+            WorkoutSet(
+                exerciseId = exerciseId,
+                date = date,
+                setNumber = index + 1,
+                weightLbs = template.weightLbs,
+                reps = template.reps,
+                isBodyweight = template.isBodyweight,
+                completed = false,
+                restTimeSeconds = null,
+            )
+        }
 }

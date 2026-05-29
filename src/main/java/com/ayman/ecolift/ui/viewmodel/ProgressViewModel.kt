@@ -4,10 +4,13 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayman.ecolift.data.AppDatabase
+import com.ayman.ecolift.data.CycleSlot
 import com.ayman.ecolift.data.ExerciseRepository
 import com.ayman.ecolift.data.SetRepository
+import com.ayman.ecolift.data.SplitExercise
 import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutDates
+import com.ayman.ecolift.data.WorkoutDay
 import com.ayman.ecolift.data.WorkoutRepository
 import com.ayman.ecolift.data.WorkoutSet
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -43,17 +46,22 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     private val splitSources = combine(
         workoutRepository.observeCycleSlots(),
         workoutRepository.observeAllSplitExercises(),
-    ) { slots, rows ->
-        val rowsBySplit = rows.groupBy { it.splitId }
-        slots.map { slot ->
-            ProgressSplitSource(
-                splitId = slot.id,
-                name = slot.name,
-                exerciseIds = rowsBySplit[slot.id].orEmpty()
-                    .sortedBy { it.orderIndex }
-                    .map { it.exerciseId },
-            )
-        }
+        workoutRepository.observeAllWorkoutDays(),
+    ) { slots, rows, days ->
+        val slotIds = slots.map { it.id }.toSet()
+        val latestDates = days
+            .filter { it.cycleSlotId != null && it.cycleSlotId in slotIds }
+            .groupBy { it.cycleSlotId!! }
+            .values
+            .mapNotNull { splitDays -> splitDays.maxByOrNull(WorkoutDay::date)?.date }
+            .distinct()
+        val setsByDate = setRepository.getSetsForDates(latestDates).groupBy { it.date }
+        buildProgressSplitSources(
+            slots = slots,
+            savedRows = rows,
+            workoutDays = days,
+            setsByDate = setsByDate,
+        )
     }
     
     init {
@@ -234,6 +242,35 @@ internal data class ProgressSplitSource(
     val exerciseIds: List<Long>,
 )
 
+internal fun buildProgressSplitSources(
+    slots: List<CycleSlot>,
+    savedRows: List<SplitExercise>,
+    workoutDays: List<WorkoutDay>,
+    setsByDate: Map<String, List<WorkoutSet>>,
+): List<ProgressSplitSource> {
+    val rowsBySplit = savedRows.groupBy { it.splitId }
+    val latestDayBySplit = workoutDays
+        .filter { it.cycleSlotId != null }
+        .groupBy { it.cycleSlotId!! }
+        .mapValues { (_, splitDays) -> splitDays.maxByOrNull(WorkoutDay::date) }
+
+    return slots.map { slot ->
+        val savedExerciseIds = rowsBySplit[slot.id].orEmpty()
+            .sortedBy { it.orderIndex }
+            .map { it.exerciseId }
+            .distinct()
+        val latestSessionExerciseIds = latestDayBySplit[slot.id]?.date
+            ?.let { date -> setsByDate[date].orEmpty().map(WorkoutSet::exerciseId).distinct() }
+            .orEmpty()
+
+        ProgressSplitSource(
+            splitId = slot.id,
+            name = slot.name,
+            exerciseIds = savedExerciseIds.ifEmpty { latestSessionExerciseIds },
+        )
+    }
+}
+
 internal fun organizeProgressExercises(
     exercises: List<ProgressExerciseUi>,
     searchQuery: String,
@@ -255,16 +292,12 @@ internal fun buildProgressSplitPages(
     searchQuery: String,
 ): List<ProgressSplitPageUi> {
     val byId = exercises.associateBy { it.exerciseId }
-    return splits.mapNotNull { split ->
+    return splits.map { split ->
         val splitExercises = organizeProgressExercises(
             exercises = split.exerciseIds.mapNotNull { byId[it] },
             searchQuery = searchQuery,
         )
-        if (splitExercises.isEmpty()) {
-            null
-        } else {
-            ProgressSplitPageUi(split.splitId, split.name, splitExercises)
-        }
+        ProgressSplitPageUi(split.splitId, split.name, splitExercises)
     }
 }
 
