@@ -29,6 +29,9 @@ jobs:
       - name: Run unit tests and assemble debug APKs
         run: ./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest
 
+      - name: Verify pinned APK signer
+        run: ./scripts/ci/verify-apk-signer.sh
+
       - name: Verify APK update compatibility metadata
         run: ./scripts/ci/verify-apk-compatibility.sh
 

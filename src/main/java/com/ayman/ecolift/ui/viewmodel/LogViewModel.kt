@@ -20,6 +20,8 @@ import com.ayman.ecolift.data.WorkoutDay
 import com.ayman.ecolift.data.WorkoutRepository
 import com.ayman.ecolift.data.WorkoutSet
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -48,7 +50,9 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private val predictiveSuggestions = MutableStateFlow<List<Exercise>>(emptyList())
     private val reviewsExpanded = MutableStateFlow(false)
     private val _smartAdjustments = MutableStateFlow<Map<Long, SmartSetAdjustment>>(emptyMap())
+    private val _restStopwatchSeconds = MutableStateFlow<Int?>(null)
     private var activeRest: ActiveRest? = null
+    private var restTickerJob: Job? = null
 
     private val _exerciseHints = MutableStateFlow<Map<Long, String?>>(emptyMap())
     private val _exercisePBs = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
@@ -94,19 +98,30 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         _exercisePBs.value = pbs
     }
 
-    private val uiInputs = combine(
+    private val uiInputCore = combine(
         currentDate,
         exerciseInput,
         predictiveSuggestions,
         reviewsExpanded,
         _smartAdjustments
     ) { date, input, suggestions, expanded, smartAdjustments ->
-        UiInputs(
+        UiInputCore(
             date = date,
             input = input,
             suggestions = suggestions,
             expanded = expanded,
             smartAdjustments = smartAdjustments,
+        )
+    }
+
+    private val uiInputs = combine(uiInputCore, _restStopwatchSeconds) { core, restStopwatchSeconds ->
+        UiInputs(
+            date = core.date,
+            input = core.input,
+            suggestions = core.suggestions,
+            expanded = core.expanded,
+            smartAdjustments = core.smartAdjustments,
+            restStopwatchSeconds = restStopwatchSeconds,
         )
     }
 
@@ -256,7 +271,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         clearSmartAdjustment(setId)
         updateSetLocal(setId) { set ->
             val value = WeightLbs.parseInputToStorage(input)
-            set.copy(weightLbs = value, completed = false)
+            set.copy(weightLbs = value)
         }
         _sessionSets.value.find { it.id == setId }?.let { source ->
             updateSmartAdjustmentsFrom(source, before)
@@ -270,7 +285,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         clearSmartAdjustment(setId)
         updateSetLocal(setId) { set ->
             val current = set.weightLbs ?: 0
-            set.copy(weightLbs = (current + delta).coerceAtLeast(0), completed = false)
+            set.copy(weightLbs = (current + delta).coerceAtLeast(0))
         }
         _sessionSets.value.find { it.id == setId }?.let { source ->
             updateSmartAdjustmentsFrom(source, before)
@@ -283,7 +298,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         clearSmartAdjustment(setId)
         updateSetLocal(setId) { set ->
             val value = input.filter { it.isDigit() }.toIntOrNull()
-            set.copy(reps = value, completed = false)
+            set.copy(reps = value)
         }
         _sessionSets.value.find { it.id == setId }?.let { source ->
             updateSmartAdjustmentsFrom(source, before)
@@ -297,7 +312,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         clearSmartAdjustment(setId)
         updateSetLocal(setId) { set ->
             val current = set.reps ?: 0
-            set.copy(reps = (current + delta).coerceAtLeast(0), completed = false)
+            set.copy(reps = (current + delta).coerceAtLeast(0))
         }
         _sessionSets.value.find { it.id == setId }?.let { source ->
             updateSmartAdjustmentsFrom(source, before)
@@ -310,12 +325,12 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         clearSmartAdjustmentsFromSource(setId)
         updateSetLocal(setId) { set ->
             val turningOn = !set.isBodyweight
-            set.copy(isBodyweight = turningOn, weightLbs = if (turningOn) 0 else set.weightLbs, completed = false)
+            set.copy(isBodyweight = turningOn, weightLbs = if (turningOn) 0 else set.weightLbs)
         }
     }
 
     fun deleteSet(setId: Long) {
-        if (activeRest?.completedSetId == setId) activeRest = null
+        if (activeRest?.completedSetId == setId) setActiveRest(null)
         clearSmartAdjustment(setId)
         clearSmartAdjustmentsFromSource(setId)
         _sessionSets.update { list -> list.filter { it.id != setId } }
@@ -350,7 +365,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             val hasNextSameExercise = _sessionSets.value.any {
                 it.exerciseId == set.exerciseId && it.id != set.id && !it.completed
             }
-            activeRest = if (hasNextSameExercise) {
+            setActiveRest(if (hasNextSameExercise) {
                 ActiveRest(
                     exerciseId = set.exerciseId,
                     completedSetId = set.id,
@@ -358,9 +373,9 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                 )
             } else {
                 null
-            }
+            })
         } else if (activeRest?.completedSetId == set.id) {
-            activeRest = null
+            setActiveRest(null)
         }
     }
 
@@ -377,14 +392,14 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         val elapsedSeconds = ((System.currentTimeMillis() - rest.startedAtMillis) / 1000)
             .toInt()
             .coerceAtLeast(1)
-        activeRest = null
+        setActiveRest(null)
         updateSetLocal(setId) { it.copy(restTimeSeconds = elapsedSeconds) }
     }
 
     fun finishExercise(exerciseId: Long) {
         applySmartAdjustmentsForExercise(exerciseId)
         if (activeRest?.exerciseId == exerciseId) {
-            activeRest = null
+            setActiveRest(null)
         }
     }
 
@@ -494,14 +509,38 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun cancelRestTimer() {
-        activeRest = null
+        setActiveRest(null)
     }
 
     private fun finishActiveWorkoutDate() {
         val leavingDate = currentDate.value
-        activeRest = null
+        setActiveRest(null)
         classifyFinishedSessionMuscles(leavingDate)
     }
+
+    private fun setActiveRest(rest: ActiveRest?) {
+        activeRest = rest
+        restTickerJob?.cancel()
+        restTickerJob = null
+
+        if (rest == null) {
+            _restStopwatchSeconds.value = null
+            return
+        }
+
+        _restStopwatchSeconds.value = elapsedRestSeconds(rest)
+        restTickerJob = viewModelScope.launch {
+            while (activeRest == rest) {
+                _restStopwatchSeconds.value = elapsedRestSeconds(rest)
+                delay(1_000)
+            }
+        }
+    }
+
+    private fun elapsedRestSeconds(rest: ActiveRest): Int =
+        ((System.currentTimeMillis() - rest.startedAtMillis) / 1_000)
+            .toInt()
+            .coerceAtLeast(0)
 
     private fun classifyFinishedSessionMuscles(date: String) {
         viewModelScope.launch {
@@ -640,6 +679,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             predictiveExercises = inputs.suggestions,
             pendingReviews = snapshot.pendingReviews,
             reviewsExpanded = inputs.expanded,
+            restStopwatchSeconds = inputs.restStopwatchSeconds,
         )
     }
 
@@ -711,6 +751,15 @@ internal fun orderLogExerciseGroups(
 ): List<Map.Entry<Long, List<WorkoutSet>>> = groups.toList()
 
 private data class UiInputs(
+    val date: String,
+    val input: String,
+    val suggestions: List<Exercise>,
+    val expanded: Boolean,
+    val smartAdjustments: Map<Long, SmartSetAdjustment>,
+    val restStopwatchSeconds: Int?,
+)
+
+private data class UiInputCore(
     val date: String,
     val input: String,
     val suggestions: List<Exercise>,

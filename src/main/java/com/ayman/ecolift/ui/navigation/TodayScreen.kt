@@ -46,6 +46,7 @@ fun TodayScreen(
             exerciseName = ex.name,
             muscleGroups = ex.muscleGroups,
             previousSession = ex.lastSessionHint,
+            isNewPB = ex.isNewPB,
             sets = ex.sets.map { set ->
                 LoggedSet(
                     setNumber = set.setNumber,
