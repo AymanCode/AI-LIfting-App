@@ -1,6 +1,9 @@
 package com.ayman.ecolift.ui.viewmodel
 
+import com.ayman.ecolift.data.CycleSlot
+import com.ayman.ecolift.data.SplitExercise
 import com.ayman.ecolift.data.WeightLbs
+import com.ayman.ecolift.data.WorkoutDay
 import com.ayman.ecolift.data.WorkoutSet
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -134,6 +137,69 @@ class ProgressCalculationsTest {
     }
 
     @Test
+    fun `buildProgressSplitPages keeps split pages even when filtered empty`() {
+        val pages = buildProgressSplitPages(
+            exercises = listOf(progressExercise(1, "Bench Press", 10f)),
+            splits = listOf(
+                ProgressSplitSource(10, "Push", listOf(1)),
+                ProgressSplitSource(20, "Pull", listOf(2)),
+            ),
+            searchQuery = "",
+        )
+
+        assertEquals(2, pages.size)
+        assertEquals("Push", pages[0].name)
+        assertEquals(listOf("Bench Press"), pages[0].exercises.map { it.name })
+        assertEquals("Pull", pages[1].name)
+        assertTrue(pages[1].exercises.isEmpty())
+    }
+
+    @Test
+    fun `buildProgressSplitSources falls back to latest logged split session`() {
+        val sources = buildProgressSplitSources(
+            slots = listOf(
+                CycleSlot(id = 10L, name = "Push", orderIndex = 0),
+                CycleSlot(id = 20L, name = "Pull", orderIndex = 1),
+            ),
+            savedRows = emptyList(),
+            workoutDays = listOf(
+                WorkoutDay(date = "2026-05-01", cycleSlotId = 10L),
+                WorkoutDay(date = "2026-05-15", cycleSlotId = 10L),
+                WorkoutDay(date = "2026-05-10", cycleSlotId = 20L),
+            ),
+            setsByDate = mapOf(
+                "2026-05-01" to listOf(workoutSet(date = "2026-05-01", exerciseId = 99L, weight = 95, reps = 10)),
+                "2026-05-15" to listOf(
+                    workoutSet(date = "2026-05-15", exerciseId = 1L, weight = 185, reps = 5, setNumber = 1),
+                    workoutSet(date = "2026-05-15", exerciseId = 1L, weight = 205, reps = 3, setNumber = 2),
+                    workoutSet(date = "2026-05-15", exerciseId = 2L, weight = 95, reps = 12, setNumber = 1),
+                ),
+                "2026-05-10" to listOf(workoutSet(date = "2026-05-10", exerciseId = 3L, weight = 135, reps = 8)),
+            ),
+        )
+
+        assertEquals(listOf(1L, 2L), sources.first { it.splitId == 10L }.exerciseIds)
+        assertEquals(listOf(3L), sources.first { it.splitId == 20L }.exerciseIds)
+    }
+
+    @Test
+    fun `buildProgressSplitSources prefers saved split exercises over history`() {
+        val sources = buildProgressSplitSources(
+            slots = listOf(CycleSlot(id = 10L, name = "Push", orderIndex = 0)),
+            savedRows = listOf(
+                SplitExercise(splitId = 10L, exerciseId = 3L, orderIndex = 1),
+                SplitExercise(splitId = 10L, exerciseId = 2L, orderIndex = 0),
+            ),
+            workoutDays = listOf(WorkoutDay(date = "2026-05-15", cycleSlotId = 10L)),
+            setsByDate = mapOf(
+                "2026-05-15" to listOf(workoutSet(date = "2026-05-15", exerciseId = 1L, weight = 185, reps = 5)),
+            ),
+        )
+
+        assertEquals(listOf(2L, 3L), sources.single().exerciseIds)
+    }
+
+    @Test
     fun `normalizeSplitIndex clamps index to available pages`() {
         assertEquals(0, normalizeProgressSplitIndex(-1, 3))
         assertEquals(1, normalizeProgressSplitIndex(1, 3))
@@ -157,13 +223,14 @@ class ProgressCalculationsTest {
 
     private fun workoutSet(
         id: Long = 0L,
+        exerciseId: Long = 1L,
         date: String,
         weight: Int,
         reps: Int,
         setNumber: Int = 1,
     ) = WorkoutSet(
         id = id,
-        exerciseId = 1L,
+        exerciseId = exerciseId,
         date = date,
         setNumber = setNumber,
         weightLbs = WeightLbs.fromWholePounds(weight),

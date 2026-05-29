@@ -193,7 +193,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
 
     fun useSuggestion(exercise: com.ayman.ecolift.data.Exercise) {
         viewModelScope.launch {
-            addSet(exercise.id)
+            addExerciseSession(exercise.id)
             exerciseInput.value = ""
             predictiveSuggestions.value = emptyList()
         }
@@ -235,14 +235,18 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             // Always refresh session sets from DB after slot assignment/cloning
-            _sessionSets.value = setRepository.getSetsForDate(currentDate.value)
+            val refreshedSets = setRepository.getSetsForDate(currentDate.value)
+            _sessionSets.value = refreshedSets
+            updateHistoricalHints(currentDate.value, refreshedSets)
         }
     }
 
     fun addSet(exerciseId: Long) {
         viewModelScope.launch {
-            val newSet = setRepository.addSet(currentDate.value, exerciseId)
+            val date = currentDate.value
+            val newSet = setRepository.addSet(date, exerciseId)
             _sessionSets.update { it + newSet }
+            updateHistoricalHints(date, _sessionSets.value)
         }
     }
 
@@ -527,7 +531,14 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                 exerciseRepository.getOrCreate(rawInput)
             }
         }
-        addSet(exercise.id)
+        addExerciseSession(exercise.id)
+    }
+
+    private suspend fun addExerciseSession(exerciseId: Long) {
+        val date = currentDate.value
+        val newSets = setRepository.addExerciseSession(date, exerciseId)
+        _sessionSets.update { it + newSets }
+        updateHistoricalHints(date, _sessionSets.value)
     }
 
     private fun buildUiState(inputs: UiInputs, snapshot: DbSnapshot): LogUiState {
