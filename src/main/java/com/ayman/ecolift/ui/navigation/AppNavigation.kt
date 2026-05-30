@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
@@ -29,7 +30,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -91,6 +91,17 @@ fun AppNavigation() {
     )
 
     fun navigateToTab(route: String) {
+        if (route == "log" && !isRouteSelected(currentRoute, route)) {
+            isLogChromeVisible = true
+            val returnedToLog = navController.popBackStack("log", inclusive = false)
+            if (!returnedToLog) {
+                navController.navigate(route) {
+                    launchSingleTop = true
+                }
+            }
+            return
+        }
+
         if (!isRouteSelected(currentRoute, route)) {
             navController.navigate(route) {
                 launchSingleTop = true
@@ -108,32 +119,17 @@ fun AppNavigation() {
         }
     }
 
+    val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottomBarReservedHeight = 64.dp + navigationBarPadding
     val shouldShowBottomBar = !isKeyboardVisible && (!isLogRoute || isLogChromeVisible)
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        bottomBar = {
-            AnimatedVisibility(
-                visible = shouldShowBottomBar,
-                enter = fadeIn(animationSpec = tween(120)) +
-                    slideInVertically(animationSpec = tween(160)) { it / 2 },
-                exit = fadeOut(animationSpec = tween(110)) +
-                    slideOutVertically(animationSpec = tween(150)) { it / 2 }
-            ) {
-                AppBottomBar(
-                    destinations = destinations,
-                    currentRoute = currentRoute,
-                    onNavigate = ::navigateToTab
-                )
-            }
-        }
-    )
-{ padding ->
+    Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
             startDestination = "log",
             modifier = Modifier
-                .padding(padding),
+                .fillMaxSize()
+                .padding(bottom = if (!isLogRoute && !isKeyboardVisible) bottomBarReservedHeight else 0.dp),
         ) {
             composable("log") {
                 TodayScreen(
@@ -187,6 +183,21 @@ fun AppNavigation() {
                     onBack = { navController.popBackStack() }
                 )
             }
+        }
+
+        AnimatedVisibility(
+            visible = shouldShowBottomBar,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = fadeIn(animationSpec = tween(120)) +
+                slideInVertically(animationSpec = tween(160)) { it / 2 },
+            exit = fadeOut(animationSpec = tween(110)) +
+                slideOutVertically(animationSpec = tween(150)) { it / 2 }
+        ) {
+            AppBottomBar(
+                destinations = destinations,
+                currentRoute = currentRoute,
+                onNavigate = ::navigateToTab
+            )
         }
     }
 }
