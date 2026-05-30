@@ -1726,6 +1726,7 @@ fun LogScreen(
     val listState = rememberLazyListState()
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val hiddenSystemNavPadding = maxOf(navigationBarPadding, 48.dp)
     val selectedCalendarDate = remember(currentDate) {
         runCatching { LocalDate.parse(currentDate) }.getOrDefault(LocalDate.now())
     }
@@ -1758,19 +1759,42 @@ fun LogScreen(
     }
     val isNumberKeyboardVisible = activeTarget != null && activeSet != null
     val keyboardHeightPadding = 306.dp
-    val listTopPadding = if (isChromeVisible) 12.dp else statusBarPadding + 8.dp
-    val listBottomPadding = when {
+    val targetListTopPadding = if (isChromeVisible) 72.dp else 8.dp
+    val targetListBottomPadding = when {
         isNumberKeyboardVisible -> keyboardHeightPadding
-        isChromeVisible -> 12.dp
-        else -> navigationBarPadding + 12.dp
+        isChromeVisible -> navigationBarPadding + 76.dp
+        else -> 12.dp
     }
+    val targetViewportBottomPadding = if (!isChromeVisible && !isNumberKeyboardVisible) {
+        hiddenSystemNavPadding
+    } else {
+        0.dp
+    }
+    val listTopPadding by animateDpAsState(
+        targetValue = targetListTopPadding,
+        animationSpec = tween(durationMillis = 180),
+        label = "log_list_top_padding"
+    )
+    val listBottomPadding by animateDpAsState(
+        targetValue = targetListBottomPadding,
+        animationSpec = tween(durationMillis = 180),
+        label = "log_list_bottom_padding"
+    )
+    val viewportBottomPadding by animateDpAsState(
+        targetValue = targetViewportBottomPadding,
+        animationSpec = tween(durationMillis = 180),
+        label = "log_viewport_bottom_padding"
+    )
 
     LaunchedEffect(listState, isNumberKeyboardVisible, plateSheetWeight) {
         snapshotFlow { listState.chromeSnapshot() }
             .distinctUntilChanged()
             .collect { snapshot ->
                 when {
-                    snapshot.isScrolling && !isNumberKeyboardVisible -> onChromeVisibilityChange(false)
+                    snapshot.isScrolling &&
+                        !snapshot.isAtTop &&
+                        !snapshot.isAtBottom &&
+                        !isNumberKeyboardVisible -> onChromeVisibilityChange(false)
                     !snapshot.isScrolling &&
                         (snapshot.isAtTop || snapshot.isAtBottom) &&
                         !isNumberKeyboardVisible &&
@@ -1856,37 +1880,16 @@ fun LogScreen(
         onSetFocused(target.exerciseIndex, target.setIndex)
     }
 
-    Scaffold(
-        modifier = modifier,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            AnimatedVisibility(
-                visible = isChromeVisible,
-                enter = fadeIn(animationSpec = tween(120)) +
-                    slideInVertically(animationSpec = tween(160)) { -it / 2 },
-                exit = fadeOut(animationSpec = tween(110)) +
-                    slideOutVertically(animationSpec = tween(150)) { -it / 2 }
-            ) {
-                LogTopBar(
-                    dateLabel = dateLabel,
-                    cycleSlotLabel = cycleSlotLabel,
-                    onDateClick = ::openCalendarSheet,
-                    onPreviousDay = onPreviousDay,
-                    onNextDay = onNextDay
-                )
-            }
-        },
-        containerColor = Color(0xFFF2F0EB)
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xFFF2F0EB))
+    ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(top = statusBarPadding, bottom = viewportBottomPadding)
                     .imePadding(),
                 contentPadding = PaddingValues(
                     start = 16.dp,
@@ -1959,6 +1962,24 @@ fun LogScreen(
                 item { EmptyLogState() }
             }
         }
+
+            AnimatedVisibility(
+                visible = isChromeVisible,
+                modifier = Modifier.align(Alignment.TopCenter),
+                enter = fadeIn(animationSpec = tween(120)) +
+                    slideInVertically(animationSpec = tween(160)) { -it / 2 },
+                exit = fadeOut(animationSpec = tween(110)) +
+                    slideOutVertically(animationSpec = tween(150)) { -it / 2 }
+            ) {
+                LogTopBar(
+                    dateLabel = dateLabel,
+                    cycleSlotLabel = cycleSlotLabel,
+                    onDateClick = ::openCalendarSheet,
+                    onPreviousDay = onPreviousDay,
+                    onNextDay = onNextDay,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             Box(
                 modifier = Modifier
@@ -2041,7 +2062,6 @@ fun LogScreen(
                 }
             }
     }
-}
 }
 
 private data class IndexedExercise(
