@@ -697,43 +697,20 @@ fun ProgressScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            CenterAlignedTopAppBar(
-                modifier = Modifier.statusBarsPadding(),
-                windowInsets = WindowInsets(0),
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Progress",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1C1C1E)
-                        )
-                        Text(
-                            text = "Exercise trends and stats",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF8E8E93)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color(0xFFF2F0EB)
-                )
-            )
-        },
         containerColor = Color(0xFFF2F0EB)
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
+                .statusBarsPadding()
         ) {
             ProgressOrganizationControl(
                 selectedMode = organizationMode,
                 onModeChange = onOrganizationModeChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 8.dp)
             )
 
             OutlinedTextField(
@@ -846,7 +823,7 @@ private fun ProgressOrganizationControl(
                     Text(
                         text = when (mode) {
                             ProgressOrganizationModeV2.PROGRESS -> "Progress"
-                            ProgressOrganizationModeV2.SPLIT -> "Split"
+                            ProgressOrganizationModeV2.SPLIT -> "Splits"
                         },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
