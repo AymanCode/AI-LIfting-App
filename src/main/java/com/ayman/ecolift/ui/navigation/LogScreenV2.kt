@@ -5,6 +5,8 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
@@ -15,6 +17,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -30,18 +34,23 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -76,17 +85,21 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -94,6 +107,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -104,13 +120,20 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ayman.ecolift.ui.theme.AnimatedCounter
 import com.ayman.ecolift.ui.theme.AnimatedVolumeCounter
 import com.ayman.ecolift.ui.theme.bounceClick
 import com.ayman.ecolift.ui.theme.rememberHeavyHaptic
 import com.ayman.ecolift.ui.theme.rememberLightHaptic
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -152,11 +175,62 @@ private data class NumberInputTarget(
     val value: String,
 )
 
+private data class LogScrollChromeSnapshot(
+    val isScrolling: Boolean,
+    val isAtTop: Boolean,
+    val isAtBottom: Boolean,
+)
+
+private fun LazyListState.chromeSnapshot(): LogScrollChromeSnapshot {
+    val layoutInfo = layoutInfo
+    val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
+    val isAtBottom = layoutInfo.totalItemsCount == 0 ||
+        (lastVisibleItem != null &&
+            lastVisibleItem.index == layoutInfo.totalItemsCount - 1 &&
+            lastVisibleItem.offset + lastVisibleItem.size <= layoutInfo.viewportEndOffset)
+
+    return LogScrollChromeSnapshot(
+        isScrolling = isScrollInProgress,
+        isAtTop = firstVisibleItemIndex == 0 && firstVisibleItemScrollOffset == 0,
+        isAtBottom = isAtBottom
+    )
+}
+
+private fun Modifier.backgroundChromeGestureStrip(
+    enabled: Boolean,
+    onRevealChrome: () -> Unit
+): Modifier = pointerInput(enabled, onRevealChrome) {
+    if (!enabled) return@pointerInput
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        val startPosition = down.position
+        var lastPosition = startPosition
+        var isUp = false
+
+        while (!isUp) {
+            val event = awaitPointerEvent(PointerEventPass.Final)
+            val change = event.changes.firstOrNull { it.id == down.id } ?: continue
+            lastPosition = change.position
+            if (change.changedToUpIgnoreConsumed()) {
+                isUp = true
+            }
+        }
+
+        val distance = (lastPosition - startPosition).getDistance()
+        val touchSlop = viewConfiguration.touchSlop
+
+        if (distance < touchSlop) {
+            onRevealChrome()
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LogTopBar(
     dateLabel: String,
     cycleSlotLabel: String?,
+    onDateClick: () -> Unit,
     onPreviousDay: () -> Unit,
     onNextDay: () -> Unit,
     modifier: Modifier = Modifier
@@ -165,7 +239,13 @@ fun LogTopBar(
         modifier = modifier.statusBarsPadding(),
         windowInsets = WindowInsets(0),
         title = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable(onClick = onDateClick)
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Text(
                     text = dateLabel,
                     style = MaterialTheme.typography.titleLarge,
@@ -786,10 +866,24 @@ private fun CustomNumberKeyboard(
     onBackspace: () -> Unit,
     onClear: () -> Unit,
     onToggleBodyweight: () -> Unit,
+    onSwitchField: () -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val label = if (kind == NumberInputKind.Weight) "Weight" else "Reps"
+    val placeholder = if (kind == NumberInputKind.Weight) "LBS" else "REPS"
+    val displayValue = when {
+        kind == NumberInputKind.Weight && isBodyweight -> "BW"
+        value.isBlank() -> placeholder
+        else -> value
+    }
+    val isPlaceholder = value.isBlank() && !(kind == NumberInputKind.Weight && isBodyweight)
+    val switchIcon = if (kind == NumberInputKind.Weight) {
+        Icons.AutoMirrored.Outlined.KeyboardArrowRight
+    } else {
+        Icons.AutoMirrored.Outlined.KeyboardArrowLeft
+    }
+    val switchDescription = if (kind == NumberInputKind.Weight) "Switch to reps" else "Switch to weight"
     val accent = Color(0xFF4DB6AC)
     Surface(
         modifier = modifier
@@ -810,26 +904,19 @@ private fun CustomNumberKeyboard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF8E8E93)
-                    )
-                    Text(
-                        text = value.ifBlank { "-" },
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1C1C1E)
-                    )
-                }
-                NumberKeyboardKey(
-                    label = "DONE",
-                    onClick = onDone,
-                    color = accent,
-                    contentColor = Color.White,
-                    modifier = Modifier.width(84.dp).height(42.dp)
+                NumberKeyboardDisplayField(
+                    label = label,
+                    value = displayValue,
+                    isPlaceholder = isPlaceholder,
+                    modifier = Modifier.weight(1f)
+                )
+                NumberKeyboardIconKey(
+                    imageVector = switchIcon,
+                    contentDescription = switchDescription,
+                    onClick = onSwitchField,
+                    modifier = Modifier
+                        .width(52.dp)
+                        .height(54.dp)
                 )
             }
 
@@ -868,6 +955,74 @@ private fun CustomNumberKeyboard(
                 NumberKeyboardKey("00", onClick = { onKey("00") }, modifier = Modifier.weight(1f))
                 NumberKeyboardKey("OK", onClick = onDone, modifier = Modifier.weight(1f))
             }
+        }
+    }
+}
+
+@Composable
+private fun NumberKeyboardDisplayField(
+    label: String,
+    value: String,
+    isPlaceholder: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.height(54.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFF1C1C1E).copy(alpha = 0.12f)),
+        shadowElevation = 1.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = label.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF8E8E93),
+                maxLines = 1
+            )
+            Text(
+                text = value,
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = if (isPlaceholder) Color(0xFF8E8E93) else Color(0xFF1C1C1E),
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun NumberKeyboardIconKey(
+    imageVector: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.clip(RoundedCornerShape(10.dp)),
+        shape = RoundedCornerShape(10.dp),
+        color = Color(0xFFF7F7F7),
+        contentColor = Color(0xFF1C1C1E),
+        border = BorderStroke(1.dp, Color(0xFF1C1C1E).copy(alpha = 0.07f)),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = imageVector,
+                contentDescription = contentDescription,
+                tint = Color(0xFF1C1C1E),
+                modifier = Modifier.size(22.dp)
+            )
         }
     }
 }
@@ -1250,18 +1405,32 @@ fun SearchBarWithDropdown(
     isSearchActive: Boolean,
     onQueryChange: (String) -> Unit,
     onAddExercise: (ExerciseSearchResult) -> Unit,
+    onFocusChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val focusManager = LocalFocusManager.current
+    var isFocused by remember { mutableStateOf(false) }
+
+    fun addExerciseAndClose(result: ExerciseSearchResult) {
+        focusManager.clearFocus()
+        onAddExercise(result)
+    }
+
     Column(modifier = modifier.fillMaxWidth()) {
         OutlinedTextField(
             value = query,
             onValueChange = onQueryChange,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged {
+                    isFocused = it.isFocused
+                    onFocusChanged(it.isFocused)
+                },
             placeholder = { Text("Search or add exercise...", color = Color(0xFF8E8E93)) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF8E8E93)) },
             trailingIcon = {
                 if (query.isNotEmpty()) {
-                    IconButton(onClick = { onAddExercise(ExerciseSearchResult(query, "CUSTOM")) }) {
+                    IconButton(onClick = { addExerciseAndClose(ExerciseSearchResult(query, "CUSTOM")) }) {
                         Icon(Icons.Default.Add, contentDescription = "Add", tint = Color(0xFF4DB6AC))
                     }
                 }
@@ -1278,11 +1447,14 @@ fun SearchBarWithDropdown(
                 autoCorrectEnabled = false,
                 imeAction = ImeAction.Done
             ),
+            keyboardActions = KeyboardActions(
+                onDone = { focusManager.clearFocus() }
+            ),
             singleLine = true
         )
         
         AnimatedVisibility(
-            visible = isSearchActive && results.isNotEmpty(),
+            visible = isSearchActive && isFocused && results.isNotEmpty(),
             enter = fadeIn(animationSpec = tween(durationMillis = 90)),
             exit = fadeOut(animationSpec = tween(durationMillis = 60))
         ) {
@@ -1299,16 +1471,19 @@ fun SearchBarWithDropdown(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onAddExercise(result) }
+                                .clickable { addExerciseAndClose(result) }
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
-                                Text(text = result.name, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF1C1C1E))
-                                if (result.muscleGroups.isNotBlank()) {
-                                    Text(text = result.muscleGroups, style = MaterialTheme.typography.labelSmall, color = Color(0xFF8E8E93))
-                                }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = result.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color(0xFF1C1C1E),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                             Icon(Icons.Default.Add, contentDescription = "Add", tint = Color(0xFF4DB6AC), modifier = Modifier.size(20.dp))
                         }
@@ -1349,9 +1524,165 @@ fun EmptyLogState(modifier: Modifier = Modifier) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LogCalendarSheet(
+    selectedDate: LocalDate,
+    onDateSelected: (LocalDate) -> Unit,
+    onClose: () -> Unit
+) {
+    val today = remember { LocalDate.now() }
+    var visibleMonth by remember(selectedDate) { mutableStateOf(YearMonth.from(selectedDate)) }
+    val monthFormatter = remember { DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()) }
+    val weekLabels = remember { listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat") }
+    val firstDayOfMonth = visibleMonth.atDay(1)
+    val leadingDays = firstDayOfMonth.dayOfWeek.value % 7
+    val gridStart = firstDayOfMonth.minusDays(leadingDays.toLong())
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            IconButton(onClick = { visibleMonth = visibleMonth.minusMonths(1) }) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
+                    contentDescription = "Previous month",
+                    tint = Color(0xFF1C1C1E)
+                )
+            }
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = visibleMonth.format(monthFormatter),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1C1C1E)
+                )
+                TextButton(onClick = { onDateSelected(today) }) {
+                    Text(
+                        text = "Today",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF4DB6AC)
+                    )
+                }
+            }
+
+            IconButton(onClick = { visibleMonth = visibleMonth.plusMonths(1) }) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                    contentDescription = "Next month",
+                    tint = Color(0xFF1C1C1E)
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            weekLabels.forEach { label ->
+                Text(
+                    text = label,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF8E8E93),
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            repeat(6) { week ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    repeat(7) { day ->
+                        val date = gridStart.plusDays((week * 7 + day).toLong())
+                        LogCalendarDay(
+                            date = date,
+                            selectedDate = selectedDate,
+                            today = today,
+                            isInVisibleMonth = YearMonth.from(date) == visibleMonth,
+                            onDateSelected = onDateSelected,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+
+        TextButton(
+            onClick = onClose,
+            modifier = Modifier.align(Alignment.End)
+        ) {
+            Text(
+                text = "Close",
+                color = Color(0xFF8E8E93),
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+private fun LogCalendarDay(
+    date: LocalDate,
+    selectedDate: LocalDate,
+    today: LocalDate,
+    isInVisibleMonth: Boolean,
+    onDateSelected: (LocalDate) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isSelected = date == selectedDate
+    val isToday = date == today
+    val containerColor = when {
+        isSelected -> Color(0xFF4DB6AC)
+        isToday -> Color(0xFF4DB6AC).copy(alpha = 0.10f)
+        else -> Color.Transparent
+    }
+    val contentColor = when {
+        isSelected -> Color.White
+        isInVisibleMonth -> Color(0xFF1C1C1E)
+        else -> Color(0xFF8E8E93).copy(alpha = 0.45f)
+    }
+    val border = if (isToday && !isSelected) {
+        BorderStroke(1.dp, Color(0xFF4DB6AC).copy(alpha = 0.55f))
+    } else {
+        null
+    }
+
+    Surface(
+        onClick = { onDateSelected(date) },
+        modifier = modifier.height(42.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = containerColor,
+        border = border
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = date.dayOfMonth.toString(),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Medium,
+                color = contentColor,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun LogScreen(
+    currentDate: String,
     dateLabel: String,
     cycleSlotLabel: String?,
     splits: List<SplitSlot>,
@@ -1362,6 +1693,7 @@ fun LogScreen(
     isSearchActive: Boolean,
     totalSets: Int,
     totalVolumeLbs: Int,
+    onDateSelected: (String) -> Unit,
     onPreviousDay: () -> Unit,
     onNextDay: () -> Unit,
     onSelectSplit: (Long?) -> Unit,
@@ -1379,17 +1711,43 @@ fun LogScreen(
     onFinishExercise: (Int) -> Unit,
     restTimerSeconds: Int?,
     onCancelRestTimer: () -> Unit,
+    isChromeVisible: Boolean = true,
+    onChromeVisibilityChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var finishedExerciseIds by remember { mutableStateOf(emptySet<Long>()) }
     var plateSheetWeight by rememberSaveable { mutableStateOf<String?>(null) }
+    var isCalendarVisible by rememberSaveable { mutableStateOf(false) }
     var activeNumberInput by remember { mutableStateOf<NumberInputTarget?>(null) }
     val plateSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val calendarSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val focusManager = LocalFocusManager.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val listState = rememberLazyListState()
+    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val selectedCalendarDate = remember(currentDate) {
+        runCatching { LocalDate.parse(currentDate) }.getOrDefault(LocalDate.now())
+    }
     
-    LaunchedEffect(dateLabel) {
+    LaunchedEffect(currentDate) {
         finishedExerciseIds = emptySet()
         activeNumberInput = null
+        onChromeVisibilityChange(true)
+    }
+
+    DisposableEffect(lifecycleOwner, focusManager) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
+                activeNumberInput = null
+                plateSheetWeight = null
+                isCalendarVisible = false
+                focusManager.clearFocus()
+                onChromeVisibilityChange(true)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val orderedExercises = exercises
@@ -1400,6 +1758,57 @@ fun LogScreen(
     }
     val isNumberKeyboardVisible = activeTarget != null && activeSet != null
     val keyboardHeightPadding = 306.dp
+    val listTopPadding = if (isChromeVisible) 12.dp else statusBarPadding + 8.dp
+    val listBottomPadding = when {
+        isNumberKeyboardVisible -> keyboardHeightPadding
+        isChromeVisible -> 12.dp
+        else -> navigationBarPadding + 12.dp
+    }
+
+    LaunchedEffect(listState, isNumberKeyboardVisible, plateSheetWeight) {
+        snapshotFlow { listState.chromeSnapshot() }
+            .distinctUntilChanged()
+            .collect { snapshot ->
+                when {
+                    snapshot.isScrolling && !isNumberKeyboardVisible -> onChromeVisibilityChange(false)
+                    !snapshot.isScrolling &&
+                        (snapshot.isAtTop || snapshot.isAtBottom) &&
+                        !isNumberKeyboardVisible &&
+                        plateSheetWeight == null -> onChromeVisibilityChange(true)
+                }
+            }
+    }
+
+    fun revealChrome() {
+        onChromeVisibilityChange(true)
+    }
+
+    fun closePlateSheet() {
+        plateSheetWeight = null
+        revealChrome()
+    }
+
+    fun closeCalendarSheet() {
+        isCalendarVisible = false
+        revealChrome()
+    }
+
+    fun openCalendarSheet() {
+        activeNumberInput = null
+        plateSheetWeight = null
+        focusManager.clearFocus()
+        onChromeVisibilityChange(true)
+        isCalendarVisible = true
+    }
+
+    fun selectCalendarDate(date: LocalDate) {
+        activeNumberInput = null
+        plateSheetWeight = null
+        focusManager.clearFocus()
+        isCalendarVisible = false
+        onDateSelected(date.toString())
+        revealChrome()
+    }
 
     fun commitNumberInput(target: NumberInputTarget, rawValue: String) {
         val allowDecimal = target.kind == NumberInputKind.Weight
@@ -1415,6 +1824,7 @@ fun LogScreen(
     fun activateNumberInput(exerciseIndex: Int, setIndex: Int, kind: NumberInputKind) {
         val set = exercises.getOrNull(exerciseIndex)?.sets?.getOrNull(setIndex) ?: return
         focusManager.clearFocus()
+        onChromeVisibilityChange(false)
         onSetFocused(exerciseIndex, setIndex)
         activeNumberInput = NumberInputTarget(
             exerciseIndex = exerciseIndex,
@@ -1435,16 +1845,36 @@ fun LogScreen(
         commitNumberInput(target, candidate)
     }
 
+    fun switchNumberInputField() {
+        val target = activeNumberInput ?: return
+        val set = exercises.getOrNull(target.exerciseIndex)?.sets?.getOrNull(target.setIndex) ?: return
+        val nextKind = if (target.kind == NumberInputKind.Weight) NumberInputKind.Reps else NumberInputKind.Weight
+        activeNumberInput = target.copy(
+            kind = nextKind,
+            value = if (nextKind == NumberInputKind.Weight) set.weight else set.reps
+        )
+        onSetFocused(target.exerciseIndex, target.setIndex)
+    }
+
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            LogTopBar(
-                dateLabel = dateLabel,
-                cycleSlotLabel = cycleSlotLabel,
-                onPreviousDay = onPreviousDay,
-                onNextDay = onNextDay
-            )
+            AnimatedVisibility(
+                visible = isChromeVisible,
+                enter = fadeIn(animationSpec = tween(120)) +
+                    slideInVertically(animationSpec = tween(160)) { -it / 2 },
+                exit = fadeOut(animationSpec = tween(110)) +
+                    slideOutVertically(animationSpec = tween(150)) { -it / 2 }
+            ) {
+                LogTopBar(
+                    dateLabel = dateLabel,
+                    cycleSlotLabel = cycleSlotLabel,
+                    onDateClick = ::openCalendarSheet,
+                    onPreviousDay = onPreviousDay,
+                    onNextDay = onNextDay
+                )
+            }
         },
         containerColor = Color(0xFFF2F0EB)
     ) { innerPadding ->
@@ -1454,18 +1884,15 @@ fun LogScreen(
                 .padding(innerPadding)
         ) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .imePadding(),
                 contentPadding = PaddingValues(
                     start = 16.dp,
-                    top = 12.dp,
+                    top = listTopPadding,
                     end = 16.dp,
-                    bottom = when {
-                        isNumberKeyboardVisible -> keyboardHeightPadding
-                        restTimerSeconds != null -> 76.dp
-                        else -> 12.dp
-                    }
+                    bottom = listBottomPadding
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -1475,7 +1902,10 @@ fun LogScreen(
                     results = searchResults,
                     isSearchActive = isSearchActive,
                     onQueryChange = onSearchQueryChange,
-                    onAddExercise = onAddExercise
+                    onAddExercise = onAddExercise,
+                    onFocusChanged = { focused ->
+                        if (!focused) revealChrome()
+                    }
                 )
             }
             if (splits.isNotEmpty()) {
@@ -1517,7 +1947,10 @@ fun LogScreen(
                     onRepsStep = { setIndex, delta -> onRepsStep(i, setIndex, delta) },
                     onWeightInput = { setIndex -> activateNumberInput(i, setIndex, NumberInputKind.Weight) },
                     onRepsInput = { setIndex -> activateNumberInput(i, setIndex, NumberInputKind.Reps) },
-                    onShowPlates = { setIndex -> plateSheetWeight = exercise.sets[setIndex].weight },
+                    onShowPlates = { setIndex ->
+                        onChromeVisibilityChange(false)
+                        plateSheetWeight = exercise.sets[setIndex].weight
+                    },
                     modifier = Modifier.animateItem(),
                     onInteraction = {}
                 )
@@ -1527,16 +1960,27 @@ fun LogScreen(
             }
         }
 
-            restTimerSeconds?.let { seconds ->
-                RestTimerPill(
-                    elapsedSeconds = seconds,
-                    onDone = onCancelRestTimer,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .imePadding()
-                        .padding(bottom = if (isNumberKeyboardVisible) keyboardHeightPadding else 12.dp)
-                )
-            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .width(16.dp)
+                    .fillMaxHeight()
+                    .backgroundChromeGestureStrip(
+                        enabled = !isNumberKeyboardVisible,
+                        onRevealChrome = ::revealChrome
+                    )
+            )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .width(16.dp)
+                    .fillMaxHeight()
+                    .backgroundChromeGestureStrip(
+                        enabled = !isNumberKeyboardVisible,
+                        onRevealChrome = ::revealChrome
+                    )
+            )
 
             if (activeTarget != null && activeSet != null) {
                 CustomNumberKeyboard(
@@ -1561,20 +2005,38 @@ fun LogScreen(
                             }
                         )
                     },
-                    onDone = { activeNumberInput = null },
+                    onSwitchField = ::switchNumberInputField,
+                    onDone = {
+                        activeNumberInput = null
+                        revealChrome()
+                    },
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }
 
+            if (isCalendarVisible) {
+                ModalBottomSheet(
+                    onDismissRequest = ::closeCalendarSheet,
+                    sheetState = calendarSheetState,
+                    containerColor = Color.White
+                ) {
+                    LogCalendarSheet(
+                        selectedDate = selectedCalendarDate,
+                        onDateSelected = ::selectCalendarDate,
+                        onClose = ::closeCalendarSheet
+                    )
+                }
+            }
+
             plateSheetWeight?.let { weight ->
                 ModalBottomSheet(
-                    onDismissRequest = { plateSheetWeight = null },
+                    onDismissRequest = ::closePlateSheet,
                     sheetState = plateSheetState,
                     containerColor = Color.White
                 ) {
                     PlateCalculatorSheet(
                         weightText = weight,
-                        onClose = { plateSheetWeight = null }
+                        onClose = ::closePlateSheet
                     )
                 }
             }
@@ -1592,6 +2054,7 @@ private data class IndexedExercise(
 fun LogScreenPreview() {
     MaterialTheme {
         LogScreen(
+            currentDate = LocalDate.now().toString(),
             dateLabel = "Today",
             cycleSlotLabel = "Push Day · Slot 1",
             splits = listOf(
@@ -1603,7 +2066,7 @@ fun LogScreenPreview() {
                 ExerciseLog(
                     exerciseId = 1L,
                     exerciseName = "Bench Press",
-                    muscleGroups = "CHEST · TRICEPS",
+                    muscleGroups = "",
                     previousSession = "Last: 185 × 10",
                     isNewPB = true,
                     sets = listOf(
@@ -1615,7 +2078,7 @@ fun LogScreenPreview() {
                 ExerciseLog(
                     exerciseId = 2L,
                     exerciseName = "Lateral Raise",
-                    muscleGroups = "SHOULDERS",
+                    muscleGroups = "",
                     previousSession = null,
                     sets = emptyList()
                 )
@@ -1625,6 +2088,7 @@ fun LogScreenPreview() {
             isSearchActive = false,
             totalSets = 3,
             totalVolumeLbs = 3330,
+            onDateSelected = {},
             onPreviousDay = {},
             onNextDay = {},
             onSelectSplit = { _ -> },
@@ -1640,7 +2104,7 @@ fun LogScreenPreview() {
             onToggleBodyweight = { _, _ -> },
             onSetFocused = { _, _ -> },
             onFinishExercise = {},
-            restTimerSeconds = 47,
+            restTimerSeconds = null,
             onCancelRestTimer = {}
         )
     }

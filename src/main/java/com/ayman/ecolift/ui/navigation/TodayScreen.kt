@@ -17,6 +17,8 @@ fun TodayScreen(
     viewModel: LogViewModel = viewModel(),
     modifier: Modifier = Modifier,
     initialSplitId: Long? = null,
+    isChromeVisible: Boolean = true,
+    onChromeVisibilityChange: (Boolean) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var consumedInitialSplit by rememberSaveable(initialSplitId) { mutableStateOf(false) }
@@ -77,6 +79,7 @@ fun TodayScreen(
     }
 
     LogScreen(
+        currentDate = uiState.currentDate,
         dateLabel = uiState.currentDateLabel,
         cycleSlotLabel = cycleSlotLabel,
         splits = splits,
@@ -87,6 +90,7 @@ fun TodayScreen(
         isSearchActive = uiState.exerciseInput.isNotBlank(),
         totalSets = totalSets,
         totalVolumeLbs = totalVolumeLbs,
+        onDateSelected = viewModel::selectDate,
         onPreviousDay = viewModel::goToPreviousDay,
         onNextDay = viewModel::goToNextDay,
         onSelectSplit = { id -> if (id != null) viewModel.assignCycleSlot(id) },
@@ -134,6 +138,8 @@ fun TodayScreen(
         },
         restTimerSeconds = uiState.restStopwatchSeconds,
         onCancelRestTimer = viewModel::cancelRestTimer,
+        isChromeVisible = isChromeVisible,
+        onChromeVisibilityChange = onChromeVisibilityChange,
         modifier = modifier
     )
 }

@@ -185,6 +185,12 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         currentDate.update { WorkoutDates.addDays(it, 1) }
     }
 
+    fun selectDate(date: String) {
+        if (date == currentDate.value) return
+        finishActiveWorkoutDate()
+        currentDate.value = date
+    }
+
     fun updateExerciseInput(value: String) {
         exerciseInput.value = value
         if (value.isNotBlank()) {
