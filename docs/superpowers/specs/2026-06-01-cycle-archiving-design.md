@@ -74,8 +74,8 @@ data class ArchivedCycle(
     val endDate: String,              // ISO yyyy-MM-dd, inclusive
     val archivedAt: Long,             // epoch millis, when the snapshot was taken
     // Denormalized headline fields — drive the archive LIST without parsing JSON:
-    val totalSessions: Int,           // distinct workout days within window
-    val totalVolumeTenths: Long,      // sum(weight*reps)/10 within window (matches existing volume scaling)
+    val totalSessions: Int,           // distinct workout days with >=1 completed set, within window
+    val totalVolumeLbs: Long,         // sum(weightLbs*reps) over COMPLETED in-window sets, true pounds
     val splitCount: Int,
     // Frozen payload:
     val snapshotSchemaVersion: Int,   // == CycleSnapshot.schemaVersion at write time
@@ -83,8 +83,12 @@ data class ArchivedCycle(
 )
 ```
 
-> Note: volume is stored in tenths to match the existing app convention
-> (`getVolumeHistory` divides by 10). Display divides back as needed.
+> **Volume units:** stored as **true pound-volume** (`sum(weightLbs*reps)`, no division).
+> Field names use the `Lbs` suffix to make the unit explicit. This deliberately does **not**
+> reuse the `getVolumeHistory` convention (which divides by 10 to keep sparkline numbers
+> small) — that scaling is a *display* concern. If a sparkline needs small numbers it scales
+> at render time; stored data stays in real pounds so totals are unambiguous and never
+> double-divided.
 
 ### 4.3 Frozen snapshot models (`data/CycleSnapshot.kt`, `@Serializable`)
 
@@ -100,20 +104,20 @@ data class CycleSnapshot(
 
 @Serializable
 data class CycleTotals(
-    val sessions: Int,            // distinct days
-    val totalVolumeTenths: Long,
-    val totalSets: Int,
+    val sessions: Int,            // distinct days with >=1 completed set
+    val totalVolumeLbs: Long,     // true pounds, completed sets only
+    val totalSets: Int,           // completed sets only
     val spanDays: Int,            // endDate - startDate + 1
 )
 
 @Serializable
 data class SplitSnapshot(
-    val slotId: Long,             // original CycleSlot id (may be deleted later; informational)
-    val name: String,             // frozen split name
-    val orderIndex: Int,
+    val slotId: Long,             // original CycleSlot id; -1 == the synthetic "Unassigned" bucket
+    val name: String,             // frozen split name (or "Unassigned")
+    val orderIndex: Int,          // Unassigned sorts last
     val firstUsedDate: String?,   // "from what day"  (null if never used in window)
     val lastUsedDate: String?,    // "to what day"
-    val usageCount: Int,          // "how many times used" = distinct days tagged to this slot
+    val usageCount: Int,          // "how many times used" = distinct in-window days tagged to this slot WITH >=1 completed set
     val exercises: List<ExerciseSnapshot>,
 )
 
@@ -126,17 +130,17 @@ data class ExerciseSnapshot(
     // Precomputed headline endpoints (start = first in-window session, end = last):
     val startE1rm: Float?,  val endE1rm: Float?,
     val startTopWeight: Int?, val endTopWeight: Int?,
-    val startVolumeTenths: Long?, val endVolumeTenths: Long?,
+    val startVolumeLbs: Long?, val endVolumeLbs: Long?,
 )
 
 @Serializable
 data class SessionPoint(
     val date: String,
-    val topWeight: Int?,          // max weightLbs that day
-    val bestE1rm: Float?,         // best Epley across sets that day
-    val volumeTenths: Long,       // sum(weight*reps)/10 that day
+    val topWeight: Int?,          // max weightLbs that day (completed sets)
+    val bestE1rm: Float?,         // best Epley across completed sets that day
+    val volumeLbs: Long,          // sum(weightLbs*reps) that day, true pounds, completed sets
     val totalReps: Int,
-    val setCount: Int,
+    val setCount: Int,            // completed sets that day
 )
 ```
 
@@ -174,19 +178,35 @@ object CycleSnapshotBuilder {
         slots: List<CycleSlot>,
         splitExercises: List<SplitExercise>,   // saved template lists (for ordering/empty splits)
         workoutDays: List<WorkoutDay>,         // for usage counts + which slot each day was
-        sets: List<WorkoutSet>,                // ALL sets within [startDate, endDate]
-        exerciseNames: Map<Long, ExerciseMeta>,// id -> (name, isBodyweight), frozen
+        sets: List<WorkoutSet>,                // in-window sets; MAY include completed=false — builder filters
+        exerciseNames: Map<Long, ExerciseMeta>,// id -> ExerciseMeta(name, isBodyweight), frozen
     ): CycleSnapshot
 }
 ```
 
-The ViewModel/repo fetches the inputs (new range query in §6) and calls this.
+`ExerciseMeta` is a tiny builder-input holder (`data class ExerciseMeta(val name: String,
+val isBodyweight: Boolean)`). The ViewModel/repo fetches the inputs (range query in §6),
+builds the name/meta map from `ExerciseDao.getByIds(...)`, and calls this. The builder is
+the single place that applies the completed-set filter (§5.2), keeping the rule testable.
 
-### 5.2 The windowing rule
+### 5.2 The windowing + completed-set rule
 
-Only sets with `startDate <= date <= endDate` (string compare works for ISO dates) are
-considered. This enforces the requirement directly: a cycle ending at 200 lb bench with a
-300 lb bench logged the next day excludes the 300 — it falls outside the window.
+Two filters define what counts:
+1. **Window:** only sets with `startDate <= date <= endDate` (string compare works for ISO
+   dates). A cycle ending at 200 lb bench with a 300 lb bench the next day excludes the 300.
+2. **Completed only:** only sets with `completed == true`. The app persists *template/planned*
+   sets (`SetRepository.addExerciseSession`, `cloneDay`) with `completed = false`; the user
+   toggles completion when a set is actually performed. Counting incomplete sets would
+   inflate exercises, volume, e1RM, and session counts with work that never happened.
+
+The builder applies the completed filter itself (`sets.filter { it.completed }`) so the rule
+is unit-testable; the DAO range query may return all in-window sets.
+
+> **Deliberate divergence:** the existing live progress queries (`getVolumeHistory`,
+> `getVolumesSince`, `getMaxWeightBeforeDate`, …) do **not** filter `completed`, so live
+> Progress-tab numbers can include planned sets. The archive intentionally diverges to report
+> only performed work. We are **not** changing those existing queries in this iteration (out
+> of scope); a brief note in the spec flags the inconsistency for a future cleanup.
 
 ### 5.3 Per-exercise endpoints
 
@@ -197,14 +217,25 @@ considered. This enforces the requirement directly: a cycle ending at 200 lb ben
   (`isBodyweight = true` or `weightLbs == null`) contribute `0` weight to volume/e1RM and
   are flagged via `isBodyweight` so the card can label them rather than show "0 lb".
 
-### 5.4 Per-split fields
+### 5.4 Bucketing sets into splits (+ Unassigned)
 
-For each `CycleSlot`:
-- `usageCount` = count of distinct in-window `WorkoutDay` rows with `cycleSlotId == slot.id`.
+Every completed in-window set is assigned to exactly one bucket by its **day's** slot:
+`slot = WorkoutDay[set.date].cycleSlotId`. Since `WorkoutDay.cycleSlotId` is **nullable**,
+sets on untagged days go into a synthetic **"Unassigned"** bucket (`slotId = -1`, sorts
+last). This guarantees the per-split sections **partition** all counted work, so the
+per-split numbers reconcile exactly with the cycle totals (totals = sum over all buckets,
+including Unassigned). Without this, untagged days would inflate totals but appear in no
+split section.
+
+For each bucket (each `CycleSlot`, plus Unassigned):
+- `usageCount` = count of distinct in-window days in this bucket that have ≥1 completed set.
 - `firstUsedDate` / `lastUsedDate` = min/max of those days' dates.
-- `exercises` = exercises **actually performed** on those days (union of `sets` exerciseIds
-  on the slot's days, ordered by the saved `SplitExercise.orderIndex` when present, else by
-  first-seen). This reflects what they *did*, not just the saved template.
+- `exercises` = exercises **actually performed** (completed) on those days, ordered by the
+  saved `SplitExercise.orderIndex` when present, else first-seen. Reflects what they *did*,
+  not the saved template. Per-exercise `sessions[]` / endpoints are scoped to this bucket's
+  days (an exercise done in two splits appears once per split with that split's progress).
+- A split with no completed work in the window is still emitted (usageCount 0, empty
+  exercises) so the user sees it existed; Unassigned is omitted entirely when empty.
 
 ### 5.5 Edge cases
 
@@ -220,20 +251,47 @@ For each `CycleSlot`:
 
 ## 6. Repository & query additions
 
-`WorkoutSetDao`:
+`WorkoutSetDao` (returns all in-window sets; builder applies the completed filter so
+exclusion stays unit-testable):
 ```kotlin
 @Query("SELECT * FROM workout_set WHERE date >= :start AND date <= :end ORDER BY date ASC, exerciseId ASC, setNumber ASC")
 suspend fun getSetsInRange(start: String, end: String): List<WorkoutSet>
 ```
 
 `WorkoutRepository`:
-- `suspend fun archiveCurrentCycle(name, startDate, endDate): Long` — builds the snapshot,
-  inserts `ArchivedCycle`, then resets the active cycle (`cycle.startDate` = `endDate + 1`,
-  `cycle.name` = null). Splits are **left untouched** (non-destructive).
+- `suspend fun archiveCurrentCycle(name, startDate, endDate): Long` — **runs inside
+  `db.withTransaction { }`**: build snapshot → insert `ArchivedCycle` → reset active cycle
+  (`cycle.startDate` = `endDate + 1`, `cycle.name` = null), all atomic. Without the
+  transaction, a crash/cancel mid-way could insert an archive without advancing the active
+  start (double-counting next cycle) or advance the start without saving the archive (lost
+  cycle). Splits are **left untouched** (non-destructive).
 - `fun observeArchivedCycles(): Flow<List<ArchivedCycle>>`
 - `suspend fun getArchivedCycle(id): ArchivedCycle?`
 - `suspend fun deleteArchivedCycle(id)`
 - `suspend fun getActiveCycleStart(): String` — `cycle.startDate` or earliest logged date.
+
+**Gotcha — preserve new `Cycle` fields:** `WorkoutRepository.saveCycle` currently rebuilds
+the row manually (`Cycle(id=1, isActive=…, numTypes=…, nextSessionType=current.nextSessionType)`),
+which would **wipe** the new `startDate`/`name` on every toggle. Change it to
+`current.copy(isActive = …, numTypes = …)` so the new fields survive. (`setNextSessionType`
+and `syncCycleSlotCount` already use `copy(...)`, so they're fine.)
+
+### 6.1 Backup / restore support (REQUIRED — else archives are silently lost)
+
+`DataBackupManager` enumerates every user table for export/import/clear. A new table not
+added here would survive normal use but **vanish on any restore/import** (because
+`clearUserTables` wipes the DB first and restore only re-inserts what the payload lists).
+Required changes:
+
+1. `UserDataBackup`: add `val archivedCycles: List<ArchivedCycle> = emptyList()` (defaulted,
+   so older backup JSON still decodes with `ignoreUnknownKeys`/default).
+2. `buildSnapshot`: `archivedCycles = db.archivedCycleDao().getAll()` (add a `getAll()` to the
+   DAO for this).
+3. `restoreSnapshot`: `if (snapshot.archivedCycles.isNotEmpty()) db.archivedCycleDao().insertAll(...)`.
+4. `clearUserTables`: add `DELETE FROM \`archived_cycle\``.
+5. Bump `APP_DB_VERSION` `13 → 14` to match the Room version.
+6. `toResult()`: include `archivedCycles.size` in `entryCount`.
+7. The backup round-trip test (§10) must assert archived cycles survive export → import.
 
 ## 7. UI
 
@@ -284,6 +342,8 @@ New route. Renders the frozen snapshot:
   reusing the existing progress-row style: name, start→end (e1RM / top weight / volume),
   signed % delta with up/down color (`AccentTeal` / `ErrorRed`), and a `MiniSparkline` from
   `sessions[]`. e1RM leads; tapping a row can expand to show top-weight & volume deltas too.
+  The **"Unassigned"** bucket (if present) renders as a final, visually muted section so the
+  totals reconcile and stray logged days are still visible.
 - Single-session / no-data exercises render the explanatory label, not a fake 0%.
 
 ### 7.6 Navigation
@@ -306,8 +366,8 @@ dedicated VM — implementer's call; keep `SplitViewModel` from ballooning.
 ## 9. Files touched
 
 **New**
-- `data/ArchivedCycle.kt`, `data/ArchivedCycleDao.kt`
-- `data/CycleSnapshot.kt` (snapshot models)
+- `data/ArchivedCycle.kt`, `data/ArchivedCycleDao.kt` (incl. `getAll()` + `insertAll()` for backup)
+- `data/CycleSnapshot.kt` (snapshot models + `ExerciseMeta`)
 - `data/CycleSnapshotBuilder.kt` (pure builder)
 - `ui/navigation/CycleArchiveDetailScreen.kt`
 - `ui/viewmodel/CycleArchiveViewModel.kt`
@@ -317,7 +377,8 @@ dedicated VM — implementer's call; keep `SplitViewModel` from ballooning.
 - `data/Cycle.kt` (+`startDate`, +`name`)
 - `data/Migrations.kt` (Migration 13→14), `data/AppDatabase.kt` (version 14, register entity/DAO)
 - `data/WorkoutSetDao.kt` (+`getSetsInRange`)
-- `data/WorkoutRepository.kt` (archive + observe/get/delete + active-start helpers)
+- `data/WorkoutRepository.kt` (transactional archive + observe/get/delete + active-start helpers; **fix `saveCycle` to `copy(...)`**)
+- `data/DataBackupManager.kt` (+`archivedCycles` in payload/build/restore/clear/toResult, bump `APP_DB_VERSION` → 14) — see §6.1
 - `ui/navigation/CycleSplitScreenV2.kt` (Current/Archive toggle, archive action, header cleanup)
 - `ui/navigation/SplitScreen.kt` (pass-through wiring for archive nav/actions)
 - `ui/navigation/AppNavigation.kt` (archive detail route)
@@ -327,18 +388,31 @@ dedicated VM — implementer's call; keep `SplitViewModel` from ballooning.
 
 **Unit (JVM, `src/test`) on `CycleSnapshotBuilder`:**
 - Windowing cutoff: a set one day after `endDate` is excluded from end values & totals.
+- **Completed filter:** incomplete (`completed = false`) sets are excluded from volume, e1RM,
+  session counts, and exercise lists — feed a mix and assert only completed work counts.
 - e1RM: 185×5 → 185×8 reports positive delta; top-weight unchanged.
-- `usageCount` / `firstUsedDate` / `lastUsedDate` correct across multiple slot days.
+- `usageCount` / `firstUsedDate` / `lastUsedDate` correct across multiple slot days, counting
+  only days with ≥1 completed set.
+- **Unassigned reconciliation:** sets on `cycleSlotId = null` days land in the Unassigned
+  bucket; sum of all buckets' volume/sets == cycle totals.
 - Single-session exercise → start == end, delta neutral.
 - Bodyweight exercise → no crash, flagged, zero-weight handling.
 - Empty cycle → zeroed totals, no crash.
 - Exercises ordered by saved `SplitExercise.orderIndex` when present.
 
+**Instrumentation (`src/androidTest`):**
+- **Migration 13→14**: extend the existing migration coverage
+  (`DatabaseHardeningInstrumentedTest`) — open a v13 DB, run `Migration(13,14)`, assert
+  `cycle.startDate`/`cycle.name` columns exist (nullable) and `archived_cycle` is created.
+- **Backup round-trip**: insert an `ArchivedCycle`, export → wipe → import, assert it
+  survives identically (extend the existing backup round-trip test).
+
 **Manual (run the app):**
-- Archive a cycle with edited start/end dates; confirm card numbers match logged data and
-  ignore out-of-window sets.
+- Archive a cycle with edited start/end dates; confirm card numbers match logged data,
+  ignore out-of-window sets, and ignore not-completed template sets.
 - Current/Archive toggle switches views; header no longer shows redundant "Split".
 - Delete an archive; list updates; active cycle continues uninterrupted.
+- Toggle the cycle switch after archiving; confirm `startDate`/`name` are preserved.
 
 ## 11. Decisions locked in
 
@@ -348,3 +422,10 @@ dedicated VM — implementer's call; keep `SplitViewModel` from ballooning.
 - Storage = **frozen JSON snapshot** + denormalized headline columns.
 - Metrics = e1RM + total volume headline, top weight + full per-session series stored.
 - Archiving is **non-destructive**: live splits carry into the next cycle.
+- **Completed sets only** count toward the snapshot (template/planned sets excluded);
+  intentionally diverges from the unfiltered live progress queries.
+- Volume stored as **true pounds** (`*Lbs` fields), no `/10` scaling — scaling is display-only.
+- Untagged days go in a synthetic **"Unassigned"** bucket so per-split numbers reconcile with
+  totals.
+- Archive insert + active-cycle reset are **atomic** (`db.withTransaction`).
+- **`archived_cycle` is wired into `DataBackupManager`** (export/import/clear) — non-optional.
