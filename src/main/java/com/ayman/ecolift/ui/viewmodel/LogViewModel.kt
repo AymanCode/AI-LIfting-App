@@ -27,9 +27,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LogViewModel(application: Application) : AndroidViewModel(application) {
@@ -59,6 +61,18 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
 
     private val workoutDays = workoutRepository.observeAllWorkoutDays()
     private val currentDay = currentDate.flatMapLatest { workoutRepository.observeWorkoutDay(it) }
+
+    /** Every day with at least one logged set. Drives the calendar's worked-day marks. */
+    val workedDays: StateFlow<Set<LocalDate>> =
+        database.workoutSetDao().observeAllDistinctDates()
+            .map { dates ->
+                dates.mapNotNullTo(mutableSetOf()) { runCatching { LocalDate.parse(it) }.getOrNull() }
+            }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = emptySet()
+            )
 
     init {
         viewModelScope.launch {

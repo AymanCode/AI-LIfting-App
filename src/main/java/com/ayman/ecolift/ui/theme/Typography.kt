@@ -9,25 +9,25 @@ import androidx.compose.ui.unit.sp
 val Typography = Typography(
     headlineLarge = TextStyle(
         fontWeight = FontWeight.W800,
-        fontSize = 22.sp,
-        letterSpacing = (-0.6).sp,
+        fontSize = 23.sp,
+        letterSpacing = 0.sp,
         color = TextPrimary
     ),
     headlineMedium = TextStyle(
         fontWeight = FontWeight.W800,
-        fontSize = 19.sp,
-        letterSpacing = (-0.5).sp,
+        fontSize = 20.sp,
+        letterSpacing = 0.sp,
         color = TextPrimary
     ),
     titleLarge = TextStyle(
         fontWeight = FontWeight.W800,
-        fontSize = 15.sp,
-        letterSpacing = (-0.3).sp,
+        fontSize = 17.sp,
+        letterSpacing = 0.sp,
         color = TextPrimary
     ),
     titleMedium = TextStyle(
         fontWeight = FontWeight.W800,
-        fontSize = 13.sp,
+        fontSize = 14.sp,
         color = TextPrimary
     ),
     titleSmall = TextStyle(
@@ -36,28 +36,28 @@ val Typography = Typography(
         color = TextPrimary
     ),
     bodyMedium = TextStyle(
-        fontSize = 13.sp,
+        fontSize = 14.sp,
         color = TextSecondary
     ),
     bodySmall = TextStyle(
-        fontSize = 10.sp,
+        fontSize = 12.sp,
         color = TextSecondary
     ),
     labelMedium = TextStyle(
         fontWeight = FontWeight.W700,
-        fontSize = 9.sp,
-        letterSpacing = 0.08.sp,
+        fontSize = 11.sp,
+        letterSpacing = 0.sp,
         color = TextMuted
     ),
     labelSmall = TextStyle(
         fontWeight = FontWeight.W800,
-        fontSize = 8.sp,
-        letterSpacing = 0.06.sp
+        fontSize = 10.sp,
+        letterSpacing = 0.sp
     ),
     labelLarge = TextStyle(
-        fontSize = 10.sp,
+        fontSize = 12.sp,
         fontWeight = FontWeight.W800,
-        letterSpacing = 0.08.sp,
+        letterSpacing = 0.sp,
         color = TextInactive
     )
 )

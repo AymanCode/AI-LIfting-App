@@ -12,6 +12,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ayman.ecolift.agent.model.AgentTurnLog
 import com.ayman.ecolift.agent.model.AuditEntity
+import kotlinx.serialization.json.Json
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -42,6 +43,8 @@ class DatabaseHardeningInstrumentedTest {
         context.deleteDatabase(LEGACY_SOURCE_DB)
         context.deleteDatabase(BACKUP_SOURCE_DB)
         context.deleteDatabase(BACKUP_TARGET_DB)
+        context.deleteDatabase(ARCHIVE_SOURCE_DB)
+        context.deleteDatabase(ARCHIVE_OVERLAP_DB)
     }
 
     @Test
@@ -88,6 +91,30 @@ class DatabaseHardeningInstrumentedTest {
 
         assertEquals(2250, migrated.longFor("SELECT weightLbs FROM workout_set WHERE id = 1"))
         assertEquals(1, migrated.longFor("SELECT COUNT(*) FROM split_exercise WHERE splitId = 10 AND exerciseId = 1"))
+        migrated.close()
+    }
+
+    @Test
+    fun migration13To14AddsCycleDateColumnsAndArchivedCycleTable() {
+        val dbName = "migration-13.db"
+        migrationHelper.createDatabase(dbName, 13).apply {
+            seedCoreWorkoutRows(weightLbs = 2250)
+            execSQL("INSERT INTO cycle (id, numTypes, isActive, nextSessionType) VALUES (1, 2, 1, 0)")
+            close()
+        }
+
+        val migrated = migrationHelper.runMigrationsAndValidate(
+            dbName,
+            14,
+            true,
+            *Migrations.ALL_MIGRATIONS,
+        )
+
+        assertEquals(2250, migrated.longFor("SELECT weightLbs FROM workout_set WHERE id = 1"))
+        assertNotNull(migrated.stringFor("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'archived_cycle'"))
+        assertTrue(migrated.query("SELECT startDate, name FROM cycle WHERE id = 1").use { cursor ->
+            cursor.moveToFirst() && cursor.isNull(0) && cursor.isNull(1)
+        })
         migrated.close()
     }
 
@@ -157,7 +184,7 @@ class DatabaseHardeningInstrumentedTest {
         val exportResult = DataBackupManager.exportToUri(context, source, Uri.fromFile(backupFile))
         val importResult = DataBackupManager.importFromUri(context, target, Uri.fromFile(backupFile))
 
-        assertTrue(exportResult.entryCount >= 9)
+        assertTrue(exportResult.entryCount >= 10)
         assertEquals(exportResult.entryCount, importResult.entryCount)
         assertEquals(source.exerciseDao().getAll().size, target.exerciseDao().getAll().size)
         assertEquals(source.workoutSetDao().getAll().size, target.workoutSetDao().getAll().size)
@@ -166,6 +193,59 @@ class DatabaseHardeningInstrumentedTest {
         assertEquals(source.agentTurnLogDao().getAll().size, target.agentTurnLogDao().getAll().size)
         assertEquals("Bench Press", target.exerciseDao().getById(1L)?.name)
         assertTrue(DataBackupManager.listAutomaticBackups(context).size > backupsBefore)
+        assertEquals(source.archivedCycleDao().getAll().size, target.archivedCycleDao().getAll().size)
+        assertEquals("Spring Block", target.archivedCycleDao().getById(700L)?.name)
+    }
+
+    @Test
+    fun archiveCurrentCyclePersistsSnapshotAndAdvancesCycleStart() = runTest {
+        val db = createDb(ARCHIVE_SOURCE_DB)
+        db.exerciseDao().insertAll(listOf(Exercise(id = 1L, name = "Bench Press", muscleGroups = "CHEST")))
+        db.cycleDao().upsert(Cycle(id = 1, numTypes = 1, isActive = true, nextSessionType = 0, startDate = "2026-05-01"))
+        db.cycleSlotDao().insertAll(listOf(CycleSlot(id = 10L, name = "Push", orderIndex = 0)))
+        db.workoutDayDao().insertAll(listOf(WorkoutDay(date = "2026-05-16", cycleSlotId = 10L)))
+        db.workoutSetDao().insertAll(
+            listOf(
+                WorkoutSet(id = 1L, exerciseId = 1L, date = "2026-05-16", setNumber = 1, weightLbs = 1850, reps = 5, completed = true),
+                WorkoutSet(id = 2L, exerciseId = 1L, date = "2026-05-16", setNumber = 2, weightLbs = 1850, reps = 5, completed = false),
+            )
+        )
+
+        val archiveId = WorkoutRepository(db).archiveCurrentCycle("Spring Block", "2026-05-01", "2026-05-31")
+        val archive = db.archivedCycleDao().getById(archiveId)
+        assertNotNull(archive)
+        val snapshot = Json { ignoreUnknownKeys = true }
+            .decodeFromString<CycleSnapshot>(archive!!.snapshotJson)
+
+        assertEquals("Spring Block", archive.name)
+        assertEquals(925L, archive.totalVolumeLbs)
+        assertEquals(1, archive.totalSessions)
+        assertEquals(1, archive.splitCount)
+        assertEquals(1, snapshot.totals.totalSets)
+        assertEquals("2026-06-01", db.cycleDao().getCycle()?.startDate)
+    }
+
+    @Test
+    fun archivedCycleOverlapQueryIsInclusive() = runTest {
+        val db = createDb(ARCHIVE_OVERLAP_DB)
+        db.archivedCycleDao().insert(
+            ArchivedCycle(
+                name = "Block",
+                startDate = "2026-05-01",
+                endDate = "2026-05-31",
+                splitCount = 1,
+                totalVolumeLbs = 100L,
+                totalSessions = 1,
+                archivedAt = 1L,
+                schemaVersion = CYCLE_SNAPSHOT_SCHEMA_VERSION,
+                snapshotJson = "{}",
+            )
+        )
+
+        val dao = db.archivedCycleDao()
+        assertEquals(1, dao.countOverlapping("2026-04-01", "2026-05-01"))
+        assertEquals(1, dao.countOverlapping("2026-05-31", "2026-06-10"))
+        assertEquals(0, dao.countOverlapping("2026-06-01", "2026-06-10"))
     }
 
     private fun createDb(name: String): AppDatabase =
@@ -216,6 +296,22 @@ class DatabaseHardeningInstrumentedTest {
                 auditId = 500L,
             )
         )
+        db.archivedCycleDao().insertAll(
+            listOf(
+                ArchivedCycle(
+                    id = 700L,
+                    name = "Spring Block",
+                    startDate = "2026-04-01",
+                    endDate = "2026-04-30",
+                    splitCount = 1,
+                    totalVolumeLbs = 925L,
+                    totalSessions = 1,
+                    archivedAt = 3L,
+                    schemaVersion = CYCLE_SNAPSHOT_SCHEMA_VERSION,
+                    snapshotJson = "{}",
+                )
+            )
+        )
     }
 
     private fun SupportSQLiteDatabase.seedCoreWorkoutRows(weightLbs: Int = 135) {
@@ -239,5 +335,7 @@ class DatabaseHardeningInstrumentedTest {
         const val LEGACY_SOURCE_DB = "legacy-source.db"
         const val BACKUP_SOURCE_DB = "backup-source.db"
         const val BACKUP_TARGET_DB = "backup-target.db"
+        const val ARCHIVE_SOURCE_DB = "archive-source.db"
+        const val ARCHIVE_OVERLAP_DB = "archive-overlap.db"
     }
 }

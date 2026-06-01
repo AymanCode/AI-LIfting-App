@@ -41,6 +41,7 @@ data class UserDataBackup(
     val tempSessionSwaps: List<TempSessionSwap>,
     val auditEntries: List<AuditEntity> = emptyList(),
     val agentTurns: List<AgentTurnLog> = emptyList(),
+    val archivedCycles: List<ArchivedCycle> = emptyList(),
 )
 
 data class LocalBackupInfo(
@@ -56,7 +57,7 @@ data class BackupResult(
 
 object DataBackupManager {
     private const val DB_NAME = "ecolift.db"
-    private const val APP_DB_VERSION = 13
+    private const val APP_DB_VERSION = 14
     private const val AUTO_BACKUP_RETENTION = 8
     private const val PREFLIGHT_RETENTION = 3
     private const val AUTO_BACKUP_MIN_INTERVAL_MS = 12L * 60L * 60L * 1000L
@@ -184,6 +185,7 @@ object DataBackupManager {
         val tempSessionSwaps = db.tempSessionSwapDao().getAll()
         val auditEntries = db.auditDao().getAll()
         val agentTurns = db.agentTurnLogDao().getAll()
+        val archivedCycles = db.archivedCycleDao().getAll()
         val cycle = db.cycleDao().getCycle()
         return UserDataBackup(
             metadata = BackupMetadata(
@@ -201,6 +203,7 @@ object DataBackupManager {
             tempSessionSwaps = tempSessionSwaps,
             auditEntries = auditEntries,
             agentTurns = agentTurns,
+            archivedCycles = archivedCycles,
         )
     }
 
@@ -218,6 +221,7 @@ object DataBackupManager {
             if (snapshot.tempSessionSwaps.isNotEmpty()) db.tempSessionSwapDao().insertAll(snapshot.tempSessionSwaps)
             if (snapshot.auditEntries.isNotEmpty()) db.auditDao().insertAll(snapshot.auditEntries)
             if (snapshot.agentTurns.isNotEmpty()) db.agentTurnLogDao().insertAll(snapshot.agentTurns)
+            if (snapshot.archivedCycles.isNotEmpty()) db.archivedCycleDao().insertAll(snapshot.archivedCycles)
         }
     }
 
@@ -233,6 +237,7 @@ object DataBackupManager {
         writableDb.execSQL("DELETE FROM `cycle`")
         writableDb.execSQL("DELETE FROM `audit_log`")
         writableDb.execSQL("DELETE FROM `agent_turn_log`")
+        writableDb.execSQL("DELETE FROM `archived_cycle`")
         writableDb.execSQL("DELETE FROM sqlite_sequence")
     }
 
@@ -275,6 +280,7 @@ object DataBackupManager {
             tempSessionSwaps.size +
             auditEntries.size +
             agentTurns.size +
+            archivedCycles.size +
             if (cycle != null) 1 else 0
         return BackupResult(
             entryCount = entryCount,

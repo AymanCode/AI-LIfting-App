@@ -56,7 +56,11 @@ android {
             signingConfig = signingConfigs.getByName("workspaceDebug")
         }
         release {
-            buildConfigField("String", "GROQ_API_KEY", quotedBuildConfig(""))
+            // Signed with the workspace debug keystore so the optimized (non-debuggable)
+            // build is installable for local performance testing. ART applies AOT +
+            // baseline-profile optimizations here that the debug build cannot — this is
+            // the build to judge scroll smoothness on.
+            signingConfig = signingConfigs.getByName("workspaceDebug")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

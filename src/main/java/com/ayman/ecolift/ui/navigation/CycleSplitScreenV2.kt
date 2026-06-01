@@ -34,7 +34,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -42,11 +41,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -66,6 +65,8 @@ import androidx.compose.ui.unit.sp
 import java.time.LocalDate
 import java.time.YearMonth
 import com.ayman.ecolift.ui.theme.bounceClick
+import com.ayman.ecolift.ui.viewmodel.ArchiveCardUi
+import com.ayman.ecolift.ui.viewmodel.SplitTabMode
 
 data class SplitType(
     val id: Long,
@@ -84,12 +85,13 @@ fun GymCalendarCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
             // Header Row
             Row(
@@ -101,20 +103,20 @@ fun GymCalendarCard(
                     Icon(
                         imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                         contentDescription = "Previous Month",
-                        tint = Color(0xFF1C1C1E)
+                        tint = Color(0xFF171A1C)
                     )
                 }
                 Text(
                     text = "${displayedMonth.month.name.lowercase().replaceFirstChar { it.uppercase() }} ${displayedMonth.year}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF1C1C1E)
+                    color = Color(0xFF171A1C)
                 )
                 IconButton(onClick = onNextMonth) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                         contentDescription = "Next Month",
-                        tint = Color(0xFF1C1C1E)
+                        tint = Color(0xFF171A1C)
                     )
                 }
             }
@@ -131,7 +133,7 @@ fun GymCalendarCard(
                     Text(
                         text = day,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF8E8E93),
+                        color = Color(0xFF66706E),
                         modifier = Modifier.width(36.dp),
                         textAlign = TextAlign.Center
                     )
@@ -187,8 +189,8 @@ fun GymCalendarCard(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .border(2.dp, Color(0xFF4DB6AC), CircleShape)
-                                        .background(Color(0xFF1C1C1E)),
+                                        .border(2.dp, Color(0xFF149C8A), CircleShape)
+                                        .background(Color(0xFF171A1C)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
@@ -203,12 +205,12 @@ fun GymCalendarCard(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .border(1.5.dp, Color(0xFF4DB6AC), CircleShape),
+                                        .border(1.5.dp, Color(0xFF149C8A), CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = date.dayOfMonth.toString(),
-                                        color = Color(0xFF4DB6AC),
+                                        color = Color(0xFF149C8A),
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -218,7 +220,7 @@ fun GymCalendarCard(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFF1C1C1E)),
+                                        .background(Color(0xFF171A1C)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
@@ -236,7 +238,7 @@ fun GymCalendarCard(
                                     Text(
                                         text = date.dayOfMonth.toString(),
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = if (isCurrentMonth) Color(0xFF1C1C1E) else Color(0xFF8E8E93).copy(alpha = 0.3f)
+                                        color = if (isCurrentMonth) Color(0xFF171A1C) else Color(0xFF66706E).copy(alpha = 0.3f)
                                     )
                                 }
                             }
@@ -250,7 +252,7 @@ fun GymCalendarCard(
             Text(
                 text = "${gymDays.size} workouts this month",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF1C1C1E).copy(alpha = 0.7f),
+                color = Color(0xFF171A1C).copy(alpha = 0.7f),
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
@@ -265,9 +267,10 @@ fun SplitCycleToggleCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -278,7 +281,7 @@ fun SplitCycleToggleCard(
             Icon(
                 imageVector = Icons.Outlined.Loop,
                 contentDescription = null,
-                tint = Color(0xFF1C1C1E),
+                tint = Color(0xFF171A1C),
                 modifier = Modifier.size(24.dp)
             )
             Spacer(modifier = Modifier.width(16.dp))
@@ -286,12 +289,12 @@ fun SplitCycleToggleCard(
                 Text(
                     text = "Enable Split Cycle",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = Color(0xFF1C1C1E)
+                    color = Color(0xFF171A1C)
                 )
                 Text(
                     text = "Pre-load exercises based on your rotation",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF8E8E93)
+                    color = Color(0xFF66706E)
                 )
             }
             Switch(
@@ -299,7 +302,7 @@ fun SplitCycleToggleCard(
                 onCheckedChange = onToggle,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
-                    checkedTrackColor = Color(0xFF4DB6AC)
+                    checkedTrackColor = Color(0xFF149C8A)
                 )
             )
         }
@@ -318,11 +321,12 @@ fun TodaySplitHeroCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -331,21 +335,21 @@ fun TodaySplitHeroCard(
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF4DB6AC))
+                        .background(Color(0xFF149C8A))
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "TODAY",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF4DB6AC),
-                    letterSpacing = 1.sp
+                    color = Color(0xFF149C8A),
+                    letterSpacing = 0.sp
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
                     text = dayLabel,
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF8E8E93)
+                    color = Color(0xFF66706E)
                 )
             }
             
@@ -353,20 +357,20 @@ fun TodaySplitHeroCard(
                 text = splitName,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF1C1C1E),
+                color = Color(0xFF171A1C),
                 modifier = Modifier.padding(top = 8.dp)
             )
             
             Text(
                 text = "$exerciseCount exercises · $lastRunLabel",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF8E8E93),
+                color = Color(0xFF66706E),
                 modifier = Modifier.padding(top = 4.dp)
             )
             
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 16.dp),
-                color = Color(0xFF1C1C1E).copy(alpha = 0.1f)
+                color = Color(0xFF171A1C).copy(alpha = 0.1f)
             )
             
             Row(
@@ -380,7 +384,7 @@ fun TodaySplitHeroCard(
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF4DB6AC),
+                        containerColor = Color(0xFF149C8A),
                         contentColor = Color.White
                     )
                 ) {
@@ -396,12 +400,12 @@ fun TodaySplitHeroCard(
                         .width(96.dp)
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.5.dp, Color(0xFF4DB6AC)),
+                    border = BorderStroke(1.5.dp, Color(0xFF149C8A)),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color(0xFF4DB6AC)
+                        contentColor = Color(0xFF149C8A)
                     )
                 ) {
-                    Text(text = "Edit", color = Color(0xFF4DB6AC), fontWeight = FontWeight.SemiBold)
+                    Text(text = "Edit", color = Color(0xFF149C8A), fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -417,14 +421,14 @@ fun RotationCycleRow(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Color(0xFF1C1C1E).copy(alpha = 0.08f)),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F0EB))
+        border = BorderStroke(1.dp, Color(0xFF171A1C).copy(alpha = 0.08f)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF4F6F5))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = "ROTATION",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF8E8E93),
+                color = Color(0xFF66706E),
                 modifier = Modifier.padding(bottom = 10.dp)
             )
             
@@ -440,9 +444,9 @@ fun RotationCycleRow(
                         modifier = Modifier
                             .height(34.dp)
                             .clip(RoundedCornerShape(50))
-                            .background(if (isActive) Color(0xFF1C1C1E) else Color.Transparent)
+                            .background(if (isActive) Color(0xFF171A1C) else Color.Transparent)
                             .border(
-                                BorderStroke(1.dp, if (isActive) Color.Transparent else Color(0xFF1C1C1E).copy(alpha = 0.2f)),
+                                BorderStroke(1.dp, if (isActive) Color.Transparent else Color(0xFF171A1C).copy(alpha = 0.2f)),
                                 RoundedCornerShape(50)
                             )
                             .padding(horizontal = 14.dp),
@@ -452,14 +456,14 @@ fun RotationCycleRow(
                             text = name,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (isActive) Color.White else Color(0xFF1C1C1E).copy(alpha = 0.45f)
+                            color = if (isActive) Color.White else Color(0xFF171A1C).copy(alpha = 0.45f)
                         )
                     }
                     
                     if (index < splits.size - 1) {
                         Text(
                             text = "→",
-                            color = Color(0xFF8E8E93),
+                            color = Color(0xFF66706E),
                             fontSize = 12.sp,
                             modifier = Modifier.padding(horizontal = 8.dp)
                         )
@@ -470,7 +474,7 @@ fun RotationCycleRow(
             Text(
                 text = "Cycle repeats after ${splits.size} days",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF8E8E93),
+                color = Color(0xFF66706E),
                 modifier = Modifier.padding(top = 10.dp)
             )
         }
@@ -501,7 +505,7 @@ fun SplitListItem(
             Icon(
                 imageVector = Icons.Default.DragHandle,
                 contentDescription = "Reorder",
-                tint = Color(0xFF1C1C1E).copy(alpha = 0.35f),
+                tint = Color(0xFF171A1C).copy(alpha = 0.35f),
                 modifier = Modifier
                     .size(20.dp)
                     .padding(end = 12.dp)
@@ -513,7 +517,7 @@ fun SplitListItem(
                         text = split.name,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFF1C1C1E)
+                        color = Color(0xFF171A1C)
                     )
                     
                     if (isToday) {
@@ -521,15 +525,15 @@ fun SplitListItem(
                             modifier = Modifier
                                 .padding(start = 8.dp)
                                 .clip(RoundedCornerShape(50))
-                                .background(Color(0xFF4DB6AC).copy(alpha = 0.12f))
-                                .border(1.dp, Color(0xFF4DB6AC).copy(alpha = 0.4f), RoundedCornerShape(50))
+                                .background(Color(0xFF149C8A).copy(alpha = 0.12f))
+                                .border(1.dp, Color(0xFF149C8A).copy(alpha = 0.4f), RoundedCornerShape(50))
                                 .padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
                             Text(
                                 text = "TODAY",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF4DB6AC)
+                                color = Color(0xFF149C8A)
                             )
                         }
                     }
@@ -538,7 +542,7 @@ fun SplitListItem(
                 Text(
                     text = "$exerciseCount exercises · $lastRunLabel",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF8E8E93),
+                    color = Color(0xFF66706E),
                     modifier = Modifier.padding(top = 3.dp)
                 )
             }
@@ -550,7 +554,7 @@ fun SplitListItem(
                 Icon(
                     imageVector = Icons.Outlined.MoreVert,
                     contentDescription = "Options",
-                    tint = Color(0xFF8E8E93),
+                    tint = Color(0xFF66706E),
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -580,12 +584,12 @@ fun MySplitsSection(
                 text = "MY SPLITS",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF8E8E93)
+                color = Color(0xFF66706E)
             )
             TextButton(
                 onClick = onAddSplit,
                 colors = ButtonDefaults.textButtonColors(
-                    containerColor = Color(0xFF4DB6AC),
+                    containerColor = Color(0xFF149C8A),
                     contentColor = Color.White
                 ),
                 shape = RoundedCornerShape(50),
@@ -607,7 +611,7 @@ fun MySplitsSection(
                 Icon(
                     imageVector = Icons.Outlined.FitnessCenter,
                     contentDescription = null,
-                    tint = Color(0xFF4DB6AC),
+                    tint = Color(0xFF149C8A),
                     modifier = Modifier
                         .size(48.dp)
                         .alpha(0.5f)
@@ -617,13 +621,13 @@ fun MySplitsSection(
                     text = "No splits yet",
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF1C1C1E)
+                    color = Color(0xFF171A1C)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Tap '+ Add Split' above to create your first workout type",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF8E8E93),
+                    color = Color(0xFF66706E),
                     textAlign = TextAlign.Center
                 )
             }
@@ -631,7 +635,7 @@ fun MySplitsSection(
             Text(
                 text = "Hold to reorder",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF8E8E93).copy(alpha = 0.5f),
+                color = Color(0xFF66706E).copy(alpha = 0.5f),
                 modifier = Modifier.padding(bottom = 6.dp)
             )
             
@@ -662,7 +666,12 @@ fun CycleSplitScreen(
     onLoadWorkout: () -> Unit,
     onEditSplit: (SplitType) -> Unit,
     onAddSplit: () -> Unit,
-    onSplitOptions: (SplitType) -> Unit
+    onSplitOptions: (SplitType) -> Unit,
+    tabMode: SplitTabMode = SplitTabMode.CURRENT,
+    onTabModeChange: (SplitTabMode) -> Unit = {},
+    archives: List<ArchiveCardUi> = emptyList(),
+    onOpenArchive: (Long) -> Unit = {},
+    onArchiveCurrentCycle: () -> Unit = {},
 ) {
     var displayedMonth by remember { mutableStateOf(YearMonth.now()) }
     val currentGymDays by remember { derivedStateOf { gymDaysThisMonth[displayedMonth] ?: emptySet() } }
@@ -670,83 +679,194 @@ fun CycleSplitScreen(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            CenterAlignedTopAppBar(
-                modifier = Modifier.statusBarsPadding(),
-                windowInsets = WindowInsets(0),
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Split",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1C1C1E)
-                        )
-                        Text(
-                            text = "Cycle rotation",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF4DB6AC)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color(0xFFF2F0EB)
-                )
-            )
-        },
-        containerColor = Color(0xFFF2F0EB)
+        containerColor = Color(0xFFF4F6F5)
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .statusBarsPadding()
         ) {
-            item {
-                GymCalendarCard(
-                    gymDays = currentGymDays,
-                    displayedMonth = displayedMonth,
-                    onPreviousMonth = { displayedMonth = displayedMonth.minusMonths(1) },
-                    onNextMonth = { displayedMonth = displayedMonth.plusMonths(1) }
-                )
-            }
-            item {
-                SplitCycleToggleCard(
-                    enabled = splitCycleEnabled,
-                    onToggle = onToggleSplitCycle
-                )
-            }
-            
-            if (splits.isNotEmpty() && splitCycleEnabled) {
-                item {
-                    val currentSplit = splits.getOrNull(currentSplitIndex)
-                    if (currentSplit != null) {
-                        TodaySplitHeroCard(
-                            splitName = currentSplit.name,
-                            dayLabel = "Day ${currentSplitIndex + 1} of ${splits.size}",
-                            exerciseCount = currentSplit.exerciseCount,
-                            lastRunLabel = currentSplit.lastRunLabel,
-                            onLoadWorkout = onLoadWorkout,
-                            onEditSplit = { onEditSplit(currentSplit) }
-                        )
+            SplitTabToggle(
+                selected = tabMode,
+                onSelect = onTabModeChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 4.dp)
+            )
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                when (tabMode) {
+                    SplitTabMode.CURRENT -> {
+                        item {
+                            GymCalendarCard(
+                                gymDays = currentGymDays,
+                                displayedMonth = displayedMonth,
+                                onPreviousMonth = { displayedMonth = displayedMonth.minusMonths(1) },
+                                onNextMonth = { displayedMonth = displayedMonth.plusMonths(1) }
+                            )
+                        }
+                        item {
+                            SplitCycleToggleCard(
+                                enabled = splitCycleEnabled,
+                                onToggle = onToggleSplitCycle
+                            )
+                        }
+
+                        if (splits.isNotEmpty() && splitCycleEnabled) {
+                            item {
+                                val currentSplit = splits.getOrNull(currentSplitIndex)
+                                if (currentSplit != null) {
+                                    TodaySplitHeroCard(
+                                        splitName = currentSplit.name,
+                                        dayLabel = "Day ${currentSplitIndex + 1} of ${splits.size}",
+                                        exerciseCount = currentSplit.exerciseCount,
+                                        lastRunLabel = currentSplit.lastRunLabel,
+                                        onLoadWorkout = onLoadWorkout,
+                                        onEditSplit = { onEditSplit(currentSplit) }
+                                    )
+                                }
+                            }
+                            item {
+                                RotationCycleRow(
+                                    splits = splits.map { it.name },
+                                    currentIndex = currentSplitIndex
+                                )
+                            }
+                        }
+
+                        item {
+                            MySplitsSection(
+                                splits = splits,
+                                currentSplitIndex = currentSplitIndex,
+                                splitCycleEnabled = splitCycleEnabled,
+                                onAddSplit = onAddSplit,
+                                onSplitOptions = onSplitOptions
+                            )
+                        }
+                    }
+
+                    SplitTabMode.ARCHIVE -> {
+                        item {
+                            Button(
+                                onClick = onArchiveCurrentCycle,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF149C8A))
+                            ) {
+                                Text(
+                                    text = "Archive current cycle",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                        if (archives.isEmpty()) {
+                            item {
+                                Text(
+                                    text = "No archived cycles yet. Archive your current cycle to snapshot its progress.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color(0xFF66706E),
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 24.dp)
+                                )
+                            }
+                        } else {
+                            itemsIndexed(
+                                items = archives,
+                                key = { _, card -> card.id },
+                                contentType = { _, _ -> "archiveCard" }
+                            ) { _, card ->
+                                ArchiveListCard(card = card, onClick = { onOpenArchive(card.id) })
+                            }
+                        }
                     }
                 }
-                item {
-                    RotationCycleRow(
-                        splits = splits.map { it.name },
-                        currentIndex = currentSplitIndex
+            }
+        }
+    }
+}
+
+@Composable
+private fun SplitTabToggle(
+    selected: SplitTabMode,
+    onSelect: (SplitTabMode) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+        shadowElevation = 0.dp
+    ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            SplitTabMode.values().forEach { mode ->
+                val isSelected = mode == selected
+                TextButton(
+                    onClick = { onSelect(mode) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.textButtonColors(
+                        containerColor = if (isSelected) {
+                            Color(0xFF149C8A).copy(alpha = 0.12f)
+                        } else {
+                            Color.Transparent
+                        },
+                        contentColor = if (isSelected) Color(0xFF171A1C) else Color(0xFF66706E)
+                    )
+                ) {
+                    Text(
+                        text = when (mode) {
+                            SplitTabMode.CURRENT -> "Current"
+                            SplitTabMode.ARCHIVE -> "Archive"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
                     )
                 }
             }
-            
-            item {
-                MySplitsSection(
-                    splits = splits,
-                    currentSplitIndex = currentSplitIndex,
-                    splitCycleEnabled = splitCycleEnabled,
-                    onAddSplit = onAddSplit,
-                    onSplitOptions = onSplitOptions
-                )
-            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ArchiveListCard(card: ArchiveCardUi, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = card.name.ifBlank { "Untitled cycle" },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF171A1C)
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = card.dateRangeLabel,
+                style = MaterialTheme.typography.labelMedium,
+                color = Color(0xFF66706E)
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "${card.splitCount} splits · ${card.sessionCount} sessions · ${"%,d".format(card.totalVolumeLbs)} lb",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF171A1C)
+            )
         }
     }
 }

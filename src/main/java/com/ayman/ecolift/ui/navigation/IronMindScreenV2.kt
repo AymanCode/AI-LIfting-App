@@ -108,12 +108,12 @@ fun IronMindTopBar(
                     text = "IronMind",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1C1C1E)
+                    color = Color(0xFF171A1C)
                 )
                 Text(
                     text = sessionLabel ?: "No active session",
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (sessionLabel != null) Color(0xFF4DB6AC) else Color(0xFF8E8E93)
+                    color = if (sessionLabel != null) Color(0xFF149C8A) else Color(0xFF66706E)
                 )
             }
         },
@@ -122,12 +122,12 @@ fun IronMindTopBar(
                 Icon(
                     imageVector = Icons.Outlined.Settings,
                     contentDescription = "Settings",
-                    tint = Color(0xFF1C1C1E)
+                    tint = Color(0xFF171A1C)
                 )
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = Color(0xFFF2F0EB)
+            containerColor = Color(0xFFF4F6F5)
         )
     )
 }
@@ -149,7 +149,7 @@ fun UserMessageBubble(
             Box(
                 modifier = Modifier
                     .background(
-                        color = Color(0xFF1C1C1E),
+                        color = Color(0xFF171A1C),
                         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
                     )
                     .padding(horizontal = 12.dp, vertical = 10.dp)
@@ -163,7 +163,7 @@ fun UserMessageBubble(
             Text(
                 text = message.timestamp,
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF8E8E93),
+                color = Color(0xFF66706E),
                 modifier = Modifier.padding(top = 4.dp)
             )
         }
@@ -178,19 +178,19 @@ fun InlineStatsCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFFF2F0EB), RoundedCornerShape(10.dp))
+            .background(Color(0xFFF1F4F3), RoundedCornerShape(10.dp))
             .padding(horizontal = 10.dp, vertical = 12.dp)
     ) {
         Text(
             text = stats.exerciseName.uppercase(),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF8E8E93),
-            letterSpacing = 0.8.sp
+            color = Color(0xFF66706E),
+            letterSpacing = 0.sp
         )
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 6.dp),
-            color = Color(0xFF1C1C1E).copy(alpha = 0.1f)
+            color = Color(0xFF171A1C).copy(alpha = 0.1f)
         )
         if (stats.pr != null) {
             StatRow("Current PR", stats.pr)
@@ -218,13 +218,13 @@ private fun StatRow(label: String, value: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF8E8E93)
+            color = Color(0xFF66706E)
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
-            color = Color(0xFF1C1C1E)
+            color = Color(0xFF171A1C)
         )
     }
 }
@@ -241,20 +241,19 @@ fun AiMessageBubble(
     ) {
         Box(
             modifier = Modifier
-                .size(32.dp)
-                .background(Color(0xFF4DB6AC).copy(alpha = 0.15f), CircleShape)
-                .padding(end = 8.dp),
+                .size(34.dp)
+                .background(Color(0xFF149C8A).copy(alpha = 0.15f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "✦",
                 style = MaterialTheme.typography.labelMedium,
-                color = Color(0xFF4DB6AC)
+                color = Color(0xFF149C8A)
             )
         }
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.78f)
+                .fillMaxWidth(0.82f)
                 .padding(start = 8.dp),
             horizontalAlignment = Alignment.Start
         ) {
@@ -262,11 +261,11 @@ fun AiMessageBubble(
                 modifier = Modifier
                     .background(
                         color = Color(0xFFFFFFFF),
-                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
+                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 14.dp, bottomStart = 14.dp, bottomEnd = 14.dp)
                     )
                     .border(
-                        border = BorderStroke(0.5.dp, Color(0xFF1C1C1E).copy(alpha = 0.08f)),
-                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
+                        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 14.dp, bottomStart = 14.dp, bottomEnd = 14.dp)
                     )
                     .padding(horizontal = 12.dp, vertical = 10.dp)
             ) {
@@ -274,7 +273,7 @@ fun AiMessageBubble(
                     Text(
                         text = message.text,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF1C1C1E)
+                        color = Color(0xFF171A1C)
                     )
                     if (message.statsCard != null) {
                         InlineStatsCard(
@@ -294,7 +293,7 @@ fun AiMessageBubble(
             Text(
                 text = message.timestamp,
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF8E8E93),
+                color = Color(0xFF66706E),
                 modifier = Modifier.padding(top = 4.dp)
             )
         }
@@ -311,39 +310,39 @@ private fun RecoveryDraftSection(
     Column(modifier = modifier.fillMaxWidth()) {
         HorizontalDivider(
             modifier = Modifier.padding(bottom = 8.dp),
-            color = Color(0xFF1C1C1E).copy(alpha = 0.1f)
+            color = Color(0xFF171A1C).copy(alpha = 0.1f)
         )
         Text(
             text = "Original",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF8E8E93)
+            color = Color(0xFF66706E)
         )
         Text(
             text = recovery.originalText,
             style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-            color = Color(0xFF1C1C1E),
+            color = Color(0xFF171A1C),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 4.dp)
-                .background(Color(0xFFF2F0EB), RoundedCornerShape(8.dp))
+                .background(Color(0xFFF1F4F3), RoundedCornerShape(8.dp))
                 .padding(horizontal = 8.dp, vertical = 7.dp)
         )
         Text(
             text = "Template",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF8E8E93),
+            color = Color(0xFF66706E),
             modifier = Modifier.padding(top = 8.dp)
         )
         Text(
             text = recovery.suggestedTemplate,
             style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-            color = Color(0xFF1C1C1E),
+            color = Color(0xFF171A1C),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 4.dp)
-                .background(Color(0xFFF2F0EB), RoundedCornerShape(8.dp))
+                .background(Color(0xFFF1F4F3), RoundedCornerShape(8.dp))
                 .padding(horizontal = 8.dp, vertical = 7.dp)
         )
         Row(
@@ -392,27 +391,26 @@ fun AiThinkingBubble(
     ) {
         Box(
             modifier = Modifier
-                .size(32.dp)
-                .background(Color(0xFF4DB6AC).copy(alpha = 0.15f), CircleShape)
-                .padding(end = 8.dp),
+                .size(34.dp)
+                .background(Color(0xFF149C8A).copy(alpha = 0.15f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "✦",
                 style = MaterialTheme.typography.labelMedium,
-                color = Color(0xFF4DB6AC)
+                color = Color(0xFF149C8A)
             )
         }
         Box(
             modifier = Modifier
                 .padding(start = 8.dp)
-                .background(
-                    color = Color(0xFFFFFFFF),
-                    shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
-                )
-                .border(
-                    border = BorderStroke(0.5.dp, Color(0xFF1C1C1E).copy(alpha = 0.08f)),
-                    shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
+                    .background(
+                        color = Color(0xFFFFFFFF),
+                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 14.dp, bottomStart = 14.dp, bottomEnd = 14.dp)
+                    )
+                    .border(
+                    border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+                    shape = RoundedCornerShape(topStart = 4.dp, topEnd = 14.dp, bottomStart = 14.dp, bottomEnd = 14.dp)
                 )
                 .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
@@ -431,7 +429,7 @@ fun AiThinkingBubble(
                     Box(
                         modifier = Modifier
                             .size(6.dp)
-                            .background(Color(0xFF8E8E93).copy(alpha = alpha), CircleShape)
+                            .background(Color(0xFF66706E).copy(alpha = alpha), CircleShape)
                     )
                 }
             }
@@ -449,15 +447,16 @@ fun QuickActionsRow(
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = Color.White,
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        shadowElevation = 2.dp
+        shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
+        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+        shadowElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
             Text(
                 text = "Suggested",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF8E8E93),
+                color = Color(0xFF66706E),
                 modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
             )
             LazyRow(
@@ -469,12 +468,12 @@ fun QuickActionsRow(
                         onClick = { onAction(action) },
                         label = { Text(action.label, style = MaterialTheme.typography.labelMedium) },
                         colors = AssistChipDefaults.assistChipColors(
-                            containerColor = Color.Transparent,
-                            labelColor = Color(0xFF1C1C1E)
+                            containerColor = Color(0xFFF9FBFA),
+                            labelColor = Color(0xFF171A1C)
                         ),
                         border = AssistChipDefaults.assistChipBorder(
                             enabled = true,
-                            borderColor = Color(0xFF4DB6AC).copy(alpha = 0.5f)
+                            borderColor = Color(0xFFD2DBD8)
                         )
                     )
                 }
@@ -493,18 +492,18 @@ fun IronMindInputBar(
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = Color.White,
-        border = BorderStroke(0.5.dp, Color(0xFF1C1C1E).copy(alpha = 0.08f)),
+        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
         shadowElevation = 0.dp
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = ">",
                 style = MaterialTheme.typography.bodyMedium,
                 fontFamily = FontFamily.Monospace,
-                color = Color(0xFF4DB6AC),
+                color = Color(0xFF149C8A),
                 modifier = Modifier.padding(end = 8.dp)
             )
             BasicTextField(
@@ -513,16 +512,16 @@ fun IronMindInputBar(
                 modifier = Modifier.weight(1f),
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF1C1C1E)
+                    color = Color(0xFF171A1C)
                 ),
-                cursorBrush = SolidColor(Color(0xFF4DB6AC)),
+                cursorBrush = SolidColor(Color(0xFF149C8A)),
                 decorationBox = { innerTextField ->
                     if (query.isEmpty()) {
                         Text(
                             text = "Log your data or run query...",
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontFamily = FontFamily.Monospace,
-                                color = Color(0xFF8E8E93)
+                                color = Color(0xFF66706E)
                             )
                         )
                     }
@@ -538,7 +537,7 @@ fun IronMindInputBar(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Send,
                     contentDescription = "Send",
-                    tint = if (isEnabled) Color(0xFF4DB6AC) else Color(0xFF8E8E93).copy(alpha = 0.3f)
+                    tint = if (isEnabled) Color(0xFF149C8A) else Color(0xFF66706E).copy(alpha = 0.3f)
                 )
             }
         }
@@ -583,7 +582,7 @@ fun IronMindScreen(
                 )
             }
         },
-        containerColor = Color(0xFFF2F0EB)
+        containerColor = Color(0xFFF4F6F5)
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier

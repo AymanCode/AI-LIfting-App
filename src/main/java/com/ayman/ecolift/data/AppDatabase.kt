@@ -21,8 +21,9 @@ import com.ayman.ecolift.agent.patches.AuditDao
         TempSessionSwap::class,
         AuditEntity::class,
         AgentTurnLog::class,
+        ArchivedCycle::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -36,6 +37,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun tempSessionSwapDao(): TempSessionSwapDao
     abstract fun auditDao(): AuditDao
     abstract fun agentTurnLogDao(): AgentTurnLogDao
+    abstract fun archivedCycleDao(): ArchivedCycleDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null

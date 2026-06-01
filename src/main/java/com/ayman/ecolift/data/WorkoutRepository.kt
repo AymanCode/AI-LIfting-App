@@ -1,10 +1,15 @@
 package com.ayman.ecolift.data
 
+import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.time.LocalDate
 
 class WorkoutRepository(private val db: AppDatabase) {
     val cycle: Flow<Cycle> = db.cycleDao().observeCycle().map { it ?: Cycle() }
+    private val archiveJson = Json { ignoreUnknownKeys = true }
 
     fun observeWorkoutDay(date: String): Flow<WorkoutDay?> = db.workoutDayDao().observeByDate(date)
 
@@ -56,11 +61,9 @@ class WorkoutRepository(private val db: AppDatabase) {
     suspend fun saveCycle(isActive: Boolean, numTypes: Int) {
         val current = getCycle()
         db.cycleDao().upsert(
-            Cycle(
-                id = 1,
+            current.copy(
                 isActive = isActive,
                 numTypes = numTypes.coerceAtLeast(1),
-                nextSessionType = current.nextSessionType
             )
         )
     }
@@ -120,5 +123,79 @@ class WorkoutRepository(private val db: AppDatabase) {
                 nextSessionType = current.nextSessionType?.coerceIn(0, maxIndex),
             )
         )
+    }
+
+    fun observeArchivedCycles(): Flow<List<ArchivedCycle>> =
+        db.archivedCycleDao().observeAll()
+
+    suspend fun getArchivedCycle(id: Long): ArchivedCycle? =
+        db.archivedCycleDao().getById(id)
+
+    suspend fun deleteArchivedCycle(id: Long) {
+        db.archivedCycleDao().deleteById(id)
+    }
+
+    suspend fun countOverlappingArchives(start: String, end: String): Int =
+        db.archivedCycleDao().countOverlapping(start, end)
+
+    suspend fun getLatestWorkoutDate(): String? =
+        db.workoutSetDao().getLatestWorkoutDate()
+
+    suspend fun getActiveCycleStart(): String {
+        val current = getCycle()
+        return current.startDate
+            ?: db.workoutSetDao().getEarliestWorkoutDate()
+            ?: LocalDate.now().toString()
+    }
+
+    suspend fun archiveCurrentCycle(name: String, startDate: String, endDate: String): Long {
+        val parsedStart = LocalDate.parse(startDate)
+        val parsedEnd = LocalDate.parse(endDate)
+        require(!parsedStart.isAfter(parsedEnd)) {
+            "Archive startDate must be on or before endDate"
+        }
+
+        return db.withTransaction {
+            val sets = db.workoutSetDao().getSetsInRange(startDate, endDate)
+            val slots = db.cycleSlotDao().getAll()
+            val splitExercises = db.splitExerciseDao().getAll()
+            val workoutDays = db.workoutDayDao().getAll()
+            val exerciseIds = sets.map { it.exerciseId }.distinct()
+            val exerciseNames = if (exerciseIds.isEmpty()) {
+                emptyMap()
+            } else {
+                db.exerciseDao().getByIds(exerciseIds)
+                    .associate { exercise ->
+                        exercise.id to ExerciseMeta(
+                            name = exercise.name,
+                            isBodyweight = exercise.isBodyweight,
+                        )
+                    }
+            }
+            val snapshot = CycleSnapshotBuilder.build(
+                startDate = startDate,
+                endDate = endDate,
+                slots = slots,
+                splitExercises = splitExercises,
+                workoutDays = workoutDays,
+                sets = sets,
+                exerciseNames = exerciseNames,
+            )
+            val archiveId = db.archivedCycleDao().insert(
+                ArchivedCycle(
+                    name = name,
+                    startDate = startDate,
+                    endDate = endDate,
+                    splitCount = CycleSnapshotBuilder.splitCount(snapshot),
+                    totalVolumeLbs = snapshot.totals.totalVolumeLbs,
+                    totalSessions = snapshot.totals.sessions,
+                    archivedAt = System.currentTimeMillis(),
+                    schemaVersion = snapshot.schemaVersion,
+                    snapshotJson = archiveJson.encodeToString(snapshot),
+                )
+            )
+            db.cycleDao().upsert(getCycle().copy(startDate = parsedEnd.plusDays(1).toString(), name = null))
+            archiveId
+        }
     }
 }

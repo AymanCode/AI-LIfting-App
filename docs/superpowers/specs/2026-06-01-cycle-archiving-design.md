@@ -54,7 +54,8 @@ represented by adding a start date + optional name to the existing `cycle` singl
 
 1. Add two nullable columns to the existing `cycle` table:
    - `startDate TEXT` — the active cycle's start (ISO `yyyy-MM-dd`). `NULL` → treat the
-     earliest logged `workout_set.date` as the effective start.
+     earliest logged `workout_set.date` as the effective start; if there are no logged sets,
+     default to today's date.
    - `name TEXT` — optional user label for the active cycle.
 2. Create the `archived_cycle` table (below).
 
@@ -74,9 +75,9 @@ data class ArchivedCycle(
     val endDate: String,              // ISO yyyy-MM-dd, inclusive
     val archivedAt: Long,             // epoch millis, when the snapshot was taken
     // Denormalized headline fields — drive the archive LIST without parsing JSON:
-    val totalSessions: Int,           // distinct in-window days with >=1 completed set (all buckets incl. Unassigned)
+    val totalSessions: Int,           // distinct in-window days with >=1 completed set (all buckets incl. synthetic)
     val totalVolumeLbs: Long,         // true pounds, completed in-window sets — see "Units" below
-    val splitCount: Int,              // user-defined splits actually trained (usageCount>0); EXCLUDES Unassigned — see §5.5
+    val splitCount: Int,              // real user-defined splits trained (usageCount>0); excludes synthetic — see §5.5
     // Frozen payload:
     val snapshotSchemaVersion: Int,   // == CycleSnapshot.schemaVersion at write time
     val snapshotJson: String,         // serialized CycleSnapshot
@@ -118,14 +119,22 @@ data class CycleTotals(
 
 @Serializable
 data class SplitSnapshot(
-    val slotId: Long,             // original CycleSlot id; -1 == "Unassigned", -2 == "Deleted split" (§5.4)
+    val slotId: Long,             // original CycleSlot id; -1 == "Unassigned"
+    val bucketKind: SplitBucketKind = SplitBucketKind.Real,
     val name: String,             // frozen split name (or "Unassigned" / "Deleted split")
-    val orderIndex: Int,          // real splits first, then Deleted split, then Unassigned last
+    val orderIndex: Int,          // real splits first, then Deleted split bucket(s), then Unassigned last
     val firstUsedDate: String?,   // "from what day"  (null if never used in window)
     val lastUsedDate: String?,    // "to what day"
     val usageCount: Int,          // "how many times used" = distinct in-window days tagged to this slot WITH >=1 completed set
     val exercises: List<ExerciseSnapshot>,
 )
+
+@Serializable
+enum class SplitBucketKind {
+    Real,
+    Deleted,
+    Unassigned,
+}
 
 @Serializable
 data class ExerciseSnapshot(
@@ -264,15 +273,19 @@ resolve each set's bucket in priority order:
 
 ```kotlin
 const val UNASSIGNED_SLOT_ID = -1L   // no slot metadata at all (never structured)
-const val DELETED_SLOT_ID    = -2L   // resolved to a slot that no longer exists
+
+data class BucketKey(
+    val slotId: Long,
+    val kind: SplitBucketKind,
+)
 
 val day = workoutDaysByDate[set.date]
 val resolved: Long? = day?.cycleSlotId
     ?: day?.cycleSlotType?.let { slots.getOrNull(it)?.id }   // legacy rows: type is an index
-val bucketId = when {
-    resolved == null    -> UNASSIGNED_SLOT_ID
-    resolved in slotIds -> resolved
-    else                -> DELETED_SLOT_ID
+val bucket = when {
+    resolved == null    -> BucketKey(UNASSIGNED_SLOT_ID, SplitBucketKind.Unassigned)
+    resolved in slotIds -> BucketKey(resolved, SplitBucketKind.Real)
+    else                -> BucketKey(resolved, SplitBucketKind.Deleted)
 }
 ```
 
@@ -290,29 +303,33 @@ This covers four real cases:
   Unassigned despite being structured work. (Caveat: the index is positional against the *current*
   slot order — the same ambiguity the live app already accepts after a reorder.)
 - **Orphaned slot** (`resolved` points at a slot deleted since) → a frozen **"Deleted split"**
-  bucket (`slotId = -2`). `deleteCycleSlot` removes only the `cycle_slot` row and `workout_day`
-  has **no FK**, so the id dangles. This was structured work missing only its metadata, so keep it
-  **distinct from Unassigned** (never-structured) rather than silently merging the two.
+  bucket with `bucketKind = Deleted` and `slotId = resolved` (the original dangling id).
+  `deleteCycleSlot` removes only the `cycle_slot` row and `workout_day` has **no FK**, so the id
+  dangles. This was structured work missing only its metadata, so keep it **distinct from
+  Unassigned** (never-structured) rather than silently merging the two. Also keep **one Deleted
+  split bucket per dangling slot id**; do not collapse all orphaned work into one `-2` bucket,
+  because two different deleted splits in the same archive window should remain separate sections.
 
-Both synthetic buckets sort after real splits (Deleted split, then Unassigned last). They make
-the per-split sections **partition** all counted work, so per-split numbers reconcile exactly with
-the cycle totals (totals = sum over every bucket). Each synthetic bucket is emitted only when it
-holds ≥1 completed set.
+Synthetic buckets sort after real splits (Deleted split bucket(s), ordered by original dangling
+`slotId`, then Unassigned last). They make the per-split sections **partition** all counted work,
+so per-split numbers reconcile exactly with the cycle totals (totals = sum over every bucket).
+Each synthetic bucket is emitted only when it holds ≥1 completed set.
 
 > **Implication for free-loggers:** a user who never loads splits has **every** day in Unassigned
 > and `splitCount = 0` (§5.5). The detail/list UI must render that gracefully (§7.4/§7.5) —
 > Unassigned is the *primary* content then, not a muted footnote.
 
-For each bucket (each `CycleSlot`, plus the synthetic Deleted split / Unassigned):
+For each bucket (each current `CycleSlot`, plus zero or more Deleted split buckets and optional
+Unassigned):
 - `usageCount` = count of distinct in-window days in this bucket that have ≥1 completed set.
 - `firstUsedDate` / `lastUsedDate` = min/max of those days' dates.
 - `exercises` = exercises **actually performed** (completed) on those days, ordered by the
   saved `SplitExercise.orderIndex` when present, else first-seen. Reflects what they *did*,
   not the saved template. Per-exercise `sessions[]` / endpoints are scoped to this bucket's
   days (an exercise done in two splits appears once per split with that split's progress).
-- A real split with no completed work in the window is still emitted (usageCount 0, empty
-  exercises) so the user sees it existed; the synthetic Deleted split / Unassigned buckets are
-  omitted entirely when empty.
+- A real split with no completed work in the window is still emitted (`bucketKind = Real`,
+  usageCount 0, empty exercises) so the user sees it existed; synthetic Deleted split /
+  Unassigned buckets are omitted entirely when empty.
 
 ### 5.5 Count definitions & edge cases
 
@@ -320,10 +337,11 @@ For each bucket (each `CycleSlot`, plus the synthetic Deleted split / Unassigned
 - `usageCount` (per split) = distinct in-window days bucketed to that slot **with ≥1 completed
   set**. Days with only planned/incomplete sets don't count.
 - `totalSessions` (cycle) = distinct in-window days with ≥1 completed set, across **all** buckets
-  **including Unassigned** (so it reconciles with the raw data, not just structured days).
+  **including both synthetic bucket kinds** (Deleted split and Unassigned) so it reconciles with
+  the raw data, not just current structured days.
 - `splitCount` (cycle) = number of **user-defined splits actually trained** = count of
-  `SplitSnapshot` buckets with `usageCount > 0`, **excluding both synthetic buckets** (Deleted
-  split, slotId -2; and Unassigned, slotId -1) and excluding zero-usage splits emitted only for
+  `SplitSnapshot` buckets with `bucketKind == Real && usageCount > 0`, excluding all Deleted
+  split buckets, excluding Unassigned, and excluding zero-usage real splits emitted only for
   visibility. A pure free-logger therefore has `splitCount = 0` (everything is Unassigned); the
   card must handle 0 (e.g. label "Unstructured" / show sessions+volume only) rather than render
   "0 splits" awkwardly.
@@ -358,7 +376,8 @@ suspend fun getSetsInRange(start: String, end: String): List<WorkoutSet>
 - `fun observeArchivedCycles(): Flow<List<ArchivedCycle>>`
 - `suspend fun getArchivedCycle(id): ArchivedCycle?`
 - `suspend fun deleteArchivedCycle(id)`
-- `suspend fun getActiveCycleStart(): String` — `cycle.startDate` or earliest logged date.
+- `suspend fun getActiveCycleStart(): String` — `cycle.startDate` or earliest logged set date;
+  if there are no sets at all, return today.
 
 **Gotcha — preserve new `Cycle` fields:** `WorkoutRepository.saveCycle` currently rebuilds
 the row manually (`Cycle(id=1, isActive=…, numTypes=…, nextSessionType=current.nextSessionType)`),
@@ -412,6 +431,11 @@ toggle as the top element). This is the lowest-priority item per the user; do it
 In the Current view, an "End cycle & archive" affordance opens a dialog that:
 - Shows the **detected start date** (active cycle start) and **detected end date** (today or
   last logged day), **both editable** via date pickers (user's explicit ask).
+  - If there are no logged sets, both detected dates default to today. This still hits the
+    empty-range warning path below, but avoids null/blank date UI.
+  - "Last logged day" should mean latest date with at least one set. It does not need to filter
+    `completed`; the archive builder still applies the completed-only rule, and the dialog warns
+    if the chosen range contains no completed work.
 - Optional cycle name field (defaults to "Cycle N" or the date range).
 - Confirm → `archiveCurrentCycle(...)`, toast/snackbar confirmation, switch to Archive view.
 - Validates `start <= end` (hard block); warns on empty range.
@@ -429,9 +453,9 @@ In the Current view, an "End cycle & archive" affordance opens a dialog that:
 A `LazyColumn` of past cycles (newest first), each a card: name, date range, span, #
 sessions, total volume, split count, and a small overall trend hint. Tap → detail screen.
 Long-press or overflow → delete (with confirm). Reuses existing card styling (`Card`,
-`AccentTeal`, `MiniSparkline`). When `splitCount == 0` (free-logger, all Unassigned), suppress
-the "0 splits" chip and show sessions + volume only (optionally an "Unstructured" tag) so the
-card never reads "0 splits".
+`AccentTeal`, `MiniSparkline`). When `splitCount == 0` (no current real split bucket was trained;
+for example all work is Unassigned and/or Deleted split), suppress the "0 splits" chip and show
+sessions + volume only (optionally an "Unstructured" tag) so the card never reads "0 splits".
 
 ### 7.5 Cycle snapshot detail screen (`CycleArchiveDetailScreen`)
 
@@ -442,11 +466,11 @@ New route. Renders the frozen snapshot:
   same visual style as the live `ExerciseProgressRow`: name, start→end (e1RM / top weight /
   volume), signed % delta with up/down color (`AccentTeal` / `ErrorRed`), and a `MiniSparkline`
   from `sessions[]`. e1RM leads; tapping a row can expand to show top-weight & volume deltas too.
-  The two synthetic buckets, when present, render last and visually muted — **Deleted split**
-  (structured work whose split was removed) then **Unassigned** — so totals reconcile and stray
-  days stay visible. **Exception:** if a synthetic bucket is the *only* content (free-logger,
-  `splitCount == 0`), render it primary/full-strength (drop the muting) so the screen isn't one
-  greyed-out block.
+  Synthetic buckets, when present, render last and visually muted — **Deleted split** bucket(s)
+  (structured work whose split was removed, one section per dangling original slot id) then
+  **Unassigned** — so totals reconcile and stray days stay visible. **Exception:** if synthetic
+  buckets are the *only* content (`splitCount == 0`), render them primary/full-strength (drop the
+  muting) so the screen isn't one greyed-out block.
 - Single-session / no-data exercises render the explanatory label, not a fake 0%.
 
 > **Component reuse note:** the new row is a **new composable over `ExerciseSnapshot`** — the
@@ -518,11 +542,17 @@ dedicated VM — implementer's call; keep `SplitViewModel` from ballooning.
 - **Legacy `cycleSlotType` bucketing:** a `WorkoutDay` with `cycleSlotId = null` but
   `cycleSlotType = 1` (and ≥2 slots provided) buckets into `slots[1]`, **not** Unassigned.
 - **Orphaned slot → Deleted split:** a `WorkoutDay` whose resolved slot id is **not** in
-  `slots` lands in the Deleted-split bucket (`slotId = -2`), kept distinct from Unassigned;
-  a never-structured set in the same input still lands in Unassigned (`-1`).
+  `slots` lands in a Deleted-split bucket with `bucketKind = Deleted` and `slotId` equal to the
+  original dangling id, kept distinct from Unassigned; a never-structured set in the same input
+  still lands in Unassigned (`slotId = -1`, `bucketKind = Unassigned`). Include two different
+  dangling slot ids and assert they produce two separate Deleted-split buckets, not one merged
+  section.
 - **`splitCount` definition:** with 2 trained splits + 1 zero-usage split + Deleted-split +
   Unassigned work, `splitCount == 2` (excludes the empty split and **both** synthetic buckets).
   An all-free-logger input → `splitCount == 0`, totals still non-zero.
+- **Empty-data default dates:** with `cycle.startDate == null` and no sets, active start/end
+  defaults used by the archive dialog are today (not blank/null), and archiving that range follows
+  the empty-cycle warning behavior.
 - Single-session exercise → start == end, delta neutral.
 - Bodyweight exercise → no crash, flagged, zero-weight handling.
 - Empty cycle → zeroed totals, no crash.
@@ -570,10 +600,11 @@ dedicated VM — implementer's call; keep `SplitViewModel` from ballooning.
   `CycleSnapshotBuilder` is the **single conversion boundary** (`WeightLbs.toLbs`). `topWeight`
   and `e1rm` are `Float` (keep .5); `volumeLbs` is a rounded `Long`. Nothing divides twice.
 - Set→split bucketing resolves **`cycleSlotId` → legacy `cycleSlotType` index → orphan check**.
-  Two synthetic buckets: **Unassigned** (`-1`, no slot metadata) and **Deleted split** (`-2`,
-  resolved to a since-deleted slot — kept distinct because it was structured work). Legacy
-  `cycleSlotType` rows map by positional index (mirrors the app's existing convention). Every
-  bucket together partitions all counted work, so per-split numbers reconcile with totals.
+  Synthetic bucket kinds: **Unassigned** (`slotId = -1`, no slot metadata) and **Deleted split**
+  (`bucketKind = Deleted`, `slotId = original dangling slot id`, one bucket per deleted split —
+  kept distinct because it was structured work). Legacy `cycleSlotType` rows map by positional
+  index (mirrors the app's existing convention). Every bucket together partitions all counted
+  work, so per-split numbers reconcile with totals.
 - `splitCount` = **splits actually trained** (`usageCount > 0`, excluding **both** synthetic
   buckets); a pure free-logger reads `0` and the UI adapts.
 - `MiniSparkline` is **extracted to a shared file** (was `private` in `SplitScreen.kt`) for the

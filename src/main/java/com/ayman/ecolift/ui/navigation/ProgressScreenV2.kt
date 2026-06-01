@@ -66,6 +66,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -117,10 +118,11 @@ fun ProgressExerciseListItem(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -128,48 +130,48 @@ fun ProgressExerciseListItem(
                     text = exerciseName,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF1C1C1E)
+                    color = Color(0xFF171A1C)
                 )
                 Text(
                     text = muscleGroups.uppercase(),
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF8E8E93),
-                    letterSpacing = 0.8.sp
+                    color = Color(0xFF66706E),
+                    letterSpacing = 0.sp
                 )
                 Text(
                     text = lastSetLabel,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF8E8E93),
+                    color = Color(0xFF66706E),
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
             
             Column(
-                modifier = Modifier.width(80.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier.width(74.dp),
+                horizontalAlignment = Alignment.End
             ) {
                 if (trendPercent > 0.05f) {
-                    Icon(Icons.Default.TrendingUp, contentDescription = "Up", tint = Color(0xFF1D9E75), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.TrendingUp, contentDescription = "Up", tint = Color(0xFF149C8A), modifier = Modifier.size(16.dp))
                     Text(
                         text = "+${"%.1f".format(trendPercent)}%",
                         style = MaterialTheme.typography.labelMedium,
-                        color = Color(0xFF1D9E75),
+                        color = Color(0xFF149C8A),
                         fontWeight = FontWeight.Bold
                     )
                 } else if (trendPercent < -0.05f) {
-                    Icon(Icons.Default.TrendingDown, contentDescription = "Down", tint = Color(0xFFE24B4A), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.TrendingDown, contentDescription = "Down", tint = Color(0xFFB9473F), modifier = Modifier.size(16.dp))
                     Text(
                         text = "${"%.1f".format(trendPercent)}%",
                         style = MaterialTheme.typography.labelMedium,
-                        color = Color(0xFFE24B4A),
+                        color = Color(0xFFB9473F),
                         fontWeight = FontWeight.Bold
                     )
                 } else {
-                    Icon(Icons.Default.Remove, contentDescription = "Neutral", tint = Color(0xFF8E8E93), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Remove, contentDescription = "Neutral", tint = Color(0xFF66706E), modifier = Modifier.size(16.dp))
                     Text(
                         text = "—",
                         style = MaterialTheme.typography.labelMedium,
-                        color = Color(0xFF8E8E93),
+                        color = Color(0xFF66706E),
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -191,26 +193,27 @@ fun StatCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Text(
                 text = label.uppercase(),
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF8E8E93)
+                color = Color(0xFF66706E)
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = value,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF1C1C1E)
+                color = Color(0xFF171A1C)
             )
             if (delta != null) {
                 val deltaColor = when (deltaPositive) {
-                    true -> Color(0xFF1D9E75)
-                    false -> Color(0xFFE24B4A)
-                    null -> Color(0xFF8E8E93)
+                    true -> Color(0xFF149C8A)
+                    false -> Color(0xFFB9473F)
+                    null -> Color(0xFF66706E)
                 }
                 Text(
                     text = delta,
@@ -223,7 +226,7 @@ fun StatCard(
                 Text(
                     text = subLabel,
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF8E8E93),
+                    color = Color(0xFF66706E),
                     modifier = Modifier.padding(top = if (delta != null) 2.dp else 4.dp)
                 )
             }
@@ -268,12 +271,12 @@ fun ProgressDetailScreen(
                             text = exerciseName.uppercase(),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1C1C1E)
+                            color = Color(0xFF171A1C)
                         )
                         Text(
                             text = "Performance overview",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF8E8E93)
+                            color = Color(0xFF66706E)
                         )
                     }
                 },
@@ -282,16 +285,16 @@ fun ProgressDetailScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                             contentDescription = "Back",
-                            tint = Color(0xFF1C1C1E)
+                            tint = Color(0xFF171A1C)
                         )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color(0xFFF2F0EB)
+                    containerColor = Color(0xFFF4F6F5)
                 )
             )
         },
-        containerColor = Color(0xFFF2F0EB)
+        containerColor = Color(0xFFF4F6F5)
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
@@ -314,14 +317,14 @@ fun ProgressDetailScreen(
                             shape = RoundedCornerShape(50),
                             colors = FilterChipDefaults.filterChipColors(
                                 containerColor = Color.Transparent,
-                                selectedContainerColor = Color(0xFF4DB6AC),
-                                labelColor = Color(0xFF1C1C1E),
+                                selectedContainerColor = Color(0xFF149C8A),
+                                labelColor = Color(0xFF171A1C),
                                 selectedLabelColor = Color.White
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = range == selectedRange,
-                                borderColor = Color(0xFF8E8E93).copy(alpha = 0.4f),
+                                borderColor = Color(0xFF66706E).copy(alpha = 0.4f),
                                 selectedBorderColor = Color.Transparent
                             )
                         )
@@ -335,7 +338,8 @@ fun ProgressDetailScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     color = Color.White,
-                    shadowElevation = 1.dp
+                    border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+                    shadowElevation = 0.dp
                 ) {
                     Row(modifier = Modifier.fillMaxWidth()) {
                         ProgressMetricV2.values().forEach { metric ->
@@ -345,8 +349,8 @@ fun ProgressDetailScreen(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
-                                    containerColor = if (isSelected) Color.White else Color.Transparent,
-                                    contentColor = if (isSelected) Color(0xFF4DB6AC) else Color(0xFF8E8E93)
+                                    containerColor = if (isSelected) Color(0xFFEAF7F4) else Color.Transparent,
+                                    contentColor = if (isSelected) Color(0xFF149C8A) else Color(0xFF66706E)
                                 )
                             ) {
                                 Text(
@@ -368,9 +372,10 @@ fun ProgressDetailScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     if (dataPoints.size < 2) {
                         Column(
@@ -382,20 +387,20 @@ fun ProgressDetailScreen(
                             Icon(
                                 Icons.Outlined.ShowChart,
                                 contentDescription = null,
-                                tint = Color(0xFF4DB6AC).copy(alpha = 0.4f),
+                                tint = Color(0xFF149C8A).copy(alpha = 0.4f),
                                 modifier = Modifier.size(48.dp)
                             )
                             Text(
                                 text = "Not enough data yet",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Medium,
-                                color = Color(0xFF1C1C1E),
+                                color = Color(0xFF171A1C),
                                 modifier = Modifier.padding(top = 12.dp)
                             )
                             Text(
                                 text = "Log ${maxOf(0, 2 - dataPoints.size)} more session(s) to see your trend",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF8E8E93),
+                                color = Color(0xFF66706E),
                                 modifier = Modifier.padding(top = 4.dp)
                             )
                             if (dataPoints.size == 1) {
@@ -408,19 +413,19 @@ fun ProgressDetailScreen(
                                     text = "%.0f".format(value),
                                     style = MaterialTheme.typography.headlineLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1C1C1E),
+                                    color = Color(0xFF171A1C),
                                     modifier = Modifier.padding(top = 16.dp)
                                 )
                             }
                         }
                     } else {
-                        var tooltipData by remember { mutableStateOf<Pair<Offset, ExerciseDataPoint>?>(null) }
+                        var tooltipData by remember(dataPoints, selectedMetric) { mutableStateOf<Pair<Offset, ExerciseDataPoint>?>(null) }
                         
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(220.dp)
-                                .padding(16.dp)
+                                .height(210.dp)
+                                .padding(14.dp)
                         ) {
                             val values = dataPoints.map {
                                 when (selectedMetric) {
@@ -438,7 +443,7 @@ fun ProgressDetailScreen(
                             Canvas(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .pointerInput(dataPoints) {
+                                    .pointerInput(dataPoints, selectedMetric) {
                                         detectTapGestures { offset ->
                                             val xStep = size.width / (dataPoints.size - 1).coerceAtLeast(1)
                                             val index = (offset.x / xStep).toInt().coerceIn(0, dataPoints.size - 1)
@@ -456,7 +461,7 @@ fun ProgressDetailScreen(
                                 for (i in 0..2) {
                                     val y = height * (i / 2f)
                                     drawLine(
-                                        color = Color(0xFF1C1C1E).copy(alpha = 0.1f),
+                                        color = Color(0xFF171A1C).copy(alpha = 0.1f),
                                         start = Offset(0f, y),
                                         end = Offset(width, y),
                                         strokeWidth = 1f
@@ -492,12 +497,12 @@ fun ProgressDetailScreen(
                                     
                                     drawPath(
                                         path = fillPath,
-                                        color = Color(0xFF4DB6AC).copy(alpha = 0.10f)
+                                        color = Color(0xFF149C8A).copy(alpha = 0.10f)
                                     )
                                     
                                     drawPath(
                                         path = path,
-                                        color = Color(0xFF4DB6AC),
+                                        color = Color(0xFF149C8A),
                                         style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
                                     )
                                     
@@ -511,7 +516,7 @@ fun ProgressDetailScreen(
                                             center = Offset(x, y)
                                         )
                                         drawCircle(
-                                            color = Color(0xFF4DB6AC),
+                                            color = Color(0xFF149C8A),
                                             radius = 4.dp.toPx(),
                                             center = Offset(x, y)
                                         )
@@ -525,9 +530,9 @@ fun ProgressDetailScreen(
                                 verticalArrangement = Arrangement.SpaceBetween,
                                 horizontalAlignment = Alignment.End
                             ) {
-                                Text("%.0f".format(maxY), style = MaterialTheme.typography.labelSmall, color = Color(0xFF8E8E93))
-                                Text("%.0f".format(minY + (maxY - minY) / 2), style = MaterialTheme.typography.labelSmall, color = Color(0xFF8E8E93))
-                                Text("%.0f".format(minY), style = MaterialTheme.typography.labelSmall, color = Color(0xFF8E8E93))
+                                Text("%.0f".format(maxY), style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
+                                Text("%.0f".format(minY + (maxY - minY) / 2), style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
+                                Text("%.0f".format(minY), style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
                             }
                             
                             // X-axis labels
@@ -538,12 +543,19 @@ fun ProgressDetailScreen(
                                     .padding(top = 16.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(dataPoints.first().date.format(DateTimeFormatter.ofPattern("MMM d")), style = MaterialTheme.typography.labelSmall, color = Color(0xFF8E8E93))
-                                Text(dataPoints.last().date.format(DateTimeFormatter.ofPattern("MMM d")), style = MaterialTheme.typography.labelSmall, color = Color(0xFF8E8E93))
+                                Text(dataPoints.first().date.format(DateTimeFormatter.ofPattern("MMM d")), style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
+                                Text(dataPoints.last().date.format(DateTimeFormatter.ofPattern("MMM d")), style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
                             }
                             
                             // Tooltip
                             tooltipData?.let { (offset, point) ->
+                                val density = LocalDensity.current
+                                val tooltipStart = with(density) {
+                                    (offset.x - 40.dp.toPx()).coerceAtLeast(0f).toDp()
+                                }
+                                val tooltipTop = with(density) {
+                                    (offset.y - 40.dp.toPx()).coerceAtLeast(0f).toDp()
+                                }
                                 val value = when (selectedMetric) {
                                     ProgressMetricV2.ESTIMATED_1RM -> point.estimatedOneRm
                                     ProgressMetricV2.WEIGHT -> point.maxWeight
@@ -552,9 +564,8 @@ fun ProgressDetailScreen(
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.TopStart)
-                                        .padding(start = with(androidx.compose.ui.platform.LocalDensity.current) { offset.x.toDp() - 40.dp }, 
-                                                 top = with(androidx.compose.ui.platform.LocalDensity.current) { offset.y.toDp() - 40.dp })
-                                        .background(Color(0xFF1C1C1E).copy(alpha = 0.9f), RoundedCornerShape(8.dp))
+                                        .padding(start = tooltipStart, top = tooltipTop)
+                                        .background(Color(0xFF171A1C).copy(alpha = 0.9f), RoundedCornerShape(8.dp))
                                         .padding(8.dp)
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -575,11 +586,12 @@ fun ProgressDetailScreen(
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = when (insightType) {
-                            InsightTypeV2.POSITIVE -> Color(0xFF4DB6AC).copy(alpha = 0.10f)
-                            InsightTypeV2.NEUTRAL -> Color(0xFFF2F0EB)
-                            InsightTypeV2.NEGATIVE -> Color(0xFFE24B4A).copy(alpha = 0.08f)
+                            InsightTypeV2.POSITIVE -> Color(0xFF149C8A).copy(alpha = 0.10f)
+                            InsightTypeV2.NEUTRAL -> Color(0xFFF4F6F5)
+                            InsightTypeV2.NEGATIVE -> Color(0xFFB9473F).copy(alpha = 0.08f)
                         }
                     ),
+                    border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Row(
@@ -592,9 +604,9 @@ fun ProgressDetailScreen(
                                 .clip(CircleShape)
                                 .background(
                                     when (insightType) {
-                                        InsightTypeV2.POSITIVE -> Color(0xFF4DB6AC)
-                                        InsightTypeV2.NEUTRAL -> Color(0xFF8E8E93)
-                                        InsightTypeV2.NEGATIVE -> Color(0xFFE24B4A)
+                                        InsightTypeV2.POSITIVE -> Color(0xFF149C8A)
+                                        InsightTypeV2.NEUTRAL -> Color(0xFF66706E)
+                                        InsightTypeV2.NEGATIVE -> Color(0xFFB9473F)
                                     }
                                 )
                         )
@@ -602,7 +614,7 @@ fun ProgressDetailScreen(
                         Text(
                             text = insightText,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFF1C1C1E)
+                            color = Color(0xFF171A1C)
                         )
                     }
                 }
@@ -697,7 +709,7 @@ fun ProgressScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        containerColor = Color(0xFFF2F0EB)
+        containerColor = Color(0xFFF4F6F5)
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -718,15 +730,27 @@ fun ProgressScreen(
                 onValueChange = onSearchChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Search exercises...", color = Color(0xFF8E8E93)) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF8E8E93)) },
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .height(58.dp),
+                placeholder = {
+                    Text(
+                        "Search exercises...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF66706E)
+                    )
+                },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF66706E)) },
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    color = Color(0xFF171A1C),
+                    fontWeight = FontWeight.SemiBold
+                ),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = Color.White,
                     unfocusedContainerColor = Color.White,
-                    focusedBorderColor = Color(0xFF4DB6AC),
-                    unfocusedBorderColor = Color.Transparent
+                    focusedBorderColor = Color(0xFF149C8A),
+                    unfocusedBorderColor = Color(0xFFDDE6E3),
+                    cursorColor = Color(0xFF149C8A)
                 ),
                 singleLine = true
             )
@@ -806,7 +830,8 @@ private fun ProgressOrganizationControl(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
         color = Color.White,
-        shadowElevation = 1.dp
+        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+        shadowElevation = 0.dp
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             ProgressOrganizationModeV2.values().forEach { mode ->
@@ -816,8 +841,8 @@ private fun ProgressOrganizationControl(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
-                        containerColor = if (selected) Color(0xFF4DB6AC).copy(alpha = 0.12f) else Color.Transparent,
-                        contentColor = if (selected) Color(0xFF1C1C1E) else Color(0xFF8E8E93)
+                        containerColor = if (selected) Color(0xFF149C8A).copy(alpha = 0.12f) else Color.Transparent,
+                        contentColor = if (selected) Color(0xFF171A1C) else Color(0xFF66706E)
                     )
                 ) {
                     Text(
@@ -854,7 +879,7 @@ private fun SplitProgressHeader(
             Icon(
                 imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                 contentDescription = "Previous split",
-                tint = if (canGoPrevious) Color(0xFF1C1C1E) else Color(0xFF8E8E93).copy(alpha = 0.45f)
+                tint = if (canGoPrevious) Color(0xFF171A1C) else Color(0xFF66706E).copy(alpha = 0.45f)
             )
         }
         Column(
@@ -865,13 +890,13 @@ private fun SplitProgressHeader(
                 text = page.name,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF1C1C1E),
+                color = Color(0xFF171A1C),
                 textAlign = TextAlign.Center
             )
             Text(
                 text = "Split ${pageIndex + 1} of $pageCount",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF8E8E93),
+                color = Color(0xFF66706E),
                 textAlign = TextAlign.Center
             )
         }
@@ -879,7 +904,7 @@ private fun SplitProgressHeader(
             Icon(
                 imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                 contentDescription = "Next split",
-                tint = if (canGoNext) Color(0xFF1C1C1E) else Color(0xFF8E8E93).copy(alpha = 0.45f)
+                tint = if (canGoNext) Color(0xFF171A1C) else Color(0xFF66706E).copy(alpha = 0.45f)
             )
         }
     }
@@ -900,7 +925,11 @@ private fun ProgressExerciseList(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = modifier
         ) {
-            items(exercises) { exercise ->
+            items(
+                items = exercises,
+                key = { it.id ?: it.name.hashCode().toLong() },
+                contentType = { "progressExercise" }
+            ) { exercise ->
                 ProgressExerciseListItem(
                     exerciseName = exercise.name,
                     muscleGroups = exercise.muscleGroups,
@@ -925,7 +954,7 @@ private fun ProgressEmptyState(
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFF8E8E93),
+            color = Color(0xFF66706E),
             textAlign = TextAlign.Center
         )
     }
