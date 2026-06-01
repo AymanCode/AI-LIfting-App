@@ -74,21 +74,27 @@ data class ArchivedCycle(
     val endDate: String,              // ISO yyyy-MM-dd, inclusive
     val archivedAt: Long,             // epoch millis, when the snapshot was taken
     // Denormalized headline fields — drive the archive LIST without parsing JSON:
-    val totalSessions: Int,           // distinct workout days with >=1 completed set, within window
-    val totalVolumeLbs: Long,         // sum(weightLbs*reps) over COMPLETED in-window sets, true pounds
-    val splitCount: Int,
+    val totalSessions: Int,           // distinct in-window days with >=1 completed set (all buckets incl. Unassigned)
+    val totalVolumeLbs: Long,         // true pounds, completed in-window sets — see "Units" below
+    val splitCount: Int,              // user-defined splits actually trained (usageCount>0); EXCLUDES Unassigned — see §5.5
     // Frozen payload:
     val snapshotSchemaVersion: Int,   // == CycleSnapshot.schemaVersion at write time
     val snapshotJson: String,         // serialized CycleSnapshot
 )
 ```
 
-> **Volume units:** stored as **true pound-volume** (`sum(weightLbs*reps)`, no division).
-> Field names use the `Lbs` suffix to make the unit explicit. This deliberately does **not**
-> reuse the `getVolumeHistory` convention (which divides by 10 to keep sparkline numbers
-> small) — that scaling is a *display* concern. If a sparkline needs small numbers it scales
-> at render time; stored data stays in real pounds so totals are unambiguous and never
-> double-divided.
+> **Units (critical — `weightLbs` is stored in tenths):** `WorkoutSet.weightLbs` is pounds ×10
+> (`WeightLbs.SCALE = 10`; `1850` = 185.0 lb), so a raw `sum(weightLbs*reps)` is **tenths of a
+> pound-rep**, not pounds. The snapshot stores **display units (true pounds)** for every weight
+> field, and **`CycleSnapshotBuilder` is the single conversion boundary** — it converts each set
+> once via `WeightLbs.toLbs(weightLbs)` (= `weightLbs / 10.0`) before any sum/max. Concretely:
+> - `volumeLbs` (all levels) `= round(Σ WeightLbs.toLbs(weightLbs) × reps)` → `Long`, true pounds.
+>   This equals the existing `getVolumeHistory` SQL (`ROUND(SUM(weightLbs*reps)/10.0)`), so archive
+>   volume and Progress sparkline numbers are on the same scale.
+> - `topWeight` `= max(WeightLbs.toLbs(weightLbs))` → `Float` (preserves the .5 in e.g. 187.5).
+> - `e1rm` `= max(toLbs(weightLbs) × (1 + reps/30))` → `Float`, true pounds.
+>
+> Nothing downstream divides again — the stored numbers are render-ready, never double-divided.
 
 ### 4.3 Frozen snapshot models (`data/CycleSnapshot.kt`, `@Serializable`)
 
@@ -127,18 +133,19 @@ data class ExerciseSnapshot(
     val name: String,             // frozen exercise name
     val isBodyweight: Boolean,
     val sessions: List<SessionPoint>,   // per-day aggregates within window, date-ascending
-    // Precomputed headline endpoints (start = first in-window session, end = last):
+    // Precomputed headline endpoints (start = first in-window session, end = last).
+    // All weights are TRUE POUNDS (builder converts via WeightLbs.toLbs); see §4.2 "Units".
     val startE1rm: Float?,  val endE1rm: Float?,
-    val startTopWeight: Int?, val endTopWeight: Int?,
+    val startTopWeight: Float?, val endTopWeight: Float?,
     val startVolumeLbs: Long?, val endVolumeLbs: Long?,
 )
 
 @Serializable
 data class SessionPoint(
     val date: String,
-    val topWeight: Int?,          // max weightLbs that day (completed sets)
-    val bestE1rm: Float?,         // best Epley across completed sets that day
-    val volumeLbs: Long,          // sum(weightLbs*reps) that day, true pounds, completed sets
+    val topWeight: Float?,        // max true-pound weight that day (completed sets); via WeightLbs.toLbs
+    val bestE1rm: Float?,         // best Epley (true pounds) across completed sets that day
+    val volumeLbs: Long,          // round(Σ toLbs(weightLbs)×reps) that day, true pounds, completed sets
     val totalReps: Int,
     val setCount: Int,            // completed sets that day
 )
@@ -153,14 +160,21 @@ per-day aggregates can be computed from stored data when displaying an old archi
 @Dao
 interface ArchivedCycleDao {
     @Insert suspend fun insert(cycle: ArchivedCycle): Long
+    @Insert suspend fun insertAll(cycles: List<ArchivedCycle>)        // backup restore (§6.1)
     @Query("SELECT * FROM archived_cycle ORDER BY endDate DESC, id DESC")
     fun observeAll(): Flow<List<ArchivedCycle>>
+    @Query("SELECT * FROM archived_cycle ORDER BY endDate DESC, id DESC")
+    suspend fun getAll(): List<ArchivedCycle>                         // backup export (§6.1)
     @Query("SELECT * FROM archived_cycle WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): ArchivedCycle?
     @Query("DELETE FROM archived_cycle WHERE id = :id")
     suspend fun delete(id: Long)
     @Query("SELECT COUNT(*) FROM archived_cycle")
     suspend fun count(): Int
+    // Overlap detection for the archive dialog. Inclusive ISO ranges overlap iff
+    // NOT (existing.end < new.start OR existing.start > new.end). String compare is valid for ISO.
+    @Query("SELECT COUNT(*) FROM archived_cycle WHERE NOT (endDate < :start OR startDate > :end)")
+    suspend fun countOverlapping(start: String, end: String): Int
 }
 ```
 
@@ -208,24 +222,60 @@ is unit-testable; the DAO range query may return all in-window sets.
 > only performed work. We are **not** changing those existing queries in this iteration (out
 > of scope); a brief note in the spec flags the inconsistency for a future cleanup.
 
+**Write-path fix — agent/imported logs must count.** The completed-only filter makes one
+existing write path a problem: `PatchService.applyPatch` (`agent/patches/PatchService.kt`)
+inserts a `WorkoutSet` from a `DbPatch.LogSet` without setting `completed`, so it defaults to
+`false`. A `LogSet` represents a set the user states they *performed* ("log bench 185×5"), so
+under the filter it would be silently dropped from the archive (and, today, it already fails to
+count toward TodayScreen volume / completion %). Fix at the source:
+1. Add `val completed: Boolean = true` to `DbPatch.LogSet` (`agent/model/DbPatch.kt`) — default
+   `true` because logged == performed; an agent that ever logs a *planned* set can pass `false`.
+2. Pass it through in `PatchService.applyPatch`'s `LogSet` branch (`completed = patch.completed`).
+This is **forward-fix only**: any sets the agent already inserted with `completed = false` stay
+that way (we cannot reliably know which were performed, and a blind backfill is riskier than the
+gap). The `LogSet` inverse is a `DeleteSet`, so undo/`InverseComputer` need no change; validation
+is unaffected by an added defaulted field.
+
 ### 5.3 Per-exercise endpoints
 
 - Group in-window sets by `exerciseId`, then by `date` → `SessionPoint` per day.
 - **start** values = the first (earliest) in-window `SessionPoint`; **end** = the last.
-- e1RM per set = **Epley**: `weight * (1 + reps/30)`, take the max across the day's sets.
-- Weight conversion uses the existing `WeightLbs.toLbs(weightLbs)` helper; bodyweight sets
-  (`isBodyweight = true` or `weightLbs == null`) contribute `0` weight to volume/e1RM and
-  are flagged via `isBodyweight` so the card can label them rather than show "0 lb".
+- **Convert weight once, up front:** for every set compute `w = WeightLbs.toLbs(weightLbs)`
+  (true pounds). All formulas below use `w`, never raw `weightLbs` (which is tenths — see
+  §4.2 "Units"):
+  - e1RM per set = **Epley**: `w * (1 + reps/30)`; the day's `bestE1rm` = max over its sets.
+  - `topWeight` = max `w` across the day's completed sets (`Float`, keeps .5).
+  - `volumeLbs` = `round(Σ w × reps)` (`Long`, true pounds).
+- Bodyweight sets (`isBodyweight = true` or `weightLbs == null`) contribute `0` weight to
+  volume/e1RM and are flagged via `isBodyweight` so the card can label them rather than show
+  "0 lb".
 
 ### 5.4 Bucketing sets into splits (+ Unassigned)
 
-Every completed in-window set is assigned to exactly one bucket by its **day's** slot:
-`slot = WorkoutDay[set.date].cycleSlotId`. Since `WorkoutDay.cycleSlotId` is **nullable**,
-sets on untagged days go into a synthetic **"Unassigned"** bucket (`slotId = -1`, sorts
-last). This guarantees the per-split sections **partition** all counted work, so the
-per-split numbers reconcile exactly with the cycle totals (totals = sum over all buckets,
-including Unassigned). Without this, untagged days would inflate totals but appear in no
-split section.
+Every completed in-window set is assigned to exactly one bucket by its **day's** slot. Build a
+`workoutDaysByDate: Map<String, WorkoutDay>` and resolve each set's slot with a null-safe
+lookup that collapses **two** distinct "no split" cases:
+
+```kotlin
+const val UNASSIGNED_SLOT_ID = -1L
+val slotId = workoutDaysByDate[set.date]?.cycleSlotId ?: UNASSIGNED_SLOT_ID
+```
+
+- **(a) No `WorkoutDay` row at all** for that date — the common case: a `WorkoutDay` is only
+  created by loading a split (`assignCycleSlot`); free-logging via `SetRepository.addSet` (and
+  agent `LogSet`) inserts a `WorkoutSet` with **no** `WorkoutDay`. So the map *misses* the date.
+- **(b) A `WorkoutDay` exists but `cycleSlotId` is `null`** — a day that was created but not
+  tagged to a split.
+
+Both → the synthetic **"Unassigned"** bucket (`slotId = -1`, sorts last). Using `map[date]?.…
+?: UNASSIGNED` (not `map[date]!!.cycleSlotId`) is what makes case (a) safe. This guarantees the
+per-split sections **partition** all counted work, so per-split numbers reconcile exactly with
+the cycle totals (totals = sum over all buckets, including Unassigned). Without this, free-logged
+days would inflate totals but appear in no split section — or crash on a missing-key lookup.
+
+> **Implication for free-loggers:** a user who never loads splits has **every** day in
+> Unassigned and `splitCount = 0`. The detail/list UI must render that gracefully (§7.4/§7.5) —
+> Unassigned is the *primary* content then, not a muted footnote.
 
 For each bucket (each `CycleSlot`, plus Unassigned):
 - `usageCount` = count of distinct in-window days in this bucket that have ≥1 completed set.
@@ -237,8 +287,20 @@ For each bucket (each `CycleSlot`, plus Unassigned):
 - A split with no completed work in the window is still emitted (usageCount 0, empty
   exercises) so the user sees it existed; Unassigned is omitted entirely when empty.
 
-### 5.5 Edge cases
+### 5.5 Count definitions & edge cases
 
+**Count definitions** (so list cards never show a surprising number):
+- `usageCount` (per split) = distinct in-window days bucketed to that slot **with ≥1 completed
+  set**. Days with only planned/incomplete sets don't count.
+- `totalSessions` (cycle) = distinct in-window days with ≥1 completed set, across **all** buckets
+  **including Unassigned** (so it reconciles with the raw data, not just structured days).
+- `splitCount` (cycle) = number of **user-defined splits actually trained** = count of
+  `SplitSnapshot` buckets with `usageCount > 0`, **excluding** the synthetic Unassigned bucket
+  and excluding zero-usage splits that are emitted only for visibility. A pure free-logger
+  therefore has `splitCount = 0` (everything is Unassigned); the card must handle 0 (e.g. label
+  "Unstructured" / show sessions+volume only) rather than render "0 splits" awkwardly.
+
+**Edge cases:**
 - **Empty cycle** (no sets in window): still archivable; totals zero, splits show usage 0.
   Archive action warns ("No workouts logged in this range — archive anyway?").
 - **Single-session exercise**: start == end; delta = 0. Card shows "1 session — not enough
@@ -324,14 +386,24 @@ In the Current view, an "End cycle & archive" affordance opens a dialog that:
   last logged day), **both editable** via date pickers (user's explicit ask).
 - Optional cycle name field (defaults to "Cycle N" or the date range).
 - Confirm → `archiveCurrentCycle(...)`, toast/snackbar confirmation, switch to Archive view.
-- Validates `start <= end`; warns on empty range.
+- Validates `start <= end` (hard block); warns on empty range.
+- **Overlap warning (soft, non-blocking):** whenever start/end change, call
+  `archivedCycleDao.countOverlapping(start, end)`. If `> 0`, show an inline caution under the
+  date pickers — e.g. *"These dates overlap an existing archive. Sessions in the overlap will be
+  counted in both cycles."* — but still allow Confirm. Rationale: the user defines their own
+  cycle boundaries (a core design principle), and snapshots are independent frozen copies, so an
+  intentional overlap corrupts nothing; we surface the consequence rather than forbid it.
+  (Switching to a hard block is a one-line change — gate Confirm on `overlapCount == 0` — if the
+  product later prefers strictness.)
 
 ### 7.4 Archive list (Archive view)
 
 A `LazyColumn` of past cycles (newest first), each a card: name, date range, span, #
 sessions, total volume, split count, and a small overall trend hint. Tap → detail screen.
 Long-press or overflow → delete (with confirm). Reuses existing card styling (`Card`,
-`AccentTeal`, `MiniSparkline`).
+`AccentTeal`, `MiniSparkline`). When `splitCount == 0` (free-logger, all Unassigned), suppress
+the "0 splits" chip and show sessions + volume only (optionally an "Unstructured" tag) so the
+card never reads "0 splits".
 
 ### 7.5 Cycle snapshot detail screen (`CycleArchiveDetailScreen`)
 
@@ -343,7 +415,9 @@ New route. Renders the frozen snapshot:
   signed % delta with up/down color (`AccentTeal` / `ErrorRed`), and a `MiniSparkline` from
   `sessions[]`. e1RM leads; tapping a row can expand to show top-weight & volume deltas too.
   The **"Unassigned"** bucket (if present) renders as a final, visually muted section so the
-  totals reconcile and stray logged days are still visible.
+  totals reconcile and stray logged days are still visible — **unless** it's the only bucket
+  (free-logger, `splitCount == 0`), in which case render it as the primary, full-strength
+  content (drop the "Unassigned" framing / muting) so the screen isn't one greyed-out block.
 - Single-session / no-data exercises render the explanatory label, not a fake 0%.
 
 ### 7.6 Navigation
@@ -379,6 +453,8 @@ dedicated VM — implementer's call; keep `SplitViewModel` from ballooning.
 - `data/WorkoutSetDao.kt` (+`getSetsInRange`)
 - `data/WorkoutRepository.kt` (transactional archive + observe/get/delete + active-start helpers; **fix `saveCycle` to `copy(...)`**)
 - `data/DataBackupManager.kt` (+`archivedCycles` in payload/build/restore/clear/toResult, bump `APP_DB_VERSION` → 14) — see §6.1
+- `agent/model/DbPatch.kt` (+`completed: Boolean = true` on `LogSet`) — see §5.2 write-path fix
+- `agent/patches/PatchService.kt` (pass `completed = patch.completed` in the `LogSet` insert) — see §5.2
 - `ui/navigation/CycleSplitScreenV2.kt` (Current/Archive toggle, archive action, header cleanup)
 - `ui/navigation/SplitScreen.kt` (pass-through wiring for archive nav/actions)
 - `ui/navigation/AppNavigation.kt` (archive detail route)
@@ -390,15 +466,28 @@ dedicated VM — implementer's call; keep `SplitViewModel` from ballooning.
 - Windowing cutoff: a set one day after `endDate` is excluded from end values & totals.
 - **Completed filter:** incomplete (`completed = false`) sets are excluded from volume, e1RM,
   session counts, and exercise lists — feed a mix and assert only completed work counts.
+- **Units (tenths → true pounds):** a set with `weightLbs = 1850` (= 185.0 lb) × 5 reps yields
+  `volumeLbs == 925` (not 9250), `topWeight == 185.0f`, `e1rm ≈ 185 × (1 + 5/30)`. A `1875`
+  (187.5 lb) set keeps the `.5` in `topWeight` — guards against the tenths bug.
 - e1RM: 185×5 → 185×8 reports positive delta; top-weight unchanged.
 - `usageCount` / `firstUsedDate` / `lastUsedDate` correct across multiple slot days, counting
   only days with ≥1 completed set.
-- **Unassigned reconciliation:** sets on `cycleSlotId = null` days land in the Unassigned
-  bucket; sum of all buckets' volume/sets == cycle totals.
+- **Unassigned reconciliation — both cases:** (a) a set whose date has **no `WorkoutDay` row**
+  in the input, and (b) a set on a `WorkoutDay` with `cycleSlotId = null`, both land in the
+  Unassigned bucket (`slotId = -1`); sum of all buckets' volume/sets == cycle totals. Use a
+  null-safe map lookup so case (a) doesn't throw.
+- **`splitCount` definition:** with 2 trained splits + 1 zero-usage split + Unassigned work,
+  `splitCount == 2` (excludes the empty split and Unassigned). An all-free-logger input →
+  `splitCount == 0`, totals still non-zero.
 - Single-session exercise → start == end, delta neutral.
 - Bodyweight exercise → no crash, flagged, zero-weight handling.
 - Empty cycle → zeroed totals, no crash.
 - Exercises ordered by saved `SplitExercise.orderIndex` when present.
+
+**Unit (JVM, `src/test`) on `PatchService`** (reuses `noOpTransactionRunner`):
+- Applying a `DbPatch.LogSet` inserts a `WorkoutSet` with `completed = true` (default), so
+  agent-logged sets are counted by the archive's completed filter. Passing `completed = false`
+  explicitly is honored.
 
 **Instrumentation (`src/androidTest`):**
 - **Migration 13→14**: extend the existing migration coverage
@@ -406,6 +495,8 @@ dedicated VM — implementer's call; keep `SplitViewModel` from ballooning.
   `cycle.startDate`/`cycle.name` columns exist (nullable) and `archived_cycle` is created.
 - **Backup round-trip**: insert an `ArchivedCycle`, export → wipe → import, assert it
   survives identically (extend the existing backup round-trip test).
+- **Overlap query**: insert an archive for `[d1,d2]`, assert `countOverlapping` returns >0 for an
+  overlapping range and 0 for an adjacent/disjoint one (boundary-inclusive).
 
 **Manual (run the app):**
 - Archive a cycle with edited start/end dates; confirm card numbers match logged data,
@@ -424,8 +515,16 @@ dedicated VM — implementer's call; keep `SplitViewModel` from ballooning.
 - Archiving is **non-destructive**: live splits carry into the next cycle.
 - **Completed sets only** count toward the snapshot (template/planned sets excluded);
   intentionally diverges from the unfiltered live progress queries.
-- Volume stored as **true pounds** (`*Lbs` fields), no `/10` scaling — scaling is display-only.
-- Untagged days go in a synthetic **"Unassigned"** bucket so per-split numbers reconcile with
-  totals.
+- **Agent/imported `LogSet` is fixed at the source** to write `completed = true`, so AI-logged
+  work counts (and stops silently missing from today's volume too) — forward-fix, no backfill.
+- Snapshot stores **true pounds** for all weights; `weightLbs` is tenths in the DB, so
+  `CycleSnapshotBuilder` is the **single conversion boundary** (`WeightLbs.toLbs`). `topWeight`
+  and `e1rm` are `Float` (keep .5); `volumeLbs` is a rounded `Long`. Nothing divides twice.
+- Untagged days go in a synthetic **"Unassigned"** bucket — covering both **missing** and
+  **null-`cycleSlotId`** `WorkoutDay` cases — so per-split numbers reconcile with totals.
+- `splitCount` = **splits actually trained** (`usageCount > 0`, excluding Unassigned); a pure
+  free-logger reads `0` and the UI adapts.
+- Overlapping archive date ranges are **warned, not blocked** (user owns their cycle
+  boundaries; snapshots are independent). Hard-block is a one-line change if ever wanted.
 - Archive insert + active-cycle reset are **atomic** (`db.withTransaction`).
 - **`archived_cycle` is wired into `DataBackupManager`** (export/import/clear) — non-optional.
