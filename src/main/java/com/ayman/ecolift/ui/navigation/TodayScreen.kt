@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -17,10 +18,10 @@ fun TodayScreen(
     viewModel: LogViewModel = viewModel(),
     modifier: Modifier = Modifier,
     initialSplitId: Long? = null,
-    isChromeVisible: Boolean = true,
-    onChromeVisibilityChange: (Boolean) -> Unit = {},
+    chromeReveal: ChromeRevealState = remember { ChromeRevealState() },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val workedDays by viewModel.workedDays.collectAsStateWithLifecycle()
     var consumedInitialSplit by rememberSaveable(initialSplitId) { mutableStateOf(false) }
 
     LaunchedEffect(initialSplitId) {
@@ -90,6 +91,7 @@ fun TodayScreen(
         isSearchActive = uiState.exerciseInput.isNotBlank(),
         totalSets = totalSets,
         totalVolumeLbs = totalVolumeLbs,
+        workedDays = workedDays,
         onDateSelected = viewModel::selectDate,
         onPreviousDay = viewModel::goToPreviousDay,
         onNextDay = viewModel::goToNextDay,
@@ -138,8 +140,7 @@ fun TodayScreen(
         },
         restTimerSeconds = uiState.restStopwatchSeconds,
         onCancelRestTimer = viewModel::cancelRestTimer,
-        isChromeVisible = isChromeVisible,
-        onChromeVisibilityChange = onChromeVisibilityChange,
+        chromeReveal = chromeReveal,
         modifier = modifier
     )
 }

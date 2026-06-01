@@ -82,9 +82,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ayman.ecolift.ui.viewmodel.AvailableSessionUi
 import com.ayman.ecolift.ui.viewmodel.CycleEntry
+import com.ayman.ecolift.ui.viewmodel.CycleArchiveViewModel
 import com.ayman.ecolift.ui.viewmodel.Split
 import com.ayman.ecolift.ui.viewmodel.SplitCycle
 import com.ayman.ecolift.ui.viewmodel.SplitExerciseRef
+import com.ayman.ecolift.ui.viewmodel.SplitTabMode
 import com.ayman.ecolift.ui.viewmodel.SplitUiState
 import com.ayman.ecolift.ui.viewmodel.SplitViewModel
 import kotlin.math.roundToInt
@@ -102,12 +104,18 @@ import com.ayman.ecolift.ui.theme.*
 @Composable
 fun SplitScreen(
     viewModel: SplitViewModel = viewModel(),
+    archiveViewModel: CycleArchiveViewModel = viewModel(),
     onNavigateToLog: (splitId: Long) -> Unit = {},
     onNavigateToExerciseProgress: (exerciseId: Long) -> Unit = {},
+    onNavigateToArchiveDetail: (archiveId: Long) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val availableSessions by viewModel.availableSessions.collectAsStateWithLifecycle()
+    val workedDays by viewModel.workedDays.collectAsStateWithLifecycle()
+    val archives by archiveViewModel.archives.collectAsStateWithLifecycle()
+    var tabMode by remember { mutableStateOf(SplitTabMode.CURRENT) }
     var showAddDialog by remember { mutableStateOf(false) }
+    var showArchiveDialog by remember { mutableStateOf(false) }
 
     var detailSplitId by remember { mutableStateOf<Long?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -123,18 +131,9 @@ fun SplitScreen(
         }
     }
 
-    val gymDaysThisMonth = remember(availableSessions) {
-        val map = mutableMapOf<java.time.YearMonth, MutableSet<Int>>()
-        availableSessions.forEach { session ->
-            try {
-                val date = java.time.LocalDate.parse(session.date)
-                val ym = java.time.YearMonth.of(date.year, date.month)
-                map.getOrPut(ym) { mutableSetOf() }.add(date.dayOfMonth)
-            } catch (e: Exception) {
-                // Ignore parsing errors
-            }
-        }
-        map
+    val gymDaysThisMonth = remember(workedDays) {
+        workedDays.groupBy { java.time.YearMonth.from(it) }
+            .mapValues { (_, days) -> days.mapTo(mutableSetOf()) { it.dayOfMonth } }
     }
 
     CycleSplitScreen(
@@ -152,7 +151,12 @@ fun SplitScreen(
         },
         onEditSplit = { detailSplitId = it.id },
         onAddSplit = { showAddDialog = true },
-        onSplitOptions = { detailSplitId = it.id }
+        onSplitOptions = { detailSplitId = it.id },
+        tabMode = tabMode,
+        onTabModeChange = { tabMode = it },
+        archives = archives,
+        onOpenArchive = onNavigateToArchiveDetail,
+        onArchiveCurrentCycle = { showArchiveDialog = true },
     )
 
     if (showAddDialog) {
@@ -162,6 +166,18 @@ fun SplitScreen(
                 viewModel.addSplit(name)
                 showAddDialog = false
             },
+        )
+    }
+
+    if (showArchiveDialog) {
+        ArchiveCycleDialog(
+            loadDefaults = { archiveViewModel.defaultArchiveWindow() },
+            checkOverlap = { start, end -> archiveViewModel.overlapCount(start, end) },
+            onConfirm = { name, start, end ->
+                archiveViewModel.archiveCurrentCycle(name, start, end)
+                showArchiveDialog = false
+            },
+            onDismiss = { showArchiveDialog = false },
         )
     }
 
@@ -280,7 +296,7 @@ private fun SplitScreenContent(
                             "Hold + drag a split to reorder",
                             color = TextInactive,
                             fontSize = 10.sp,
-                            letterSpacing = 0.8.sp,
+                            letterSpacing = 0.sp,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp),
                         )
                     }
@@ -513,7 +529,7 @@ private fun SectionHeader(label: String, actionLabel: String, onAction: () -> Un
             color = AccentTeal,
             fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
-            letterSpacing = 1.sp,
+            letterSpacing = 0.sp,
             modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))
                 .clickable(onClick = onAction)
@@ -721,7 +737,7 @@ private fun TodayBadge() {
             color = AccentTeal,
             fontSize = 10.sp,
             fontWeight = FontWeight.Medium,
-            letterSpacing = 0.5.sp,
+            letterSpacing = 0.sp,
         )
     }
 }
@@ -739,7 +755,7 @@ private fun SavedBadge() {
             color = TextInactive,
             fontSize = 10.sp,
             fontWeight = FontWeight.Medium,
-            letterSpacing = 0.5.sp,
+            letterSpacing = 0.sp,
         )
     }
 }
@@ -867,7 +883,7 @@ private fun SplitDetailSheet(
                     color = TextInactive,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
-                    letterSpacing = 1.sp,
+                    letterSpacing = 0.sp,
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
                         .clickable { onClearSaved() }
@@ -1409,6 +1425,130 @@ private fun AddSplitDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
 }
 
 @Composable
+private fun ArchiveCycleDialog(
+    loadDefaults: suspend () -> Pair<String, String>,
+    checkOverlap: suspend (String, String) -> Int,
+    onConfirm: (name: String, start: String, end: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    var start by remember { mutableStateOf("") }
+    var end by remember { mutableStateOf("") }
+    var loaded by remember { mutableStateOf(false) }
+    var overlap by remember { mutableStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        val defaults = loadDefaults()
+        start = defaults.first
+        end = defaults.second
+        loaded = true
+    }
+
+    val validRange = remember(start, end) {
+        runCatching { !LocalDate.parse(start).isAfter(LocalDate.parse(end)) }
+            .getOrDefault(false)
+    }
+
+    LaunchedEffect(start, end, loaded, validRange) {
+        overlap = if (loaded && validRange) checkOverlap(start, end) else 0
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
+            border = BorderStroke(1.dp, BorderDefault),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    "Archive cycle",
+                    color = TextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    "Freeze this cycle's progress between two dates. Sets outside the range are not counted.",
+                    color = TextInactive,
+                    fontSize = 11.sp,
+                )
+                val fieldColors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = AccentTeal,
+                    unfocusedBorderColor = BorderSubtle,
+                    focusedContainerColor = BackgroundElevated,
+                    unfocusedContainerColor = BackgroundElevated,
+                    cursorColor = AccentTeal,
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    placeholder = { Text("Cycle name (optional)", color = TextInactive) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = fieldColors,
+                )
+                OutlinedTextField(
+                    value = start,
+                    onValueChange = { start = it },
+                    label = { Text("Start (YYYY-MM-DD)", color = TextInactive) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = fieldColors,
+                )
+                OutlinedTextField(
+                    value = end,
+                    onValueChange = { end = it },
+                    label = { Text("End (YYYY-MM-DD)", color = TextInactive) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = fieldColors,
+                )
+                if (loaded && !validRange) {
+                    Text(
+                        "Enter valid dates with start on or before end.",
+                        color = ErrorRed,
+                        fontSize = 11.sp,
+                    )
+                }
+                if (overlap > 0) {
+                    Text(
+                        "This range overlaps $overlap existing ${if (overlap == 1) "archive" else "archives"}.",
+                        color = ErrorRed,
+                        fontSize = 11.sp,
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = TextInactive)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = { onConfirm(name.trim(), start.trim(), end.trim()) },
+                        enabled = validRange,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AccentTeal,
+                            contentColor = BackgroundPrimary,
+                        ),
+                    ) {
+                        Text("Archive")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ConfirmDeleteDialog(
     splitName: String,
     onDismiss: () -> Unit,
@@ -1550,33 +1690,6 @@ private fun SaveFromDayDialog(
 // ============================================================================
 // Primitives
 // ============================================================================
-
-@Composable
-private fun MiniSparkline(values: List<Float>, color: Color, modifier: Modifier = Modifier) {
-    if (values.size < 2) {
-        Box(modifier)
-        return
-    }
-    Canvas(modifier) {
-        val maxV = values.max()
-        val minV = values.min()
-        val range = (maxV - minV).coerceAtLeast(1f)
-        val stepX = size.width / (values.size - 1)
-        val padY = 2f
-        val path = Path()
-        values.forEachIndexed { i, v ->
-            val x = stepX * i
-            val yNorm = (v - minV) / range
-            val y = size.height - padY - yNorm * (size.height - padY * 2)
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-        }
-        drawPath(
-            path = path,
-            color = color,
-            style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
-        )
-    }
-}
 
 // ============================================================================
 // Utilities

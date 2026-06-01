@@ -2,33 +2,33 @@ package com.ayman.ecolift.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val BackgroundPrimary = Color(0xFFFAF8F5) // Cream background
-val BackgroundSurface = Color(0xFFFFFFFF) // White surface
-val BackgroundElevated = Color(0xFFF4F1EB)
-val BackgroundSubtle = Color(0xFFEBE6DF)
+val BackgroundPrimary = Color(0xFFF4F6F5)
+val BackgroundSurface = Color(0xFFFFFFFF)
+val BackgroundElevated = Color(0xFFEAF0EE)
+val BackgroundSubtle = Color(0xFFDDE6E3)
 
-val AccentTeal = Color(0xFF2A9D8F) // Muted teal that fits cream
-val AccentTeal35 = Color(0x592A9D8F) // 35% alpha
-val AccentTeal20 = Color(0x332A9D8F) // 20% alpha
-val AccentTeal18 = Color(0x2E2A9D8F) // 18% alpha
-val AccentTeal15 = Color(0x262A9D8F) // 15% alpha
-val AccentTeal12 = Color(0x1F2A9D8F) // 12% alpha
-val AccentTeal10 = Color(0x1A2A9D8F) // 10% alpha
-val AccentTeal07 = Color(0x122A9D8F) // 7% alpha
+val AccentTeal = Color(0xFF149C8A)
+val AccentTeal35 = Color(0x59149C8A)
+val AccentTeal20 = Color(0x33149C8A)
+val AccentTeal18 = Color(0x2E149C8A)
+val AccentTeal15 = Color(0x26149C8A)
+val AccentTeal12 = Color(0x1F149C8A)
+val AccentTeal10 = Color(0x1A149C8A)
+val AccentTeal07 = Color(0x12149C8A)
 
-val TextPrimary = Color(0xFF2C2C2C)
-val TextSecondary = Color(0xFF5D5D5D)
-val TextMuted = Color(0xFF8E8E8E)
-val TextInactive = Color(0xFFB0B0B0)
+val TextPrimary = Color(0xFF171A1C)
+val TextSecondary = Color(0xFF3F4947)
+val TextMuted = Color(0xFF66706E)
+val TextInactive = Color(0xFF8D9895)
 
-val BorderDefault = Color(0xFFE1DCD3)
-val BorderSubtle = Color(0xFFEBE6DF)
+val BorderDefault = Color(0xFFD2DBD8)
+val BorderSubtle = Color(0xFFE4EBE8)
 
-val NavBackground = Color(0xFFFAF8F5)
-val SearchIcon = Color(0xFF2A9D8F)
-val SearchPlaceholder = Color(0xFFA0A0A0)
-val MuscleGroupTag = Color(0xFFF4F1EB)
-val ChevronColor = Color(0xFF8E8E8E)
+val NavBackground = Color(0xFFFFFFFF)
+val SearchIcon = Color(0xFF149C8A)
+val SearchPlaceholder = Color(0xFF7A8582)
+val MuscleGroupTag = Color(0xFFEAF0EE)
+val ChevronColor = Color(0xFF66706E)
 
-val ErrorRed = Color(0xFFD9534F)
-val ErrorRedSoft = Color(0x33D9534F)
+val ErrorRed = Color(0xFFB9473F)
+val ErrorRedSoft = Color(0x33B9473F)

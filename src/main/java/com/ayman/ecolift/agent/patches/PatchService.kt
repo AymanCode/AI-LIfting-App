@@ -122,7 +122,8 @@ class PatchService(
                         weightLbs = patch.weightLbs,
                         reps = patch.reps,
                         isBodyweight = patch.isBodyweight,
-                        restTimeSeconds = patch.restTimeSeconds
+                        restTimeSeconds = patch.restTimeSeconds,
+                        completed = patch.completed,
                     )
                 )
             }

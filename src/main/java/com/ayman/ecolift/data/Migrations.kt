@@ -138,6 +138,29 @@ object Migrations {
         }
     }
 
+    val MIGRATION_13_14 = object : Migration(13, 14) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            addColumnIfMissing(db, "cycle", "startDate", "TEXT DEFAULT NULL")
+            addColumnIfMissing(db, "cycle", "name", "TEXT DEFAULT NULL")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `archived_cycle` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `name` TEXT NOT NULL,
+                    `startDate` TEXT NOT NULL,
+                    `endDate` TEXT NOT NULL,
+                    `splitCount` INTEGER NOT NULL,
+                    `totalVolumeLbs` INTEGER NOT NULL,
+                    `totalSessions` INTEGER NOT NULL,
+                    `archivedAt` INTEGER NOT NULL,
+                    `schemaVersion` INTEGER NOT NULL,
+                    `snapshotJson` TEXT NOT NULL
+                )
+                """.trimIndent()
+            )
+        }
+    }
+
     val ALL_MIGRATIONS = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
@@ -151,6 +174,7 @@ object Migrations {
         MIGRATION_10_11,
         MIGRATION_11_12,
         MIGRATION_12_13,
+        MIGRATION_13_14,
     )
 
     private fun migrateLegacyWorkoutSchemaToV3Shape(db: SupportSQLiteDatabase) {

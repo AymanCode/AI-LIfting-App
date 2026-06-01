@@ -5,8 +5,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
@@ -85,6 +83,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -110,6 +109,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -155,6 +158,7 @@ data class LoggedSet(
     val restSeconds: Int? = null
 )
 
+@Immutable
 data class ExerciseLog(
     val exerciseId: Long,
     val exerciseName: String,
@@ -175,25 +179,15 @@ private data class NumberInputTarget(
     val value: String,
 )
 
-private data class LogScrollChromeSnapshot(
-    val isScrolling: Boolean,
-    val isAtTop: Boolean,
-    val isAtBottom: Boolean,
-)
+private fun LazyListState.isAtTop(): Boolean =
+    firstVisibleItemIndex == 0 && firstVisibleItemScrollOffset == 0
 
-private fun LazyListState.chromeSnapshot(): LogScrollChromeSnapshot {
-    val layoutInfo = layoutInfo
-    val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
-    val isAtBottom = layoutInfo.totalItemsCount == 0 ||
-        (lastVisibleItem != null &&
-            lastVisibleItem.index == layoutInfo.totalItemsCount - 1 &&
-            lastVisibleItem.offset + lastVisibleItem.size <= layoutInfo.viewportEndOffset)
-
-    return LogScrollChromeSnapshot(
-        isScrolling = isScrollInProgress,
-        isAtTop = firstVisibleItemIndex == 0 && firstVisibleItemScrollOffset == 0,
-        isAtBottom = isAtBottom
-    )
+private fun LazyListState.isAtBottom(): Boolean {
+    val last = layoutInfo.visibleItemsInfo.lastOrNull()
+    return layoutInfo.totalItemsCount == 0 ||
+        (last != null &&
+            last.index == layoutInfo.totalItemsCount - 1 &&
+            last.offset + last.size <= layoutInfo.viewportEndOffset)
 }
 
 private fun Modifier.backgroundChromeGestureStrip(
@@ -250,19 +244,19 @@ fun LogTopBar(
                     text = dateLabel,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1C1C1E)
+                    color = Color(0xFF171A1C)
                 )
                 if (cycleSlotLabel != null) {
                     Text(
                         text = cycleSlotLabel,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF4DB6AC)
+                        color = Color(0xFF149C8A)
                     )
                 } else {
                     Text(
                         text = "No cycle slot",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF8E8E93)
+                        color = Color(0xFF66706E)
                     )
                 }
             }
@@ -272,7 +266,7 @@ fun LogTopBar(
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                     contentDescription = "Previous Day",
-                    tint = Color(0xFF1C1C1E)
+                    tint = Color(0xFF171A1C)
                 )
             }
         },
@@ -281,12 +275,12 @@ fun LogTopBar(
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                     contentDescription = "Next Day",
-                    tint = Color(0xFF1C1C1E)
+                    tint = Color(0xFF171A1C)
                 )
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = Color(0xFFF2F0EB)
+            containerColor = Color(0xFFF4F6F5)
         )
     )
 }
@@ -297,9 +291,9 @@ fun SplitChip(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val bgColor = if (isSelected) Color(0xFF1C1C1E) else Color.White
-    val textColor = if (isSelected) Color.White else Color(0xFF1C1C1E)
-    val borderColor = if (isSelected) Color.Transparent else Color(0xFF1C1C1E).copy(alpha = 0.15f)
+    val bgColor = if (isSelected) Color(0xFF171A1C) else Color.White
+    val textColor = if (isSelected) Color.White else Color(0xFF171A1C)
+    val borderColor = if (isSelected) Color.Transparent else Color(0xFF171A1C).copy(alpha = 0.15f)
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
@@ -318,7 +312,7 @@ fun SplitChip(
                     modifier = Modifier
                         .size(6.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF4DB6AC))
+                        .background(Color(0xFF149C8A))
                 )
             }
             Text(
@@ -332,7 +326,7 @@ fun SplitChip(
                     text = slot.slotLabel.uppercase(),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = if (isSelected) Color.White.copy(alpha = 0.75f) else Color(0xFF4DB6AC)
+                    color = if (isSelected) Color.White.copy(alpha = 0.75f) else Color(0xFF149C8A)
                 )
             }
         }
@@ -350,7 +344,7 @@ fun SplitSelectorStrip(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(vertical = 2.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Column {
@@ -358,12 +352,12 @@ fun SplitSelectorStrip(
                 text = "Today's workout",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF1C1C1E)
+                color = Color(0xFF171A1C)
             )
             Text(
                 text = "Choose a saved plan to load its exercises",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF8E8E93)
+                color = Color(0xFF66706E)
             )
         }
         LazyRow(
@@ -413,18 +407,18 @@ fun LogSetRow(
             modifier = modifier
             .fillMaxWidth()
             .bringIntoViewRequester(bringIntoViewRequester)
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (set.isCompleted) Color(0xFF4DB6AC).copy(alpha = 0.07f) else Color.Transparent)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (set.isCompleted) Color(0xFFEAF7F4).copy(alpha = 0.68f) else Color.Transparent)
             .drawBehind {
                 if (set.isCompleted) {
                     drawRect(
-                        color = Color(0xFF4DB6AC),
+                        color = Color(0xFF149C8A),
                         topLeft = Offset.Zero,
-                        size = Size(3.dp.toPx(), size.height)
+                        size = Size(2.dp.toPx(), size.height)
                     )
                 }
             }
-            .padding(start = 10.dp, end = 6.dp, top = 8.dp, bottom = 8.dp)
+            .padding(start = 8.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -433,9 +427,9 @@ fun LogSetRow(
         ) {
             Box(
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(30.dp)
                     .clip(CircleShape)
-                    .background(if (set.isCompleted) Color(0xFF4DB6AC) else Color(0xFFF2F0EB))
+                    .background(if (set.isCompleted) Color(0xFF149C8A) else Color(0xFFEAF0EE))
                     .bounceClick {
                         heavyHaptic()
                         onCompleteSet()
@@ -454,7 +448,7 @@ fun LogSetRow(
                         text = set.setNumber.toString(),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF1C1C1E)
+                        color = Color(0xFF171A1C)
                     )
                 }
             }
@@ -502,8 +496,8 @@ fun LogSetRow(
                 Icon(
                     Icons.Outlined.Close,
                     contentDescription = "Delete set",
-                    tint = Color(0xFF8E8E93).copy(alpha = 0.45f),
-                    modifier = Modifier.size(14.dp)
+                    tint = Color(0xFF66706E).copy(alpha = 0.45f),
+                    modifier = Modifier.size(15.dp)
                 )
             }
         }
@@ -512,7 +506,7 @@ fun LogSetRow(
             Text(
                 text = "Rest ${formatRestDuration(restSeconds)} before set",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF4DB6AC).copy(alpha = 0.78f),
+                color = Color(0xFF149C8A).copy(alpha = 0.78f),
                 modifier = Modifier.padding(start = 40.dp, top = 3.dp)
             )
         }
@@ -547,7 +541,7 @@ fun ExerciseLogCard(
         animationSpec = spring(stiffness = 650f, dampingRatio = 0.78f),
         label = "exercise_swipe_offset"
     )
-    val completedCardColor = Color(0xFFF3FAF9)
+    val completedCardColor = Color(0xFFF5FAF8)
     val isFullyCompleted = sets.isNotEmpty() && sets.all { it.isCompleted }
     val cardContainerColor by animateColorAsState(
         targetValue = if (isCollapsed || isFullyCompleted) completedCardColor else Color.White,
@@ -555,7 +549,7 @@ fun ExerciseLogCard(
         label = "exercise_card_container_color"
     )
     val cardCornerRadius by animateDpAsState(
-        targetValue = if (isCollapsed) 12.dp else 16.dp,
+        targetValue = if (isCollapsed) 10.dp else 12.dp,
         animationSpec = spring(stiffness = 650f, dampingRatio = 0.82f),
         label = "exercise_card_corner_radius"
     )
@@ -586,7 +580,8 @@ fun ExerciseLogCard(
             },
         shape = RoundedCornerShape(cardCornerRadius),
         colors = CardDefaults.cardColors(containerColor = cardContainerColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isCollapsed) 1.dp else 2.dp)
+        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isCollapsed) 0.dp else 1.dp)
     ) {
         AnimatedContent(
             targetState = isCollapsed,
@@ -607,7 +602,7 @@ fun ExerciseLogCard(
             }
 
             Column(
-                modifier = Modifier.padding(vertical = 16.dp)
+                modifier = Modifier.padding(vertical = 12.dp)
             ) {
                 // Header
                 Row(
@@ -620,13 +615,13 @@ fun ExerciseLogCard(
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(8.dp))
                             .clickable {
                                 heavyHaptic()
                                 onToggleCollapsed()
                             }
                             .padding(end = 12.dp)
-                            .padding(vertical = 2.dp)
+                            .padding(vertical = 1.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
@@ -634,7 +629,7 @@ fun ExerciseLogCard(
                                 modifier = Modifier.weight(1f),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1C1C1E),
+                                color = Color(0xFF171A1C),
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -647,7 +642,7 @@ fun ExerciseLogCard(
                             Text(
                                 text = previousSession,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF4DB6AC).copy(alpha = 0.85f),
+                                color = Color(0xFF149C8A).copy(alpha = 0.85f),
                                 modifier = Modifier.padding(top = 4.dp)
                             )
                         }
@@ -655,31 +650,33 @@ fun ExerciseLogCard(
                 
                     OutlinedButton(
                         onClick = { onInteraction(); onAddSet() },
-                        shape = RoundedCornerShape(50),
-                        border = BorderStroke(1.dp, Color(0xFF4DB6AC)),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF4DB6AC)),
-                        modifier = Modifier.height(32.dp).bounceClick(onClick = { onInteraction(); onAddSet() }),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFF149C8A)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF149C8A)),
+                        modifier = Modifier.height(34.dp).bounceClick(onClick = { onInteraction(); onAddSet() }),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                     ) {
-                        Text("+ SET", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Set", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             
             // Column Headers
             if (sets.isNotEmpty()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 10.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+                        .padding(start = 8.dp, end = 4.dp, top = 2.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("SET", modifier = Modifier.width(28.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color(0xFF8E8E93))
+                    Text("SET", modifier = Modifier.width(28.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("LBS", modifier = Modifier.weight(0.58f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color(0xFF8E8E93))
+                    Text("LBS", modifier = Modifier.weight(0.58f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("REPS", modifier = Modifier.weight(0.42f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color(0xFF8E8E93))
+                    Text("REPS", modifier = Modifier.weight(0.42f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
                     Spacer(modifier = Modifier.width(4.dp))
                     Spacer(modifier = Modifier.width(32.dp))
                 }
@@ -723,16 +720,16 @@ private fun FinishedExerciseRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(10.dp))
             .drawBehind {
                 drawRect(
-                    color = Color(0xFF4DB6AC),
+                    color = Color(0xFF149C8A),
                     topLeft = Offset.Zero,
-                    size = Size(3.dp.toPx(), size.height)
+                    size = Size(2.dp.toPx(), size.height)
                 )
             }
             .clickable(onClick = onExpand)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -740,7 +737,7 @@ private fun FinishedExerciseRow(
             modifier = Modifier
                 .size(26.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF4DB6AC)),
+                .background(Color(0xFF149C8A)),
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
@@ -752,7 +749,7 @@ private fun FinishedExerciseRow(
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF1C1C1E),
+                    color = Color(0xFF171A1C),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -764,14 +761,14 @@ private fun FinishedExerciseRow(
             Text(
                 text = "$completedCount/${sets.size} sets complete · Top $summary",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF8E8E93)
+                color = Color(0xFF66706E)
             )
         }
         Text(
             text = "Edit",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color(0xFF4DB6AC)
+            color = Color(0xFF149C8A)
         )
     }
 }
@@ -796,9 +793,9 @@ fun NumberInputWithSteppers(
 
     Row(
         modifier = modifier
-            .height(48.dp)
-            .border(1.dp, Color(0xFF1C1C1E).copy(alpha = 0.12f), RoundedCornerShape(8.dp))
-            .background(Color.White, RoundedCornerShape(8.dp)),
+            .height(44.dp)
+            .border(1.dp, Color(0xFF171A1C).copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+            .background(Color(0xFFF9FBFA), RoundedCornerShape(10.dp)),
         verticalAlignment = Alignment.CenterVertically
     ) {
         NumberStepperButton(label = "-", onClick = onDecrement)
@@ -815,13 +812,13 @@ fun NumberInputWithSteppers(
         ) {
             Text(
                 text = displayValue.ifBlank { placeholder },
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 color = when {
-                    displayValue.isBlank() -> Color(0xFF8E8E93)
-                    isShowingSuggestion -> Color(0xFF1C1C1E).copy(alpha = 0.48f)
-                    else -> Color(0xFF1C1C1E)
+                    displayValue.isBlank() -> Color(0xFF66706E)
+                    isShowingSuggestion -> Color(0xFF171A1C).copy(alpha = 0.48f)
+                    else -> Color(0xFF171A1C)
                 },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -842,16 +839,17 @@ private fun NumberStepperButton(
         onClick = onClick,
         modifier = Modifier
             .width(34.dp)
+            .clip(RoundedCornerShape(8.dp))
             .fillMaxHeight(),
         color = Color.Transparent,
-        contentColor = Color(0xFF8E8E93),
+        contentColor = Color(0xFF66706E),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
                 text = label,
-                fontSize = 18.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF8E8E93)
+                color = Color(0xFF66706E)
             )
         }
     }
@@ -884,14 +882,14 @@ private fun CustomNumberKeyboard(
         Icons.AutoMirrored.Outlined.KeyboardArrowLeft
     }
     val switchDescription = if (kind == NumberInputKind.Weight) "Switch to reps" else "Switch to weight"
-    val accent = Color(0xFF4DB6AC)
+    val accent = Color(0xFF149C8A)
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 10.dp),
         shape = RoundedCornerShape(18.dp),
         color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFF1C1C1E).copy(alpha = 0.08f)),
+        border = BorderStroke(1.dp, Color(0xFF171A1C).copy(alpha = 0.08f)),
         tonalElevation = 6.dp,
         shadowElevation = 8.dp
     ) {
@@ -927,8 +925,8 @@ private fun CustomNumberKeyboard(
                 NumberKeyboardKey(
                     label = "BW",
                     onClick = onToggleBodyweight,
-                    color = if (isBodyweight) accent.copy(alpha = 0.16f) else Color(0xFFF7F7F7),
-                    contentColor = if (isBodyweight) accent else Color(0xFF1C1C1E),
+                    color = if (isBodyweight) accent.copy(alpha = 0.16f) else Color(0xFFF1F4F3),
+                    contentColor = if (isBodyweight) accent else Color(0xFF171A1C),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -970,7 +968,7 @@ private fun NumberKeyboardDisplayField(
         modifier = modifier.height(54.dp),
         shape = RoundedCornerShape(8.dp),
         color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFF1C1C1E).copy(alpha = 0.12f)),
+        border = BorderStroke(1.dp, Color(0xFF171A1C).copy(alpha = 0.12f)),
         shadowElevation = 1.dp
     ) {
         Column(
@@ -984,7 +982,7 @@ private fun NumberKeyboardDisplayField(
                 text = label.uppercase(),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF8E8E93),
+                color = Color(0xFF66706E),
                 maxLines = 1
             )
             Text(
@@ -992,7 +990,7 @@ private fun NumberKeyboardDisplayField(
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = if (isPlaceholder) Color(0xFF8E8E93) else Color(0xFF1C1C1E),
+                color = if (isPlaceholder) Color(0xFF66706E) else Color(0xFF171A1C),
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -1012,15 +1010,15 @@ private fun NumberKeyboardIconKey(
         onClick = onClick,
         modifier = modifier.clip(RoundedCornerShape(10.dp)),
         shape = RoundedCornerShape(10.dp),
-        color = Color(0xFFF7F7F7),
-        contentColor = Color(0xFF1C1C1E),
-        border = BorderStroke(1.dp, Color(0xFF1C1C1E).copy(alpha = 0.07f)),
+        color = Color(0xFFF1F4F3),
+        contentColor = Color(0xFF171A1C),
+        border = BorderStroke(1.dp, Color(0xFF171A1C).copy(alpha = 0.07f)),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = imageVector,
                 contentDescription = contentDescription,
-                tint = Color(0xFF1C1C1E),
+                tint = Color(0xFF171A1C),
                 modifier = Modifier.size(22.dp)
             )
         }
@@ -1041,11 +1039,11 @@ private fun NumberKeyboardKey(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    color: Color = Color(0xFFF7F7F7),
-    contentColor: Color = Color(0xFF1C1C1E),
+    color: Color = Color(0xFFF1F4F3),
+    contentColor: Color = Color(0xFF171A1C),
     enabled: Boolean = true,
 ) {
-    val effectiveContentColor = if (enabled) contentColor else Color(0xFF8E8E93).copy(alpha = 0.38f)
+    val effectiveContentColor = if (enabled) contentColor else Color(0xFF66706E).copy(alpha = 0.38f)
     Surface(
         onClick = onClick,
         enabled = enabled,
@@ -1053,9 +1051,9 @@ private fun NumberKeyboardKey(
             .height(42.dp)
             .clip(RoundedCornerShape(10.dp)),
         shape = RoundedCornerShape(10.dp),
-        color = if (enabled) color else Color(0xFFF7F7F7).copy(alpha = 0.45f),
+        color = if (enabled) color else Color(0xFFF1F4F3).copy(alpha = 0.45f),
         contentColor = effectiveContentColor,
-        border = BorderStroke(1.dp, Color(0xFF1C1C1E).copy(alpha = if (enabled) 0.07f else 0.03f)),
+        border = BorderStroke(1.dp, Color(0xFF171A1C).copy(alpha = if (enabled) 0.07f else 0.03f)),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
@@ -1075,8 +1073,8 @@ private fun PrBadge(modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.height(22.dp),
         shape = RoundedCornerShape(50),
-        color = Color(0xFF4DB6AC).copy(alpha = 0.13f),
-        border = BorderStroke(1.dp, Color(0xFF4DB6AC).copy(alpha = 0.24f))
+        color = Color(0xFF149C8A).copy(alpha = 0.13f),
+        border = BorderStroke(1.dp, Color(0xFF149C8A).copy(alpha = 0.24f))
     ) {
         Box(
             modifier = Modifier.padding(horizontal = 8.dp),
@@ -1086,7 +1084,7 @@ private fun PrBadge(modifier: Modifier = Modifier) {
                 text = "PR",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF2A9D8F)
+                color = Color(0xFF149C8A)
             )
         }
     }
@@ -1111,19 +1109,19 @@ private fun PlateCalculatorSheet(
                 text = "Plate load",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF1C1C1E)
+                color = Color(0xFF171A1C)
             )
             Text(
                 text = "${plateLoad.targetLabel} total · 45 lb bar",
                 style = MaterialTheme.typography.labelMedium,
-                color = Color(0xFF8E8E93)
+                color = Color(0xFF66706E)
             )
         }
 
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = Color(0xFFF3FAF9),
-            border = BorderStroke(1.dp, Color(0xFF4DB6AC).copy(alpha = 0.18f))
+            color = Color(0xFFEAF7F4),
+            border = BorderStroke(1.dp, Color(0xFF149C8A).copy(alpha = 0.18f))
         ) {
             Row(
                 modifier = Modifier
@@ -1135,13 +1133,13 @@ private fun PlateCalculatorSheet(
                 Text(
                     text = "Per side",
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color(0xFF8E8E93)
+                    color = Color(0xFF66706E)
                 )
                 Text(
                     text = plateLoad.perSideLabel,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF1C1C1E),
+                    color = Color(0xFF171A1C),
                     textAlign = TextAlign.End
                 )
             }
@@ -1151,7 +1149,7 @@ private fun PlateCalculatorSheet(
             Text(
                 text = plateLoad.note,
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF8E8E93)
+                color = Color(0xFF66706E)
             )
         }
 
@@ -1160,7 +1158,7 @@ private fun PlateCalculatorSheet(
             modifier = Modifier.align(Alignment.End),
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
         ) {
-            Text("Close", style = MaterialTheme.typography.labelMedium, color = Color(0xFF4DB6AC))
+            Text("Close", style = MaterialTheme.typography.labelMedium, color = Color(0xFF149C8A))
         }
     }
 }
@@ -1307,7 +1305,7 @@ fun RestTimerPill(
             .height(42.dp),
         shape = RoundedCornerShape(50),
         color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFF4DB6AC).copy(alpha = 0.18f)),
+        border = BorderStroke(1.dp, Color(0xFF149C8A).copy(alpha = 0.18f)),
         shadowElevation = 4.dp
     ) {
         Row(
@@ -1319,25 +1317,25 @@ fun RestTimerPill(
                 modifier = Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF4DB6AC).copy(alpha = pulseAlpha))
+                    .background(Color(0xFF149C8A).copy(alpha = pulseAlpha))
             )
             Text(
                 text = "Rest",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF1C1C1E)
+                color = Color(0xFF171A1C)
             )
             Text(
                 text = timeString,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF4DB6AC),
+                color = Color(0xFF149C8A),
                 textAlign = TextAlign.Center
             )
             IconButton(
                 onClick = { heavyHaptic(); onDone() },
                 modifier = Modifier.size(32.dp),
-                colors = IconButtonDefaults.iconButtonColors(contentColor = Color(0xFF8E8E93))
+                colors = IconButtonDefaults.iconButtonColors(contentColor = Color(0xFF66706E))
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
@@ -1359,12 +1357,12 @@ private fun StatPill(value: String, label: String) {
             text = value,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF1C1C1E)
+            color = Color(0xFF171A1C)
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = Color(0xFF8E8E93),
+            color = Color(0xFF66706E),
             modifier = Modifier.padding(bottom = 2.dp)
         )
     }
@@ -1379,20 +1377,20 @@ private fun AnimatedStatPill(targetValue: Int, label: String, useVolumeFormat: B
         if (useVolumeFormat) {
             AnimatedVolumeCounter(
                 targetValue = targetValue,
-                style = MaterialTheme.typography.titleMedium.copy(color = Color(0xFF1C1C1E)),
+                style = MaterialTheme.typography.titleMedium.copy(color = Color(0xFF171A1C)),
                 fontWeight = FontWeight.Bold,
             )
         } else {
             AnimatedCounter(
                 targetValue = targetValue,
-                style = MaterialTheme.typography.titleMedium.copy(color = Color(0xFF1C1C1E)),
+                style = MaterialTheme.typography.titleMedium.copy(color = Color(0xFF171A1C)),
                 fontWeight = FontWeight.Bold,
             )
         }
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = Color(0xFF8E8E93),
+            color = Color(0xFF66706E),
             modifier = Modifier.padding(bottom = 2.dp)
         )
     }
@@ -1422,25 +1420,37 @@ fun SearchBarWithDropdown(
             onValueChange = onQueryChange,
             modifier = Modifier
                 .fillMaxWidth()
+                .height(60.dp)
                 .onFocusChanged {
                     isFocused = it.isFocused
                     onFocusChanged(it.isFocused)
                 },
-            placeholder = { Text("Search or add exercise...", color = Color(0xFF8E8E93)) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF8E8E93)) },
+            placeholder = {
+                Text(
+                    "Search or add exercise...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF66706E)
+                )
+            },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF66706E)) },
             trailingIcon = {
                 if (query.isNotEmpty()) {
                     IconButton(onClick = { addExerciseAndClose(ExerciseSearchResult(query, "CUSTOM")) }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add", tint = Color(0xFF4DB6AC))
+                        Icon(Icons.Default.Add, contentDescription = "Add", tint = Color(0xFF149C8A))
                     }
                 }
             },
-            shape = RoundedCornerShape(12.dp),
+            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                color = Color(0xFF171A1C),
+                fontWeight = FontWeight.SemiBold
+            ),
+            shape = RoundedCornerShape(14.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = Color.White,
                 unfocusedContainerColor = Color.White,
-                focusedBorderColor = Color(0xFF4DB6AC),
-                unfocusedBorderColor = Color.Transparent
+                focusedBorderColor = Color(0xFF149C8A),
+                unfocusedBorderColor = Color(0xFFDDE6E3),
+                cursorColor = Color(0xFF149C8A)
             ),
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Text,
@@ -1464,7 +1474,8 @@ fun SearchBarWithDropdown(
                     .padding(top = 8.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
                     results.forEach { result ->
@@ -1480,12 +1491,12 @@ fun SearchBarWithDropdown(
                                 Text(
                                     text = result.name,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = Color(0xFF1C1C1E),
+                                    color = Color(0xFF171A1C),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            Icon(Icons.Default.Add, contentDescription = "Add", tint = Color(0xFF4DB6AC), modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Add, contentDescription = "Add", tint = Color(0xFF149C8A), modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -1505,21 +1516,21 @@ fun EmptyLogState(modifier: Modifier = Modifier) {
         Icon(
             Icons.Outlined.FitnessCenter,
             contentDescription = null,
-            tint = Color(0xFF4DB6AC).copy(alpha = 0.4f),
-            modifier = Modifier.size(48.dp)
+            tint = Color(0xFF149C8A).copy(alpha = 0.72f),
+            modifier = Modifier.size(42.dp)
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
         Text(
             text = "No exercises yet",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Medium,
-            color = Color(0xFF1C1C1E)
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF171A1C)
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Search above to start logging",
+            text = "Search above to start today's log",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF8E8E93)
+            color = Color(0xFF66706E)
         )
     }
 }
@@ -1527,6 +1538,7 @@ fun EmptyLogState(modifier: Modifier = Modifier) {
 @Composable
 private fun LogCalendarSheet(
     selectedDate: LocalDate,
+    workedDays: Set<LocalDate>,
     onDateSelected: (LocalDate) -> Unit,
     onClose: () -> Unit
 ) {
@@ -1553,7 +1565,7 @@ private fun LogCalendarSheet(
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                     contentDescription = "Previous month",
-                    tint = Color(0xFF1C1C1E)
+                    tint = Color(0xFF171A1C)
                 )
             }
 
@@ -1562,14 +1574,14 @@ private fun LogCalendarSheet(
                     text = visibleMonth.format(monthFormatter),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1C1C1E)
+                    color = Color(0xFF171A1C)
                 )
                 TextButton(onClick = { onDateSelected(today) }) {
                     Text(
                         text = "Today",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF4DB6AC)
+                        color = Color(0xFF149C8A)
                     )
                 }
             }
@@ -1578,7 +1590,7 @@ private fun LogCalendarSheet(
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                     contentDescription = "Next month",
-                    tint = Color(0xFF1C1C1E)
+                    tint = Color(0xFF171A1C)
                 )
             }
         }
@@ -1593,7 +1605,7 @@ private fun LogCalendarSheet(
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF8E8E93),
+                    color = Color(0xFF66706E),
                     textAlign = TextAlign.Center
                 )
             }
@@ -1612,6 +1624,7 @@ private fun LogCalendarSheet(
                             selectedDate = selectedDate,
                             today = today,
                             isInVisibleMonth = YearMonth.from(date) == visibleMonth,
+                            isWorkedDay = workedDays.contains(date),
                             onDateSelected = onDateSelected,
                             modifier = Modifier.weight(1f)
                         )
@@ -1626,7 +1639,7 @@ private fun LogCalendarSheet(
         ) {
             Text(
                 text = "Close",
-                color = Color(0xFF8E8E93),
+                color = Color(0xFF66706E),
                 fontWeight = FontWeight.SemiBold
             )
         }
@@ -1639,23 +1652,24 @@ private fun LogCalendarDay(
     selectedDate: LocalDate,
     today: LocalDate,
     isInVisibleMonth: Boolean,
+    isWorkedDay: Boolean,
     onDateSelected: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isSelected = date == selectedDate
     val isToday = date == today
     val containerColor = when {
-        isSelected -> Color(0xFF4DB6AC)
-        isToday -> Color(0xFF4DB6AC).copy(alpha = 0.10f)
+        isSelected -> Color(0xFF149C8A)
+        isToday -> Color(0xFF149C8A).copy(alpha = 0.10f)
         else -> Color.Transparent
     }
     val contentColor = when {
         isSelected -> Color.White
-        isInVisibleMonth -> Color(0xFF1C1C1E)
-        else -> Color(0xFF8E8E93).copy(alpha = 0.45f)
+        isInVisibleMonth -> Color(0xFF171A1C)
+        else -> Color(0xFF66706E).copy(alpha = 0.45f)
     }
     val border = if (isToday && !isSelected) {
-        BorderStroke(1.dp, Color(0xFF4DB6AC).copy(alpha = 0.55f))
+        BorderStroke(1.dp, Color(0xFF149C8A).copy(alpha = 0.55f))
     } else {
         null
     }
@@ -1671,10 +1685,20 @@ private fun LogCalendarDay(
             Text(
                 text = date.dayOfMonth.toString(),
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Medium,
+                fontWeight = if (isSelected || isToday || isWorkedDay) FontWeight.Bold else FontWeight.Medium,
                 color = contentColor,
                 textAlign = TextAlign.Center
             )
+            if (isWorkedDay) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 5.dp)
+                        .size(4.dp)
+                        .clip(CircleShape)
+                        .background(if (isSelected) Color.White else Color(0xFF149C8A))
+                )
+            }
         }
     }
 }
@@ -1693,6 +1717,7 @@ fun LogScreen(
     isSearchActive: Boolean,
     totalSets: Int,
     totalVolumeLbs: Int,
+    workedDays: Set<LocalDate> = emptySet(),
     onDateSelected: (String) -> Unit,
     onPreviousDay: () -> Unit,
     onNextDay: () -> Unit,
@@ -1711,8 +1736,7 @@ fun LogScreen(
     onFinishExercise: (Int) -> Unit,
     restTimerSeconds: Int?,
     onCancelRestTimer: () -> Unit,
-    isChromeVisible: Boolean = true,
-    onChromeVisibilityChange: (Boolean) -> Unit = {},
+    chromeReveal: ChromeRevealState = ChromeRevealState(),
     modifier: Modifier = Modifier
 ) {
     var finishedExerciseIds by remember { mutableStateOf(emptySet<Long>()) }
@@ -1724,9 +1748,11 @@ fun LogScreen(
     val focusManager = LocalFocusManager.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    chromeReveal.hideDistancePx = with(density) { 80.dp.toPx() }
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val hiddenSystemNavPadding = maxOf(navigationBarPadding, 48.dp)
     val selectedCalendarDate = remember(currentDate) {
         runCatching { LocalDate.parse(currentDate) }.getOrDefault(LocalDate.now())
     }
@@ -1734,7 +1760,8 @@ fun LogScreen(
     LaunchedEffect(currentDate) {
         finishedExerciseIds = emptySet()
         activeNumberInput = null
-        onChromeVisibilityChange(true)
+        chromeReveal.locked = false
+        chromeReveal.snap(1f)
     }
 
     DisposableEffect(lifecycleOwner, focusManager) {
@@ -1744,7 +1771,8 @@ fun LogScreen(
                 plateSheetWeight = null
                 isCalendarVisible = false
                 focusManager.clearFocus()
-                onChromeVisibilityChange(true)
+                chromeReveal.locked = false
+                chromeReveal.snap(1f)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -1759,61 +1787,68 @@ fun LogScreen(
     }
     val isNumberKeyboardVisible = activeTarget != null && activeSet != null
     val keyboardHeightPadding = 306.dp
-    val targetListTopPadding = if (isChromeVisible) 72.dp else 8.dp
-    val targetListBottomPadding = when {
-        isNumberKeyboardVisible -> keyboardHeightPadding
-        isChromeVisible -> navigationBarPadding + 76.dp
-        else -> 12.dp
-    }
-    val targetViewportBottomPadding = if (!isChromeVisible && !isNumberKeyboardVisible) {
-        hiddenSystemNavPadding
+    // Content padding is kept CONSTANT with respect to chrome visibility. Hiding or
+    // showing the top bar / bottom nav must never remeasure or resize the list while
+    // the user is mid-scroll — that relayout-per-frame is what made scrolling stutter.
+    // Instead the chrome fades over the list (see the AnimatedVisibility blocks below).
+    // Room for the collapsible top bar and bottom nav is always reserved; while you
+    // scroll through the middle that reserved space just sits off-screen, and the bars
+    // fade back in over it when you reach an edge.
+    val listTopPadding = 72.dp
+    // Only the custom number keyboard changes the bottom inset — and that's a deliberate
+    // tap, never a scroll — so animating this one is safe and smooth.
+    val targetListBottomPadding = if (isNumberKeyboardVisible) {
+        keyboardHeightPadding
     } else {
-        0.dp
+        navigationBarPadding + 76.dp
     }
-    val listTopPadding by animateDpAsState(
-        targetValue = targetListTopPadding,
-        animationSpec = tween(durationMillis = 180),
-        label = "log_list_top_padding"
-    )
     val listBottomPadding by animateDpAsState(
         targetValue = targetListBottomPadding,
         animationSpec = tween(durationMillis = 180),
         label = "log_list_bottom_padding"
     )
-    val viewportBottomPadding by animateDpAsState(
-        targetValue = targetViewportBottomPadding,
-        animationSpec = tween(durationMillis = 180),
-        label = "log_viewport_bottom_padding"
-    )
 
-    LaunchedEffect(listState, isNumberKeyboardVisible, plateSheetWeight) {
-        snapshotFlow { listState.chromeSnapshot() }
+    // The bars hide proportionally to scroll as deltas arrive (see chromeNestedScroll).
+    // This effect only reacts to the start/stop of a gesture — a single boolean that
+    // flips at most twice per swipe — so it never runs per-frame. On settle it snaps the
+    // bars to fully shown or hidden so you never rest on a half-faded bar.
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }
             .distinctUntilChanged()
-            .collect { snapshot ->
-                when {
-                    snapshot.isScrolling &&
-                        !snapshot.isAtTop &&
-                        !snapshot.isAtBottom &&
-                        !isNumberKeyboardVisible -> onChromeVisibilityChange(false)
-                    !snapshot.isScrolling &&
-                        (snapshot.isAtTop || snapshot.isAtBottom) &&
-                        !isNumberKeyboardVisible &&
-                        plateSheetWeight == null -> onChromeVisibilityChange(true)
+            .collect { scrolling ->
+                if (!scrolling && !chromeReveal.locked) {
+                    val target = when {
+                        listState.isAtTop() || listState.isAtBottom() -> 1f
+                        chromeReveal.reveal >= 0.5f -> 1f
+                        else -> 0f
+                    }
+                    chromeReveal.animateTo(target)
                 }
             }
     }
 
+    val chromeNestedScroll = remember(chromeReveal) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                chromeReveal.applyScrollDelta(available.y)
+                return Offset.Zero
+            }
+        }
+    }
+
     fun revealChrome() {
-        onChromeVisibilityChange(true)
+        scope.launch { chromeReveal.animateTo(1f) }
     }
 
     fun closePlateSheet() {
         plateSheetWeight = null
+        chromeReveal.locked = false
         revealChrome()
     }
 
     fun closeCalendarSheet() {
         isCalendarVisible = false
+        chromeReveal.locked = false
         revealChrome()
     }
 
@@ -1821,7 +1856,8 @@ fun LogScreen(
         activeNumberInput = null
         plateSheetWeight = null
         focusManager.clearFocus()
-        onChromeVisibilityChange(true)
+        chromeReveal.locked = true
+        chromeReveal.snap(1f)
         isCalendarVisible = true
     }
 
@@ -1831,6 +1867,7 @@ fun LogScreen(
         focusManager.clearFocus()
         isCalendarVisible = false
         onDateSelected(date.toString())
+        chromeReveal.locked = false
         revealChrome()
     }
 
@@ -1848,7 +1885,8 @@ fun LogScreen(
     fun activateNumberInput(exerciseIndex: Int, setIndex: Int, kind: NumberInputKind) {
         val set = exercises.getOrNull(exerciseIndex)?.sets?.getOrNull(setIndex) ?: return
         focusManager.clearFocus()
-        onChromeVisibilityChange(false)
+        chromeReveal.locked = true
+        scope.launch { chromeReveal.animateTo(0f) }
         onSetFocused(exerciseIndex, setIndex)
         activeNumberInput = NumberInputTarget(
             exerciseIndex = exerciseIndex,
@@ -1883,13 +1921,14 @@ fun LogScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFF2F0EB))
+            .background(Color(0xFFF4F6F5))
     ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = statusBarPadding, bottom = viewportBottomPadding)
+                    .nestedScroll(chromeNestedScroll)
+                    .padding(top = statusBarPadding)
                     .imePadding(),
                 contentPadding = PaddingValues(
                     start = 16.dp,
@@ -1922,7 +1961,8 @@ fun LogScreen(
             }
             items(
                 items = orderedExercises,
-                key = { it.exercise.exerciseId }
+                key = { it.exercise.exerciseId },
+                contentType = { "exercise" }
             ) { item ->
                 val i = item.originalIndex
                 val exercise = item.exercise
@@ -1951,7 +1991,8 @@ fun LogScreen(
                     onWeightInput = { setIndex -> activateNumberInput(i, setIndex, NumberInputKind.Weight) },
                     onRepsInput = { setIndex -> activateNumberInput(i, setIndex, NumberInputKind.Reps) },
                     onShowPlates = { setIndex ->
-                        onChromeVisibilityChange(false)
+                        chromeReveal.locked = true
+                        scope.launch { chromeReveal.animateTo(0f) }
                         plateSheetWeight = exercise.sets[setIndex].weight
                     },
                     modifier = Modifier.animateItem(),
@@ -1963,23 +2004,24 @@ fun LogScreen(
             }
         }
 
-            AnimatedVisibility(
-                visible = isChromeVisible,
-                modifier = Modifier.align(Alignment.TopCenter),
-                enter = fadeIn(animationSpec = tween(120)) +
-                    slideInVertically(animationSpec = tween(160)) { -it / 2 },
-                exit = fadeOut(animationSpec = tween(110)) +
-                    slideOutVertically(animationSpec = tween(150)) { -it / 2 }
-            ) {
-                LogTopBar(
-                    dateLabel = dateLabel,
-                    cycleSlotLabel = cycleSlotLabel,
-                    onDateClick = ::openCalendarSheet,
-                    onPreviousDay = onPreviousDay,
-                    onNextDay = onNextDay,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            // Always composed; the scroll-linked fade is a draw-phase graphicsLayer read
+            // (no recomposition while scrolling). At reveal 0 it slides fully off the top
+            // edge, so the hidden bar can't intercept taps over the list.
+            LogTopBar(
+                dateLabel = dateLabel,
+                cycleSlotLabel = cycleSlotLabel,
+                onDateClick = ::openCalendarSheet,
+                onPreviousDay = onPreviousDay,
+                onNextDay = onNextDay,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        val r = chromeReveal.reveal
+                        alpha = r
+                        translationY = -(1f - r) * size.height
+                    }
+            )
 
             Box(
                 modifier = Modifier
@@ -2029,9 +2071,12 @@ fun LogScreen(
                     onSwitchField = ::switchNumberInputField,
                     onDone = {
                         activeNumberInput = null
+                        chromeReveal.locked = false
                         revealChrome()
                     },
-                    modifier = Modifier.align(Alignment.BottomCenter)
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = navigationBarPadding)
                 )
             }
 
@@ -2043,6 +2088,7 @@ fun LogScreen(
                 ) {
                     LogCalendarSheet(
                         selectedDate = selectedCalendarDate,
+                        workedDays = workedDays,
                         onDateSelected = ::selectCalendarDate,
                         onClose = ::closeCalendarSheet
                     )
@@ -2064,6 +2110,7 @@ fun LogScreen(
     }
 }
 
+@Immutable
 private data class IndexedExercise(
     val originalIndex: Int,
     val exercise: ExerciseLog,

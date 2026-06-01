@@ -18,7 +18,8 @@ sealed interface DbPatch {
         val weightLbs: Int?,        // null for bodyweight
         val reps: Int,
         val isBodyweight: Boolean = false,
-        val restTimeSeconds: Int? = null
+        val restTimeSeconds: Int? = null,
+        val completed: Boolean = true,
     ) : DbPatch
 
     /** Edit fields on an existing set. Only non-null fields are updated. */

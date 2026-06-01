@@ -123,6 +123,18 @@ interface WorkoutSetDao {
     @Query("SELECT MAX(date) FROM workout_set")
     suspend fun getLatestWorkoutDate(): String?
 
+    @Query("SELECT MIN(date) FROM workout_set")
+    suspend fun getEarliestWorkoutDate(): String?
+
+    @Query(
+        """
+        SELECT * FROM workout_set
+        WHERE date BETWEEN :startDate AND :endDate
+        ORDER BY date ASC, setNumber ASC, id ASC
+        """
+    )
+    suspend fun getSetsInRange(startDate: String, endDate: String): List<WorkoutSet>
+
     @Query("""
         SELECT e.name FROM workout_set s
         JOIN exercise e ON s.exerciseId = e.id

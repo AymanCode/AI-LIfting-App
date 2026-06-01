@@ -11,4 +11,6 @@ data class Cycle(
     val numTypes: Int = 3,
     val isActive: Boolean = false,
     val nextSessionType: Int? = null,
+    val startDate: String? = null,
+    val name: String? = null,
 )

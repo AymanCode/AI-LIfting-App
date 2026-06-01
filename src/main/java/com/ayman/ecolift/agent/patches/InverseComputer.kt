@@ -51,7 +51,8 @@ class InverseComputer(
                 weightLbs = current.weightLbs,
                 reps = current.reps ?: 0,
                 isBodyweight = current.isBodyweight,
-                restTimeSeconds = current.restTimeSeconds
+                restTimeSeconds = current.restTimeSeconds,
+                completed = current.completed,
             )
         }
 
