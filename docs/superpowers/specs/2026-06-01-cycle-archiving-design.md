@@ -118,9 +118,9 @@ data class CycleTotals(
 
 @Serializable
 data class SplitSnapshot(
-    val slotId: Long,             // original CycleSlot id; -1 == the synthetic "Unassigned" bucket
-    val name: String,             // frozen split name (or "Unassigned")
-    val orderIndex: Int,          // Unassigned sorts last
+    val slotId: Long,             // original CycleSlot id; -1 == "Unassigned", -2 == "Deleted split" (§5.4)
+    val name: String,             // frozen split name (or "Unassigned" / "Deleted split")
+    val orderIndex: Int,          // real splits first, then Deleted split, then Unassigned last
     val firstUsedDate: String?,   // "from what day"  (null if never used in window)
     val lastUsedDate: String?,    // "to what day"
     val usageCount: Int,          // "how many times used" = distinct in-window days tagged to this slot WITH >=1 completed set
@@ -231,10 +231,16 @@ count toward TodayScreen volume / completion %). Fix at the source:
 1. Add `val completed: Boolean = true` to `DbPatch.LogSet` (`agent/model/DbPatch.kt`) — default
    `true` because logged == performed; an agent that ever logs a *planned* set can pass `false`.
 2. Pass it through in `PatchService.applyPatch`'s `LogSet` branch (`completed = patch.completed`).
+3. **`InverseComputer` must round-trip `completed`.** The inverse of a `DeleteSet` is a `LogSet`
+   that restores the deleted row (`InverseComputer.kt`, the `DeleteSet` branch). Today it omits
+   `completed`; once the field defaults to `true`, undoing the deletion of an *incomplete*
+   (template/planned) set would resurrect it as completed. Set `completed = current.completed`
+   in that inverse `LogSet` so undo is faithful. (The forward `LogSet` → `DeleteSet` inverse
+   needs nothing, since `DeleteSet` carries no `completed`.)
+
 This is **forward-fix only**: any sets the agent already inserted with `completed = false` stay
 that way (we cannot reliably know which were performed, and a blind backfill is riskier than the
-gap). The `LogSet` inverse is a `DeleteSet`, so undo/`InverseComputer` need no change; validation
-is unaffected by an added defaulted field.
+gap). Validation is unaffected by an added defaulted field.
 
 ### 5.3 Per-exercise endpoints
 
@@ -253,39 +259,60 @@ is unaffected by an added defaulted field.
 ### 5.4 Bucketing sets into splits (+ Unassigned)
 
 Every completed in-window set is assigned to exactly one bucket by its **day's** slot. Build a
-`workoutDaysByDate: Map<String, WorkoutDay>` and resolve each set's slot with a null-safe
-lookup that collapses **two** distinct "no split" cases:
+`workoutDaysByDate: Map<String, WorkoutDay>` and `slotIds = slots.map { it.id }.toSet()`, then
+resolve each set's bucket in priority order:
 
 ```kotlin
-const val UNASSIGNED_SLOT_ID = -1L
-val slotId = workoutDaysByDate[set.date]?.cycleSlotId ?: UNASSIGNED_SLOT_ID
+const val UNASSIGNED_SLOT_ID = -1L   // no slot metadata at all (never structured)
+const val DELETED_SLOT_ID    = -2L   // resolved to a slot that no longer exists
+
+val day = workoutDaysByDate[set.date]
+val resolved: Long? = day?.cycleSlotId
+    ?: day?.cycleSlotType?.let { slots.getOrNull(it)?.id }   // legacy rows: type is an index
+val bucketId = when {
+    resolved == null    -> UNASSIGNED_SLOT_ID
+    resolved in slotIds -> resolved
+    else                -> DELETED_SLOT_ID
+}
 ```
 
-- **(a) No `WorkoutDay` row at all** for that date — the common case: a `WorkoutDay` is only
-  created by loading a split (`assignCycleSlot`); free-logging via `SetRepository.addSet` (and
-  agent `LogSet`) inserts a `WorkoutSet` with **no** `WorkoutDay`. So the map *misses* the date.
-- **(b) A `WorkoutDay` exists but `cycleSlotId` is `null`** — a day that was created but not
-  tagged to a split.
+This covers four real cases:
+- **No `WorkoutDay` row** for the date → **Unassigned**. A `WorkoutDay` is only created by loading
+  a split (`assignCycleSlot`); free-logging (`SetRepository.addSet`) and agent `LogSet` insert a
+  `WorkoutSet` with **no** day row, so the map misses the date. Null-safe `map[date]?…` (not `!!`)
+  keeps this from crashing.
+- **`WorkoutDay` with both `cycleSlotId` and `cycleSlotType` null** → **Unassigned**.
+- **Legacy structured day** (`cycleSlotId` null but `cycleSlotType` set) → map the type *index*
+  back to a slot via `slots.getOrNull(type)?.id`, mirroring the app's own `resolveSlotType` /
+  `getLatestAssignedDayBefore` convention (`WorkoutRepository.kt`). `assignCycleSlot` writes
+  `cycleSlotType = indexOfFirst { it.id == slotId }`, and pre-`cycleSlotId` migration rows
+  (`Migrations.kt`) have only the type — without this fallback every such day would be misfiled as
+  Unassigned despite being structured work. (Caveat: the index is positional against the *current*
+  slot order — the same ambiguity the live app already accepts after a reorder.)
+- **Orphaned slot** (`resolved` points at a slot deleted since) → a frozen **"Deleted split"**
+  bucket (`slotId = -2`). `deleteCycleSlot` removes only the `cycle_slot` row and `workout_day`
+  has **no FK**, so the id dangles. This was structured work missing only its metadata, so keep it
+  **distinct from Unassigned** (never-structured) rather than silently merging the two.
 
-Both → the synthetic **"Unassigned"** bucket (`slotId = -1`, sorts last). Using `map[date]?.…
-?: UNASSIGNED` (not `map[date]!!.cycleSlotId`) is what makes case (a) safe. This guarantees the
-per-split sections **partition** all counted work, so per-split numbers reconcile exactly with
-the cycle totals (totals = sum over all buckets, including Unassigned). Without this, free-logged
-days would inflate totals but appear in no split section — or crash on a missing-key lookup.
+Both synthetic buckets sort after real splits (Deleted split, then Unassigned last). They make
+the per-split sections **partition** all counted work, so per-split numbers reconcile exactly with
+the cycle totals (totals = sum over every bucket). Each synthetic bucket is emitted only when it
+holds ≥1 completed set.
 
-> **Implication for free-loggers:** a user who never loads splits has **every** day in
-> Unassigned and `splitCount = 0`. The detail/list UI must render that gracefully (§7.4/§7.5) —
+> **Implication for free-loggers:** a user who never loads splits has **every** day in Unassigned
+> and `splitCount = 0` (§5.5). The detail/list UI must render that gracefully (§7.4/§7.5) —
 > Unassigned is the *primary* content then, not a muted footnote.
 
-For each bucket (each `CycleSlot`, plus Unassigned):
+For each bucket (each `CycleSlot`, plus the synthetic Deleted split / Unassigned):
 - `usageCount` = count of distinct in-window days in this bucket that have ≥1 completed set.
 - `firstUsedDate` / `lastUsedDate` = min/max of those days' dates.
 - `exercises` = exercises **actually performed** (completed) on those days, ordered by the
   saved `SplitExercise.orderIndex` when present, else first-seen. Reflects what they *did*,
   not the saved template. Per-exercise `sessions[]` / endpoints are scoped to this bucket's
   days (an exercise done in two splits appears once per split with that split's progress).
-- A split with no completed work in the window is still emitted (usageCount 0, empty
-  exercises) so the user sees it existed; Unassigned is omitted entirely when empty.
+- A real split with no completed work in the window is still emitted (usageCount 0, empty
+  exercises) so the user sees it existed; the synthetic Deleted split / Unassigned buckets are
+  omitted entirely when empty.
 
 ### 5.5 Count definitions & edge cases
 
@@ -295,10 +322,11 @@ For each bucket (each `CycleSlot`, plus Unassigned):
 - `totalSessions` (cycle) = distinct in-window days with ≥1 completed set, across **all** buckets
   **including Unassigned** (so it reconciles with the raw data, not just structured days).
 - `splitCount` (cycle) = number of **user-defined splits actually trained** = count of
-  `SplitSnapshot` buckets with `usageCount > 0`, **excluding** the synthetic Unassigned bucket
-  and excluding zero-usage splits that are emitted only for visibility. A pure free-logger
-  therefore has `splitCount = 0` (everything is Unassigned); the card must handle 0 (e.g. label
-  "Unstructured" / show sessions+volume only) rather than render "0 splits" awkwardly.
+  `SplitSnapshot` buckets with `usageCount > 0`, **excluding both synthetic buckets** (Deleted
+  split, slotId -2; and Unassigned, slotId -1) and excluding zero-usage splits emitted only for
+  visibility. A pure free-logger therefore has `splitCount = 0` (everything is Unassigned); the
+  card must handle 0 (e.g. label "Unstructured" / show sessions+volume only) rather than render
+  "0 splits" awkwardly.
 
 **Edge cases:**
 - **Empty cycle** (no sets in window): still archivable; totals zero, splits show usage 0.
@@ -410,15 +438,23 @@ card never reads "0 splits".
 New route. Renders the frozen snapshot:
 - **Header**: name, date range, span days, total sessions, total volume.
 - **Highlights**: biggest gainer / biggest regression (by e1RM delta), "most trained" split.
-- **Per-split sections**: split name + `usageCount` + date range, then per-exercise rows
-  reusing the existing progress-row style: name, start→end (e1RM / top weight / volume),
-  signed % delta with up/down color (`AccentTeal` / `ErrorRed`), and a `MiniSparkline` from
-  `sessions[]`. e1RM leads; tapping a row can expand to show top-weight & volume deltas too.
-  The **"Unassigned"** bucket (if present) renders as a final, visually muted section so the
-  totals reconcile and stray logged days are still visible — **unless** it's the only bucket
-  (free-logger, `splitCount == 0`), in which case render it as the primary, full-strength
-  content (drop the "Unassigned" framing / muting) so the screen isn't one greyed-out block.
+- **Per-split sections**: split name + `usageCount` + date range, then per-exercise rows in the
+  same visual style as the live `ExerciseProgressRow`: name, start→end (e1RM / top weight /
+  volume), signed % delta with up/down color (`AccentTeal` / `ErrorRed`), and a `MiniSparkline`
+  from `sessions[]`. e1RM leads; tapping a row can expand to show top-weight & volume deltas too.
+  The two synthetic buckets, when present, render last and visually muted — **Deleted split**
+  (structured work whose split was removed) then **Unassigned** — so totals reconcile and stray
+  days stay visible. **Exception:** if a synthetic bucket is the *only* content (free-logger,
+  `splitCount == 0`), render it primary/full-strength (drop the muting) so the screen isn't one
+  greyed-out block.
 - Single-session / no-data exercises render the explanatory label, not a fake 0%.
+
+> **Component reuse note:** the new row is a **new composable over `ExerciseSnapshot`** — the
+> existing `ExerciseProgressRow` is `private` in `SplitScreen.kt` and bound to the live
+> `SplitExerciseRef`, so it can't be reused directly. `MiniSparkline` *is* reusable but is
+> currently `private` in `SplitScreen.kt` (3 in-file callers); **extract it to a shared file**
+> (e.g. `ui/navigation/ProgressUiComponents.kt`), make it `internal`, and update those callers —
+> see §9.
 
 ### 7.6 Navigation
 
@@ -443,9 +479,11 @@ dedicated VM — implementer's call; keep `SplitViewModel` from ballooning.
 - `data/ArchivedCycle.kt`, `data/ArchivedCycleDao.kt` (incl. `getAll()` + `insertAll()` for backup)
 - `data/CycleSnapshot.kt` (snapshot models + `ExerciseMeta`)
 - `data/CycleSnapshotBuilder.kt` (pure builder)
-- `ui/navigation/CycleArchiveDetailScreen.kt`
+- `ui/navigation/CycleArchiveDetailScreen.kt` (incl. its own `ExerciseSnapshot` row composable)
+- `ui/navigation/ProgressUiComponents.kt` (extracted shared `MiniSparkline`) — see §7.5
 - `ui/viewmodel/CycleArchiveViewModel.kt`
-- Tests: `src/test/java/.../CycleSnapshotBuilderTest.kt`
+- Tests: `src/test/java/.../CycleSnapshotBuilderTest.kt` (+ extend agent-patch tests for the
+  `LogSet.completed` round-trip)
 
 **Modified**
 - `data/Cycle.kt` (+`startDate`, +`name`)
@@ -455,8 +493,9 @@ dedicated VM — implementer's call; keep `SplitViewModel` from ballooning.
 - `data/DataBackupManager.kt` (+`archivedCycles` in payload/build/restore/clear/toResult, bump `APP_DB_VERSION` → 14) — see §6.1
 - `agent/model/DbPatch.kt` (+`completed: Boolean = true` on `LogSet`) — see §5.2 write-path fix
 - `agent/patches/PatchService.kt` (pass `completed = patch.completed` in the `LogSet` insert) — see §5.2
+- `agent/patches/InverseComputer.kt` (DeleteSet→LogSet inverse: set `completed = current.completed`) — see §5.2
 - `ui/navigation/CycleSplitScreenV2.kt` (Current/Archive toggle, archive action, header cleanup)
-- `ui/navigation/SplitScreen.kt` (pass-through wiring for archive nav/actions)
+- `ui/navigation/SplitScreen.kt` (pass-through wiring for archive nav/actions; **extract `MiniSparkline` to the shared file and update its 3 callers**)
 - `ui/navigation/AppNavigation.kt` (archive detail route)
 - `ui/viewmodel/SplitViewModel.kt` (archive action + active-cycle state, if not in new VM)
 
@@ -473,21 +512,29 @@ dedicated VM — implementer's call; keep `SplitViewModel` from ballooning.
 - `usageCount` / `firstUsedDate` / `lastUsedDate` correct across multiple slot days, counting
   only days with ≥1 completed set.
 - **Unassigned reconciliation — both cases:** (a) a set whose date has **no `WorkoutDay` row**
-  in the input, and (b) a set on a `WorkoutDay` with `cycleSlotId = null`, both land in the
-  Unassigned bucket (`slotId = -1`); sum of all buckets' volume/sets == cycle totals. Use a
-  null-safe map lookup so case (a) doesn't throw.
-- **`splitCount` definition:** with 2 trained splits + 1 zero-usage split + Unassigned work,
-  `splitCount == 2` (excludes the empty split and Unassigned). An all-free-logger input →
-  `splitCount == 0`, totals still non-zero.
+  in the input, and (b) a set on a `WorkoutDay` with `cycleSlotId = null` and `cycleSlotType =
+  null`, both land in the Unassigned bucket (`slotId = -1`); sum of all buckets' volume/sets ==
+  cycle totals. Use a null-safe map lookup so case (a) doesn't throw.
+- **Legacy `cycleSlotType` bucketing:** a `WorkoutDay` with `cycleSlotId = null` but
+  `cycleSlotType = 1` (and ≥2 slots provided) buckets into `slots[1]`, **not** Unassigned.
+- **Orphaned slot → Deleted split:** a `WorkoutDay` whose resolved slot id is **not** in
+  `slots` lands in the Deleted-split bucket (`slotId = -2`), kept distinct from Unassigned;
+  a never-structured set in the same input still lands in Unassigned (`-1`).
+- **`splitCount` definition:** with 2 trained splits + 1 zero-usage split + Deleted-split +
+  Unassigned work, `splitCount == 2` (excludes the empty split and **both** synthetic buckets).
+  An all-free-logger input → `splitCount == 0`, totals still non-zero.
 - Single-session exercise → start == end, delta neutral.
 - Bodyweight exercise → no crash, flagged, zero-weight handling.
 - Empty cycle → zeroed totals, no crash.
 - Exercises ordered by saved `SplitExercise.orderIndex` when present.
 
-**Unit (JVM, `src/test`) on `PatchService`** (reuses `noOpTransactionRunner`):
+**Unit (JVM, `src/test`) on the agent patch layer** (reuses `noOpTransactionRunner`):
 - Applying a `DbPatch.LogSet` inserts a `WorkoutSet` with `completed = true` (default), so
   agent-logged sets are counted by the archive's completed filter. Passing `completed = false`
   explicitly is honored.
+- **`InverseComputer` round-trip:** deleting a set with `completed = false` then undoing
+  (applying the inverse `LogSet`) restores it with `completed = false`, not `true`; deleting a
+  `completed = true` set restores `true`. Guards the default-`true` field from corrupting undo.
 
 **Instrumentation (`src/androidTest`):**
 - **Migration 13→14**: extend the existing migration coverage
@@ -517,13 +564,20 @@ dedicated VM — implementer's call; keep `SplitViewModel` from ballooning.
   intentionally diverges from the unfiltered live progress queries.
 - **Agent/imported `LogSet` is fixed at the source** to write `completed = true`, so AI-logged
   work counts (and stops silently missing from today's volume too) — forward-fix, no backfill.
+  `InverseComputer`'s DeleteSet→LogSet inverse preserves `completed = current.completed` so undo
+  stays faithful.
 - Snapshot stores **true pounds** for all weights; `weightLbs` is tenths in the DB, so
   `CycleSnapshotBuilder` is the **single conversion boundary** (`WeightLbs.toLbs`). `topWeight`
   and `e1rm` are `Float` (keep .5); `volumeLbs` is a rounded `Long`. Nothing divides twice.
-- Untagged days go in a synthetic **"Unassigned"** bucket — covering both **missing** and
-  **null-`cycleSlotId`** `WorkoutDay` cases — so per-split numbers reconcile with totals.
-- `splitCount` = **splits actually trained** (`usageCount > 0`, excluding Unassigned); a pure
-  free-logger reads `0` and the UI adapts.
+- Set→split bucketing resolves **`cycleSlotId` → legacy `cycleSlotType` index → orphan check**.
+  Two synthetic buckets: **Unassigned** (`-1`, no slot metadata) and **Deleted split** (`-2`,
+  resolved to a since-deleted slot — kept distinct because it was structured work). Legacy
+  `cycleSlotType` rows map by positional index (mirrors the app's existing convention). Every
+  bucket together partitions all counted work, so per-split numbers reconcile with totals.
+- `splitCount` = **splits actually trained** (`usageCount > 0`, excluding **both** synthetic
+  buckets); a pure free-logger reads `0` and the UI adapts.
+- `MiniSparkline` is **extracted to a shared file** (was `private` in `SplitScreen.kt`) for the
+  archive screen; the archive's exercise row is a new composable over `ExerciseSnapshot`.
 - Overlapping archive date ranges are **warned, not blocked** (user owns their cycle
   boundaries; snapshots are independent). Hard-block is a one-line change if ever wanted.
 - Archive insert + active-cycle reset are **atomic** (`db.withTransaction`).
