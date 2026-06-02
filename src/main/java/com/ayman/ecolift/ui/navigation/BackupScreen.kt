@@ -223,6 +223,13 @@ fun BackupScreen(
                         ) {
                             Text("Create Local Backup Now")
                         }
+                        OutlinedButton(
+                            onClick = viewModel::generateFakeData,
+                            enabled = !uiState.isWorking,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("DEBUG: Generate 12 Months Data")
+                        }
                         if (uiState.isWorking) {
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 CircularProgressIndicator(modifier = Modifier.height(20.dp))

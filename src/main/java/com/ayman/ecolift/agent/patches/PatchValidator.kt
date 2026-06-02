@@ -47,9 +47,6 @@ class PatchValidator {
         if (!p.isBodyweight && p.weightLbs != null && p.weightLbs <= 0) {
             return rejected("weightLbs must be positive when provided")
         }
-        if (p.isBodyweight && p.weightLbs != null && p.weightLbs != 0) {
-            return rejected("weightLbs should be null or 0 for bodyweight exercises")
-        }
         if (p.restTimeSeconds != null && p.restTimeSeconds < 0) {
             return rejected("restTimeSeconds cannot be negative")
         }

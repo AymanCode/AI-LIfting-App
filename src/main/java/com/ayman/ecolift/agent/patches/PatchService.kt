@@ -9,6 +9,7 @@ import com.ayman.ecolift.data.WorkoutDay
 import com.ayman.ecolift.data.WorkoutDayDao
 import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.WorkoutSetDao
+import com.ayman.ecolift.data.normalizedBodyweightLoad
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -119,7 +120,7 @@ class PatchService(
                         exerciseId = patch.exerciseId,
                         date = patch.date,
                         setNumber = patch.setNumber,
-                        weightLbs = patch.weightLbs,
+                        weightLbs = if (patch.isBodyweight) normalizedBodyweightLoad(patch.weightLbs) else patch.weightLbs,
                         reps = patch.reps,
                         isBodyweight = patch.isBodyweight,
                         restTimeSeconds = patch.restTimeSeconds,

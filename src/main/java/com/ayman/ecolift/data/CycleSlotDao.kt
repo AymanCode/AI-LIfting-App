@@ -25,6 +25,9 @@ interface CycleSlotDao {
     @Query("DELETE FROM cycle_slot WHERE id = :id")
     suspend fun delete(id: Long)
 
+    @Query("DELETE FROM cycle_slot")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM cycle_slot WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): CycleSlot?
 

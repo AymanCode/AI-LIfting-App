@@ -19,6 +19,7 @@ import com.ayman.ecolift.data.WorkoutDates
 import com.ayman.ecolift.data.WorkoutDay
 import com.ayman.ecolift.data.WorkoutRepository
 import com.ayman.ecolift.data.WorkoutSet
+import com.ayman.ecolift.data.normalizedBodyweightLoad
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -82,6 +83,9 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                 updateHistoricalHints(date, sets)
             }
         }
+        viewModelScope.launch {
+            backfillKnownExerciseMuscles()
+        }
     }
 
     private suspend fun updateHistoricalHints(date: String, currentSets: List<WorkoutSet>) {
@@ -95,8 +99,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             val lastSessionSets = history.filter { it.date == lastDate }
             
             hints[id] = if (lastSessionSets.isNotEmpty()) {
-                val maxWeight = lastSessionSets.maxOf { it.weightLbs ?: 0 }
-                val maxLabel = if (maxWeight == 0) "BW" else "${WeightLbs.formatStored(maxWeight)} lbs"
+                val maxLabel = formatHistoryLoadLabel(lastSessionSets)
                 "${lastSessionSets.size} sets | Max $maxLabel"
             } else null
 
@@ -273,6 +276,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             val refreshedSets = setRepository.getSetsForDate(currentDate.value)
             _sessionSets.value = refreshedSets
             updateHistoricalHints(currentDate.value, refreshedSets)
+            classifySessionExercises(refreshedSets)
         }
     }
 
@@ -291,7 +295,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         clearSmartAdjustment(setId)
         updateSetLocal(setId) { set ->
             val value = WeightLbs.parseInputToStorage(input)
-            set.copy(weightLbs = value)
+            set.copy(weightLbs = normalizedSetWeight(set, value))
         }
         _sessionSets.value.find { it.id == setId }?.let { source ->
             updateSmartAdjustmentsFrom(source, before)
@@ -305,7 +309,8 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         clearSmartAdjustment(setId)
         updateSetLocal(setId) { set ->
             val current = set.weightLbs ?: 0
-            set.copy(weightLbs = (current + delta).coerceAtLeast(0))
+            val next = (current + delta).coerceAtLeast(0)
+            set.copy(weightLbs = normalizedSetWeight(set, next))
         }
         _sessionSets.value.find { it.id == setId }?.let { source ->
             updateSmartAdjustmentsFrom(source, before)
@@ -345,7 +350,14 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         clearSmartAdjustmentsFromSource(setId)
         updateSetLocal(setId) { set ->
             val turningOn = !set.isBodyweight
-            set.copy(isBodyweight = turningOn, weightLbs = if (turningOn) 0 else set.weightLbs)
+            val next = set.copy(
+                isBodyweight = turningOn,
+                weightLbs = if (turningOn) normalizedBodyweightLoad(set.weightLbs) else set.weightLbs,
+            )
+            next.copy(weightLbs = normalizedSetWeight(next, next.weightLbs))
+        }
+        _sessionSets.value.find { it.id == setId }?.let { source ->
+            updateSmartAdjustmentsFrom(source, beforeSourceEdit = null)
         }
     }
 
@@ -370,6 +382,14 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     fun updateExerciseName(exerciseId: Long, newName: String) {
         viewModelScope.launch {
             exerciseRepository.updateName(exerciseId, newName)
+        }
+    }
+
+    fun updateExerciseMuscleGroup(exerciseId: Long, muscleGroup: String) {
+        val normalized = muscleGroup.trim().uppercase()
+        if (normalized !in ExerciseMuscleClassifier.ALLOWED_GROUPS) return
+        viewModelScope.launch {
+            exerciseRepository.updateMuscleGroups(exerciseId, normalized)
         }
     }
 
@@ -431,7 +451,8 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
 
         val existingFromSource = _smartAdjustments.value.values.firstOrNull { it.sourceSetId == source.id }
         val sourceBaselineReps = existingFromSource?.sourceBaselineReps ?: beforeSourceEdit?.reps ?: source.reps
-        val hasSuggestionValue = source.weightLbs != null || source.reps != null
+        val hasWeightSuggestion = source.isBodyweight || source.weightLbs != null
+        val hasSuggestionValue = hasWeightSuggestion || source.reps != null
         if (!hasSuggestionValue) {
             clearSmartAdjustmentsFromSource(source.id)
             return
@@ -448,7 +469,9 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                     setId = target.id,
                     sourceSetId = source.id,
                     sourceBaselineReps = sourceBaselineReps,
-                    suggestedWeightLbs = source.weightLbs,
+                    suggestedWeightLbs = normalizedSetWeight(source, source.weightLbs),
+                    hasWeightSuggestion = hasWeightSuggestion,
+                    suggestedIsBodyweight = source.isBodyweight,
                     suggestedReps = calculateSmartSuggestedReps(
                         sourceNewReps = source.reps,
                         sourceBaselineReps = sourceBaselineReps,
@@ -464,9 +487,17 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun adjustSmartWeight(setId: Long, delta: Int): Boolean {
         val adjustment = _smartAdjustments.value[setId] ?: return false
-        val currentWeight = adjustment.suggestedWeightLbs ?: return false
+        if (!adjustment.hasWeightSuggestion) return false
+        val currentWeight = adjustment.suggestedWeightLbs ?: 0
+        val nextWeight = (currentWeight + delta).coerceAtLeast(0)
         _smartAdjustments.update { current ->
-            current + (setId to adjustment.copy(suggestedWeightLbs = (currentWeight + delta).coerceAtLeast(0)))
+            current + (setId to adjustment.copy(
+                suggestedWeightLbs = if (adjustment.suggestedIsBodyweight) {
+                    normalizedBodyweightLoad(nextWeight)
+                } else {
+                    nextWeight
+                }
+            ))
         }
         return true
     }
@@ -483,10 +514,23 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private fun applySmartAdjustment(setId: Long): Boolean {
         val adjustment = _smartAdjustments.value[setId] ?: return false
         val target = _sessionSets.value.find { it.id == setId } ?: return false
+        val nextIsBodyweight = if (adjustment.hasWeightSuggestion) {
+            adjustment.suggestedIsBodyweight
+        } else {
+            target.isBodyweight
+        }
         val updated = target.copy(
-            weightLbs = adjustment.suggestedWeightLbs ?: target.weightLbs,
+            weightLbs = if (adjustment.hasWeightSuggestion) {
+                if (nextIsBodyweight) {
+                    normalizedBodyweightLoad(adjustment.suggestedWeightLbs)
+                } else {
+                    adjustment.suggestedWeightLbs
+                }
+            } else {
+                target.weightLbs
+            },
             reps = adjustment.suggestedReps ?: target.reps,
-            isBodyweight = if (adjustment.suggestedWeightLbs != null) false else target.isBodyweight,
+            isBodyweight = nextIsBodyweight,
             completed = false,
         )
         _smartAdjustments.update { it - setId }
@@ -565,14 +609,47 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private fun classifyFinishedSessionMuscles(date: String) {
         viewModelScope.launch {
             val sets = setRepository.getSetsForDate(date)
-            val exercises = exerciseRepository
-                .getByIds(sets.map { it.exerciseId }.distinct())
-                .filter { ExerciseMuscleClassifier.shouldClassify(it) }
-            if (exercises.isEmpty()) return@launch
+            classifySessionExercises(sets)
+        }
+    }
 
-            muscleClassifier.classifyBatch(exercises).forEach { classification ->
+    private suspend fun backfillKnownExerciseMuscles() {
+        exerciseRepository.getAll()
+            .filter { ExerciseMuscleClassifier.shouldClassify(it) }
+            .mapNotNull(ExerciseMuscleClassifier::classifyLocally)
+            .forEach { classification ->
                 exerciseRepository.updateMuscleGroups(classification.exerciseId, classification.muscleGroups)
             }
+    }
+
+    private suspend fun classifySessionExercises(sets: List<WorkoutSet>) {
+        val exercises = exerciseRepository
+            .getByIds(sets.map { it.exerciseId }.distinct())
+            .filter { ExerciseMuscleClassifier.shouldClassify(it) }
+        classifyAndPersist(exercises)
+    }
+
+    private suspend fun classifyLoggedExercise(exerciseId: Long) {
+        val exercise = exerciseRepository.getById(exerciseId) ?: return
+        if (!ExerciseMuscleClassifier.shouldClassify(exercise)) return
+
+        val local = ExerciseMuscleClassifier.classifyLocally(exercise)
+        if (local != null) {
+            exerciseRepository.updateMuscleGroups(local.exerciseId, local.muscleGroups)
+            return
+        }
+
+        viewModelScope.launch {
+            classifyAndPersist(listOf(exercise))
+        }
+    }
+
+    private suspend fun classifyAndPersist(exercises: List<Exercise>) {
+        val targets = exercises.filter { ExerciseMuscleClassifier.shouldClassify(it) }
+        if (targets.isEmpty()) return
+
+        muscleClassifier.classifyBatch(targets).forEach { classification ->
+            exerciseRepository.updateMuscleGroups(classification.exerciseId, classification.muscleGroups)
         }
     }
 
@@ -598,6 +675,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         val newSets = setRepository.addExerciseSession(date, exerciseId)
         _sessionSets.update { it + newSets }
         updateHistoricalHints(date, _sessionSets.value)
+        classifyLoggedExercise(exerciseId)
     }
 
     private fun buildUiState(inputs: UiInputs, snapshot: DbSnapshot): LogUiState {
@@ -712,8 +790,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         val lastDate = previousSets.maxOfOrNull(WorkoutSet::date) ?: return null
         val lastSessionSets = previousSets.filter { it.date == lastDate }
         if (lastSessionSets.isEmpty()) return null
-        val maxWeight = lastSessionSets.maxOf { it.weightLbs ?: 0 }
-        val maxLabel = if (maxWeight == 0) "BW" else "${WeightLbs.formatStored(maxWeight)} lbs"
+        val maxLabel = formatHistoryLoadLabel(lastSessionSets)
         return "${lastSessionSets.size} sets | Max $maxLabel"
     }
 
@@ -798,8 +875,29 @@ private data class SmartSetAdjustment(
     val sourceSetId: Long,
     val sourceBaselineReps: Int?,
     val suggestedWeightLbs: Int?,
+    val hasWeightSuggestion: Boolean,
+    val suggestedIsBodyweight: Boolean,
     val suggestedReps: Int?,
 )
+
+private fun normalizedSetWeight(set: WorkoutSet, weightLbs: Int?): Int? =
+    if (set.isBodyweight) normalizedBodyweightLoad(weightLbs) else weightLbs
+
+private fun formatHistoryLoadLabel(sets: List<WorkoutSet>): String {
+    val topSet = sets.maxWithOrNull(
+        compareBy<WorkoutSet> { it.weightLbs ?: 0 }
+            .thenBy { it.reps ?: 0 }
+    ) ?: return "No load"
+    return formatSetLoadLabel(topSet.isBodyweight, topSet.weightLbs)
+}
+
+private fun formatSetLoadLabel(isBodyweight: Boolean, weightLbs: Int?): String {
+    if (isBodyweight) {
+        val addedLoad = normalizedBodyweightLoad(weightLbs)
+        return if (addedLoad == null) "BW" else "BW + ${WeightLbs.formatStored(addedLoad)} lbs"
+    }
+    return weightLbs?.let { "${WeightLbs.formatStored(it)} lbs" } ?: "No load"
+}
 
 private data class ScheduleSnapshot(
     val workoutDays: List<WorkoutDay>,

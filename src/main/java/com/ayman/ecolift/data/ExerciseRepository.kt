@@ -24,7 +24,10 @@ class ExerciseRepository(private val exerciseDao: ExerciseDao) {
         if (existing != null) {
             return existing
         }
-        val exercise = Exercise(name = normalized)
+        val exercise = Exercise(
+            name = normalized,
+            isBodyweight = looksLikeBodyweightExerciseName(normalized),
+        )
         val insertedId = exerciseDao.insert(exercise)
         return if (insertedId == -1L) {
             exerciseDao.getByExactName(normalized) ?: exercise

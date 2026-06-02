@@ -53,9 +53,9 @@ fun TodayScreen(
             sets = ex.sets.map { set ->
                 LoggedSet(
                     setNumber = set.setNumber,
-                    weight = if (set.isBodyweight) "" else WeightLbs.formatStored(set.weightLbs),
+                    weight = WeightLbs.formatStored(set.weightLbs),
                     reps = set.reps?.toString() ?: "",
-                    suggestedWeight = if (set.isBodyweight) null else set.suggestedWeightLbs?.let(WeightLbs::formatStored),
+                    suggestedWeight = set.suggestedWeightLbs?.let(WeightLbs::formatStored),
                     suggestedReps = set.suggestedReps?.toString(),
                     isBodyweight = set.isBodyweight,
                     isCompleted = set.completed,
@@ -137,6 +137,9 @@ fun TodayScreen(
         },
         onFinishExercise = { exIndex ->
             viewModel.finishExercise(uiState.exercises[exIndex].exerciseId)
+        },
+        onMuscleGroupChange = { exIndex, muscleGroup ->
+            viewModel.updateExerciseMuscleGroup(uiState.exercises[exIndex].exerciseId, muscleGroup)
         },
         restTimerSeconds = uiState.restStopwatchSeconds,
         onCancelRestTimer = viewModel::cancelRestTimer,

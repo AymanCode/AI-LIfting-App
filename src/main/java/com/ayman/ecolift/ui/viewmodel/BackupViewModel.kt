@@ -92,6 +92,15 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun generateFakeData() {
+        viewModelScope.launch {
+            runBusyAction {
+                com.ayman.ecolift.data.WorkoutDataGenerator.generateFakeData(db)
+                _messages.tryEmit("Generated 12 months of fake debug data.")
+            }
+        }
+    }
+
     private suspend fun runBusyAction(block: suspend () -> Unit) {
         _uiState.update { it.copy(isWorking = true) }
         runCatching { block() }

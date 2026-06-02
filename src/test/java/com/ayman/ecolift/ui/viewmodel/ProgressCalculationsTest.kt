@@ -90,6 +90,37 @@ class ProgressCalculationsTest {
     }
 
     @Test
+    fun `bodyweight progress uses effective load instead of empty zero weight`() {
+        val sets = listOf(
+            workoutSet(date = "2026-04-10", weight = null, reps = 10, setNumber = 1, isBodyweight = true),
+            workoutSet(date = "2026-04-10", weight = 25, reps = 8, setNumber = 2, isBodyweight = true),
+        )
+
+        val points = buildProgressChartPoints(
+            filteredSets = sets,
+            isBodyweight = true,
+            userBodyWeight = 180,
+        )
+        val stats = buildProgressStats(
+            allTimeSets = sets,
+            timeframe = TimeframeFilter.ONE_MONTH,
+            chartPoints = points,
+            selectedMetric = ProgressMetric.WEIGHT,
+            isBodyweight = true,
+            userBodyWeight = 180,
+            now = LocalDate.of(2026, 4, 17),
+        )
+
+        assertEquals(1, points.size)
+        assertEquals(WeightLbs.fromWholePounds(205), points.single().maxWeight)
+        assertEquals(3440, points.single().volume)
+        assertEquals("205", stats.currentPr)
+        assertEquals(205f, stats.currentPrLbs, 0.01f)
+        assertEquals(3440, stats.totalVolumeLbs)
+        assertTrue(points.single().estimated1RM > 259f)
+    }
+
+    @Test
     fun `organizeProgressExercises sorts positives first then neutral then negative`() {
         val exercises = listOf(
             progressExercise(1, "Flat", 0f),
@@ -225,9 +256,10 @@ class ProgressCalculationsTest {
         id: Long = 0L,
         exerciseId: Long = 1L,
         date: String,
-        weight: Int,
+        weight: Int?,
         reps: Int,
         setNumber: Int = 1,
+        isBodyweight: Boolean = false,
     ) = WorkoutSet(
         id = id,
         exerciseId = exerciseId,
@@ -235,7 +267,7 @@ class ProgressCalculationsTest {
         setNumber = setNumber,
         weightLbs = WeightLbs.fromWholePounds(weight),
         reps = reps,
-        isBodyweight = false,
+        isBodyweight = isBodyweight,
         completed = true,
         restTimeSeconds = null
     )

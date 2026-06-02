@@ -32,3 +32,11 @@ val ChevronColor = Color(0xFF66706E)
 
 val ErrorRed = Color(0xFFB9473F)
 val ErrorRedSoft = Color(0x33B9473F)
+
+val HoldAmber = Color(0xFFB8923A)
+
+val HeroInk = Color(0xFF14201E)
+val HeroInkElevated = Color(0xFF1E2C29)
+val HeroTextPrimary = Color(0xFFF4F6F5)
+val HeroTextMuted = Color(0xFF8FA39E)
+val GaugeTeal = Color(0xFF5FE0CC)

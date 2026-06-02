@@ -134,7 +134,7 @@ class AgentOrchestrator(
                     exerciseId = ex.exerciseId,
                     date = entry.date,
                     setNumber = nextSet,
-                    weightLbs = if (ex.isBodyweight) null else set.weightLbs,
+                    weightLbs = set.weightLbs,
                     reps = set.reps,
                     isBodyweight = ex.isBodyweight
                 )
@@ -357,7 +357,7 @@ class AgentOrchestrator(
                 exerciseId   = ex.exerciseId,
                 date         = targetDate,
                 setNumber    = nextSet + index,
-                weightLbs    = if (ex.isBodyweight) null else set.weightLbs,
+                weightLbs    = set.weightLbs,
                 reps         = set.reps,
                 isBodyweight = ex.isBodyweight
             )
