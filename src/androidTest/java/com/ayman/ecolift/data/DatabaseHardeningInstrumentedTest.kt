@@ -16,7 +16,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -119,6 +121,28 @@ class DatabaseHardeningInstrumentedTest {
     }
 
     @Test
+    fun migration14To15AddsUserSettingsTable() {
+        val dbName = "migration-14.db"
+        migrationHelper.createDatabase(dbName, 14).apply {
+            seedCoreWorkoutRows(weightLbs = 2250)
+            close()
+        }
+
+        val migrated = migrationHelper.runMigrationsAndValidate(
+            dbName,
+            15,
+            true,
+            *Migrations.ALL_MIGRATIONS,
+        )
+
+        assertEquals(2250, migrated.longFor("SELECT weightLbs FROM workout_set WHERE id = 1"))
+        assertNotNull(migrated.stringFor("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'user_settings'"))
+        migrated.execSQL("INSERT INTO user_settings (id, user_bodyweight_lbs) VALUES (1, 185)")
+        assertEquals(185, migrated.longFor("SELECT user_bodyweight_lbs FROM user_settings WHERE id = 1"))
+        migrated.close()
+    }
+
+    @Test
     fun legacyVersion1WorkoutRowsMigrateTo13WithoutDroppingData() = runTest {
         context.deleteDatabase(LEGACY_SOURCE_DB)
         SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(LEGACY_SOURCE_DB), null).use { db ->
@@ -195,6 +219,7 @@ class DatabaseHardeningInstrumentedTest {
         assertTrue(DataBackupManager.listAutomaticBackups(context).size > backupsBefore)
         assertEquals(source.archivedCycleDao().getAll().size, target.archivedCycleDao().getAll().size)
         assertEquals("Spring Block", target.archivedCycleDao().getById(700L)?.name)
+        assertEquals(185, target.userSettingsDao().get()?.userBodyweightLbs)
     }
 
     @Test
@@ -203,6 +228,7 @@ class DatabaseHardeningInstrumentedTest {
         db.exerciseDao().insertAll(listOf(Exercise(id = 1L, name = "Bench Press", muscleGroups = "CHEST")))
         db.cycleDao().upsert(Cycle(id = 1, numTypes = 1, isActive = true, nextSessionType = 0, startDate = "2026-05-01"))
         db.cycleSlotDao().insertAll(listOf(CycleSlot(id = 10L, name = "Push", orderIndex = 0)))
+        db.splitExerciseDao().insertAll(listOf(SplitExercise(id = 20L, splitId = 10L, exerciseId = 1L, orderIndex = 0)))
         db.workoutDayDao().insertAll(listOf(WorkoutDay(date = "2026-05-16", cycleSlotId = 10L)))
         db.workoutSetDao().insertAll(
             listOf(
@@ -222,7 +248,13 @@ class DatabaseHardeningInstrumentedTest {
         assertEquals(1, archive.totalSessions)
         assertEquals(1, archive.splitCount)
         assertEquals(1, snapshot.totals.totalSets)
-        assertEquals("2026-06-01", db.cycleDao().getCycle()?.startDate)
+        val currentCycle = db.cycleDao().getCycle()
+        assertEquals("2026-06-01", currentCycle?.startDate)
+        assertFalse(currentCycle?.isActive ?: true)
+        assertEquals(0, currentCycle?.numTypes)
+        assertNull(currentCycle?.nextSessionType)
+        assertTrue(db.cycleSlotDao().getAll().isEmpty())
+        assertTrue(db.splitExerciseDao().getAll().isEmpty())
     }
 
     @Test
@@ -312,6 +344,7 @@ class DatabaseHardeningInstrumentedTest {
                 )
             )
         )
+        db.userSettingsDao().upsert(UserSettings(userBodyweightLbs = 185))
     }
 
     private fun SupportSQLiteDatabase.seedCoreWorkoutRows(weightLbs: Int = 135) {

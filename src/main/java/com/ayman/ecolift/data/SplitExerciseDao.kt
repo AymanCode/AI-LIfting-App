@@ -27,6 +27,9 @@ interface SplitExerciseDao {
     @Query("DELETE FROM split_exercise WHERE splitId = :splitId")
     suspend fun deleteForSplit(splitId: Long)
 
+    @Query("DELETE FROM split_exercise")
+    suspend fun deleteAll()
+
     @Transaction
     suspend fun replaceForSplit(splitId: Long, exerciseIds: List<Long>) {
         deleteForSplit(splitId)

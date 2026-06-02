@@ -131,14 +131,9 @@ fun SplitScreen(
         }
     }
 
-    val gymDaysThisMonth = remember(workedDays) {
-        workedDays.groupBy { java.time.YearMonth.from(it) }
-            .mapValues { (_, days) -> days.mapTo(mutableSetOf()) { it.dayOfMonth } }
-    }
-
     CycleSplitScreen(
         splits = splitTypes,
-        gymDaysThisMonth = gymDaysThisMonth,
+        gymDays = workedDays,
         splitCycleEnabled = state.cycle.enabled,
         currentSplitIndex = state.cycle.currentIndex,
         onToggleSplitCycle = viewModel::toggleCycle,

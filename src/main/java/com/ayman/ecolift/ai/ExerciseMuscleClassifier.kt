@@ -19,6 +19,7 @@ class ExerciseMuscleClassifier(
     private val apiKey: String,
     baseUrl: String,
     model: String,
+    private val remoteClassifier: (suspend (List<Exercise>) -> List<MuscleClassification>)? = null,
 ) {
     private val resolvedBaseUrl = baseUrl.ifBlank { GroqCloudAgent.DEFAULT_BASE_URL }.trimEnd('/')
     private val resolvedModel = model.ifBlank { GroqCloudAgent.DEFAULT_MODEL }
@@ -27,17 +28,24 @@ class ExerciseMuscleClassifier(
         val candidates = exercises.filter(::shouldClassify)
         if (candidates.isEmpty()) return emptyList()
 
-        val remote = if (apiKey.isNotBlank()) {
-            runCatching { classifyWithGroq(candidates) }.getOrDefault(emptyList())
+        val localById = candidates
+            .mapNotNull(::classifyLocally)
+            .associateBy(MuscleClassification::exerciseId)
+        val remoteCandidates = candidates.filter { it.id !in localById }
+        val remote = if (apiKey.isNotBlank() && remoteCandidates.isNotEmpty()) {
+            runCatching { classifyRemotely(remoteCandidates) }.getOrDefault(emptyList())
         } else {
             emptyList()
         }
         val remoteById = remote.associateBy { it.exerciseId }
 
         return candidates.mapNotNull { exercise ->
-            remoteById[exercise.id] ?: classifyLocally(exercise)
+            localById[exercise.id] ?: remoteById[exercise.id]
         }
     }
+
+    private suspend fun classifyRemotely(exercises: List<Exercise>): List<MuscleClassification> =
+        remoteClassifier?.invoke(exercises) ?: classifyWithGroq(exercises)
 
     private suspend fun classifyWithGroq(exercises: List<Exercise>): List<MuscleClassification> =
         withContext(Dispatchers.IO) {
@@ -61,12 +69,12 @@ class ExerciseMuscleClassifier(
             }
         }
         return """
-            Classify each workout exercise into primary muscle groups.
+            Classify each workout exercise into one primary muscle group.
             Allowed labels are: ${ALLOWED_GROUPS.joinToString(", ")}.
-            Use at most three labels joined with " · ". If uncertain, use OTHER.
+            Use exactly one allowed label. If uncertain, use OTHER.
             Guardrail: set selfCheck=false if the label does not clearly match the exercise identity.
             Return only JSON:
-            {"classifications":[{"id":1,"muscleGroups":"CHEST · TRICEPS","confidence":0.0,"selfCheck":true}]}
+            {"classifications":[{"id":1,"muscleGroups":"CHEST","confidence":0.0,"selfCheck":true}]}
 
             Exercises:
             $input
@@ -146,36 +154,46 @@ class ExerciseMuscleClassifier(
         }
 
         fun classifyLocally(exercise: Exercise): MuscleClassification? {
-            val name = exercise.name.lowercase()
+            val name = exercise.name.normalizedForMatching()
             val result = when {
                 name.containsAny("lateral raise", "side raise", "rear delt", "face pull", "reverse fly") ->
                     "SHOULDERS" to 0.90
+                name.containsAny("front raise", "upright row", "shrug") ->
+                    "SHOULDERS" to 0.84
+                name.containsAny("rear tether") ->
+                    "SHOULDERS" to 0.84
                 name.containsAny("shoulder press", "overhead press", "military press", "arnold press") ->
-                    "SHOULDERS · TRICEPS" to 0.86
-                name.containsAny("bench", "chest press", "pec deck", "chest fly", "push up") ->
-                    "CHEST · TRICEPS" to 0.86
+                    "SHOULDERS" to 0.86
+                name.containsAny("bench", "chest press", "pec deck", "chest fly", "push up", "pushup") ->
+                    "CHEST" to 0.86
                 name.containsAny("dip") ->
-                    "CHEST · TRICEPS" to 0.78
+                    "CHEST" to 0.78
                 name.contains("extension") && name.containsAny("leg", "quad") ->
                     "QUADS" to 0.90
-                name.containsAny("tricep", "pushdown", "skull crusher", "extension rope") ->
+                name.containsAny("tricep", "pushdown", "skull crusher", "skullcrusher", "extension rope") ->
                     "TRICEPS" to 0.88
+                name.containsAny("wrist curl", "reverse curl", "farmer carry", "farmers carry", "grip") ->
+                    "FOREARMS" to 0.84
                 name.containsAny("curl", "preacher", "hammer") && !name.contains("leg curl") ->
                     "BICEPS" to 0.88
-                name.containsAny("row", "pulldown", "pull down", "pull up", "chin up") ->
-                    "BACK · BICEPS" to 0.86
-                name.containsAny("deadlift", "rdl", "romanian") ->
-                    "HAMSTRINGS · GLUTES · BACK" to 0.84
-                name.containsAny("squat", "leg press", "lunge", "split squat") ->
-                    "QUADS · GLUTES" to 0.84
+                name.containsAny("treadmill", "elliptical", "stairmaster", "stationary bike", "rowing machine", "run") ->
+                    "CARDIO" to 0.84
+                name.containsAny("row", "pulldown", "pull down", "pull up", "pullup", "chin up", "chinup") ->
+                    "BACK" to 0.86
+                name.containsAny("deadlift", "rdl", "romanian", "good morning", "back extension", "hyperextension") ->
+                    "HAMSTRINGS" to 0.84
+                name.containsAny("squat", "leg press", "lunge", "split squat", "bulgarian", "step up") ->
+                    "QUADS" to 0.84
                 name.containsAny("leg curl", "hamstring curl") ->
                     "HAMSTRINGS" to 0.90
-                name.containsAny("hip thrust", "glute bridge", "abduction") ->
+                name.containsAny("hip thrust", "glute bridge", "abduction", "kickback") ->
                     "GLUTES" to 0.86
                 name.containsAny("calf") ->
                     "CALVES" to 0.92
-                name.containsAny("plank", "crunch", "sit up", "leg raise", "abs", "core") ->
+                name.containsAny("plank", "crunch", "sit up", "situp", "leg raise", "abs", "core") ->
                     "CORE" to 0.88
+                name.containsAny("clean", "snatch", "thruster", "burpee") ->
+                    "FULL BODY" to 0.82
                 else -> null
             } ?: return null
 
@@ -189,14 +207,16 @@ class ExerciseMuscleClassifier(
                 .uppercase()
                 .replace("&", " · ")
                 .replace(",", " · ")
+                .replace("/", " · ")
+                .replace("+", " · ")
                 .split("·")
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
                 .distinct()
-                .take(3)
             if (parts.isEmpty() || parts.any { it !in ALLOWED_GROUPS }) return null
-            if (parts.size == 1 && parts.first() == "OTHER") return null
-            return parts.joinToString(" · ")
+            val primary = parts.first()
+            if (primary == "OTHER") return null
+            return primary
         }
 
         private fun compatible(left: String, right: String): Boolean {
@@ -208,6 +228,12 @@ class ExerciseMuscleClassifier(
         private fun String.containsAny(vararg needles: String): Boolean =
             needles.any { contains(it) }
 
+        private fun String.normalizedForMatching(): String =
+            lowercase()
+                .replace(NON_ALPHANUMERIC, " ")
+                .replace(WHITESPACE, " ")
+                .trim()
+
         private fun extractJson(raw: String): String? {
             val cleaned = raw
                 .removePrefix("```json")
@@ -218,5 +244,8 @@ class ExerciseMuscleClassifier(
             val end = cleaned.lastIndexOf('}')
             return if (start >= 0 && end > start) cleaned.substring(start, end + 1) else null
         }
+
+        private val NON_ALPHANUMERIC = Regex("[^a-z0-9]+")
+        private val WHITESPACE = Regex("\\s+")
     }
 }

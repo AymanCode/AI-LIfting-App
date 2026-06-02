@@ -13,15 +13,17 @@ class SetRepository(private val db: AppDatabase) {
         val currentSets = db.workoutSetDao().getForDateAndExercise(date, exerciseId)
         val template = currentSets.lastOrNull()
             ?: db.workoutSetDao().getMostRecentBeforeDate(exerciseId, date)
+        val exercise = if (template == null) db.exerciseDao().getById(exerciseId) else null
+        val isBodyweight = template?.isBodyweight ?: exercise?.isBodyweight ?: false
         
         val nextSetNumber = currentSets.size + 1
         val newSet = WorkoutSet(
             exerciseId = exerciseId,
             date = date,
             setNumber = nextSetNumber,
-            weightLbs = template?.weightLbs,
+            weightLbs = if (isBodyweight) normalizedBodyweightLoad(template?.weightLbs) else template?.weightLbs,
             reps = template?.reps,
-            isBodyweight = template?.isBodyweight ?: false,
+            isBodyweight = isBodyweight,
             completed = false,
         )
         val insertedId = db.workoutSetDao().insert(newSet)
@@ -137,7 +139,7 @@ internal fun buildLastSessionSetCopies(
                 exerciseId = exerciseId,
                 date = date,
                 setNumber = index + 1,
-                weightLbs = template.weightLbs,
+                weightLbs = if (template.isBodyweight) normalizedBodyweightLoad(template.weightLbs) else template.weightLbs,
                 reps = template.reps,
                 isBodyweight = template.isBodyweight,
                 completed = false,

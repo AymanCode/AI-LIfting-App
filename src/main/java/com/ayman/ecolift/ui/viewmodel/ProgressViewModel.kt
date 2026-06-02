@@ -75,7 +75,12 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                     .groupBy { it.date }
 
                 summaries.map { summary ->
-                    val trend = setRepository.getVolumeHistory(summary.exerciseId, 10).map { it.volume.toInt() }.reversed()
+                    val historySets = setRepository.getSetsSince(summary.exerciseId, historyStartDate)
+                    val trend = buildProgressChartPoints(
+                        filteredSets = historySets,
+                        isBodyweight = summary.isBodyweight,
+                        userBodyWeight = userBodyWeight,
+                    ).takeLast(10).map { it.volume }
 
                     val latestVol = trend.lastOrNull()?.toFloat() ?: 0f
                     val prevVol = if (trend.size >= 2) trend[trend.size - 2].toFloat() else 0f
@@ -83,14 +88,18 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
 
                     val lastSets = lastSessionSetsByDate[summary.lastSessionDate].orEmpty()
                         .filter { it.exerciseId == summary.exerciseId }
-                    val lastSet = lastSets.maxByOrNull { it.weightLbs ?: 0 }
+                    val lastSet = lastSets.maxByOrNull {
+                        effectiveLoadStored(it, summary.isBodyweight, userBodyWeight)
+                    }
 
                     ProgressExerciseUi(
                         exerciseId = summary.exerciseId,
                         name = summary.exerciseName,
                         sessions = summary.sessionCount,
                         lastSessionDate = WorkoutDates.formatAxis(summary.lastSessionDate),
-                        lastSessionSummary = if (lastSet != null) "${WeightLbs.formatStored(lastSet.weightLbs)} x ${lastSet.reps ?: 0}" else "No sets",
+                        lastSessionSummary = lastSet?.let {
+                            formatProgressSetLabel(it, summary.isBodyweight)
+                        } ?: "No sets",
                         changePercentage = change * 100,
                         trend = trend
                     )
@@ -315,7 +324,7 @@ internal fun buildProgressChartPoints(
         .groupBy { it.date }
         .toSortedMap()
         .map { (date, sets) ->
-            val maxSet = sets.maxByOrNull { it.weightLbs ?: 0 } ?: sets.first()
+            val maxSet = sets.maxByOrNull { effectiveLoadStored(it, isBodyweight, userBodyWeight) } ?: sets.first()
             ProgressPointUi(
                 date = date,
                 label = WorkoutDates.formatAxis(date),
@@ -323,10 +332,10 @@ internal fun buildProgressChartPoints(
                 estimated1RM = calc1RM(
                     weight = maxSet.weightLbs ?: 0,
                     reps = maxSet.reps ?: 0,
-                    isBodyweight = isBodyweight,
+                    isBodyweight = isBodyweight || maxSet.isBodyweight,
                     userBodyWeight = userBodyWeight
                 ),
-                maxWeight = sets.maxOf { it.weightLbs ?: 0 },
+                maxWeight = sets.maxOf { effectiveLoadStored(it, isBodyweight, userBodyWeight) },
                 maxReps = sets.maxOf { it.reps ?: 0 },
                 reps = maxSet.reps ?: 0
             )
@@ -373,12 +382,16 @@ internal fun buildProgressStats(
     val latestSession = sessionsInPeriod.lastOrNull().orEmpty()
     val firstSession = sessionsInPeriod.firstOrNull().orEmpty()
 
-    val currentPr = allTimeSets.maxOfOrNull { it.weightLbs ?: 0 } ?: 0
+    val currentPr = allTimeSets.maxOfOrNull {
+        effectiveLoadStored(it, isBodyweight, userBodyWeight)
+    } ?: 0
     val prevPrBase = allTimeSets
         .filter { LocalDate.parse(it.date).isBefore(currentPeriodStart) }
-        .maxOfOrNull { it.weightLbs ?: 0 }
+        .maxOfOrNull { effectiveLoadStored(it, isBodyweight, userBodyWeight) }
     // If no previous history, compare to the first session in current period
-    val prevPr = prevPrBase ?: firstSession.maxOfOrNull { it.weightLbs ?: 0 } ?: currentPr
+    val prevPr = prevPrBase
+        ?: firstSession.maxOfOrNull { effectiveLoadStored(it, isBodyweight, userBodyWeight) }
+        ?: currentPr
 
     val current1RM = latestEstimatedOneRepMax(latestSession, isBodyweight, userBodyWeight)
         ?: latestEstimatedOneRepMax(allTimeSets, isBodyweight, userBodyWeight)
@@ -445,11 +458,13 @@ private fun latestEstimatedOneRepMax(
         .values
         .lastOrNull()
         .orEmpty()
-    val maxSet = latestSession.maxByOrNull { it.weightLbs ?: 0 } ?: return null
+    val maxSet = latestSession.maxByOrNull {
+        effectiveLoadStored(it, isBodyweight, userBodyWeight)
+    } ?: return null
     return calc1RM(
         weight = maxSet.weightLbs ?: 0,
         reps = maxSet.reps ?: 0,
-        isBodyweight = isBodyweight,
+        isBodyweight = isBodyweight || maxSet.isBodyweight,
         userBodyWeight = userBodyWeight
     )
 }
@@ -468,9 +483,36 @@ private fun calculateSessionVolume(
     return sets.sumOf {
         val weight = WeightLbs.toLbs(it.weightLbs)
         val reps = it.reps ?: 0
-        val effectiveWeight = if (isBodyweight) weight + userBodyWeight else weight
+        val effectiveWeight = if (isBodyweight || it.isBodyweight) weight + userBodyWeight else weight
         (effectiveWeight * reps).toInt()
     }
+}
+
+private fun effectiveLoadStored(
+    set: WorkoutSet,
+    isBodyweightExercise: Boolean,
+    userBodyWeight: Int,
+): Int {
+    val addedLoad = set.weightLbs ?: 0
+    return if (isBodyweightExercise || set.isBodyweight) {
+        addedLoad + (userBodyWeight * 10)
+    } else {
+        addedLoad
+    }
+}
+
+private fun formatProgressSetLabel(set: WorkoutSet, isBodyweightExercise: Boolean): String {
+    val reps = set.reps ?: 0
+    if (isBodyweightExercise || set.isBodyweight) {
+        val addedLoad = set.weightLbs?.takeIf { it > 0 }
+        val load = if (addedLoad == null) {
+            "BW"
+        } else {
+            "BW + ${WeightLbs.formatStored(addedLoad)}"
+        }
+        return "$load x $reps"
+    }
+    return "${WeightLbs.formatStored(set.weightLbs)} x $reps"
 }
 
 private fun calculateVolumeDelta(

@@ -47,7 +47,6 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,7 +76,7 @@ data class SplitType(
 
 @Composable
 fun GymCalendarCard(
-    gymDays: Set<Int>,
+    gymDays: Set<LocalDate>,
     displayedMonth: YearMonth,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
@@ -143,32 +142,7 @@ fun GymCalendarCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Calendar Grid computation
-            val daysInGrid = remember(displayedMonth) {
-                val firstOfMonth = displayedMonth.atDay(1)
-                val daysInMonth = displayedMonth.lengthOfMonth()
-                val firstDayOfWeek = firstOfMonth.dayOfWeek.value % 7 // 0 for Sunday
-                
-                val grid = mutableListOf<LocalDate>()
-                
-                // Add previous month's padding
-                val prevMonth = displayedMonth.minusMonths(1)
-                for (i in firstDayOfWeek downTo 1) {
-                    grid.add(prevMonth.atEndOfMonth().minusDays((i - 1).toLong()))
-                }
-                
-                // Add current month's days
-                for (i in 1..daysInMonth) {
-                    grid.add(displayedMonth.atDay(i))
-                }
-                
-                // Add next month's padding to fill 42 cells (6 rows * 7)
-                val nextMonth = displayedMonth.plusMonths(1)
-                var nextDay = 1
-                while (grid.size < 42) {
-                    grid.add(nextMonth.atDay(nextDay++))
-                }
-                grid
-            }
+            val daysInGrid = remember(displayedMonth) { buildGymCalendarGrid(displayedMonth) }
 
             val today = LocalDate.now()
 
@@ -181,7 +155,7 @@ fun GymCalendarCard(
                         for (col in 0 until 7) {
                             val date = daysInGrid[row * 7 + col]
                             val isCurrentMonth = date.year == displayedMonth.year && date.monthValue == displayedMonth.monthValue
-                            val isGymDay = isCurrentMonth && gymDays.contains(date.dayOfMonth)
+                            val isGymDay = isGymCalendarDateWorked(date, gymDays)
                             val isToday = date == today
 
                             if (isGymDay && isToday) {
@@ -250,7 +224,7 @@ fun GymCalendarCard(
             // Summary Footer
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "${gymDays.size} workouts this month",
+                text = "${countGymDaysInMonth(gymDays, displayedMonth)} workouts this month",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFF171A1C).copy(alpha = 0.7f),
                 modifier = Modifier.padding(top = 8.dp)
@@ -659,7 +633,7 @@ fun MySplitsSection(
 @Composable
 fun CycleSplitScreen(
     splits: List<SplitType>,
-    gymDaysThisMonth: Map<YearMonth, Set<Int>>,
+    gymDays: Set<LocalDate>,
     splitCycleEnabled: Boolean,
     currentSplitIndex: Int,
     onToggleSplitCycle: (Boolean) -> Unit,
@@ -674,7 +648,6 @@ fun CycleSplitScreen(
     onArchiveCurrentCycle: () -> Unit = {},
 ) {
     var displayedMonth by remember { mutableStateOf(YearMonth.now()) }
-    val currentGymDays by remember { derivedStateOf { gymDaysThisMonth[displayedMonth] ?: emptySet() } }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -705,7 +678,7 @@ fun CycleSplitScreen(
                     SplitTabMode.CURRENT -> {
                         item {
                             GymCalendarCard(
-                                gymDays = currentGymDays,
+                                gymDays = gymDays,
                                 displayedMonth = displayedMonth,
                                 onPreviousMonth = { displayedMonth = displayedMonth.minusMonths(1) },
                                 onNextMonth = { displayedMonth = displayedMonth.plusMonths(1) }
@@ -871,6 +844,36 @@ private fun ArchiveListCard(card: ArchiveCardUi, onClick: () -> Unit) {
     }
 }
 
+internal fun buildGymCalendarGrid(displayedMonth: YearMonth): List<LocalDate> {
+    val firstOfMonth = displayedMonth.atDay(1)
+    val daysInMonth = displayedMonth.lengthOfMonth()
+    val firstDayOfWeek = firstOfMonth.dayOfWeek.value % 7
+    val grid = mutableListOf<LocalDate>()
+
+    val previousMonth = displayedMonth.minusMonths(1)
+    for (i in firstDayOfWeek downTo 1) {
+        grid.add(previousMonth.atEndOfMonth().minusDays((i - 1).toLong()))
+    }
+
+    for (i in 1..daysInMonth) {
+        grid.add(displayedMonth.atDay(i))
+    }
+
+    val nextMonth = displayedMonth.plusMonths(1)
+    var nextDay = 1
+    while (grid.size < 42) {
+        grid.add(nextMonth.atDay(nextDay++))
+    }
+
+    return grid
+}
+
+internal fun isGymCalendarDateWorked(date: LocalDate, gymDays: Set<LocalDate>): Boolean =
+    date in gymDays
+
+internal fun countGymDaysInMonth(gymDays: Set<LocalDate>, displayedMonth: YearMonth): Int =
+    gymDays.count { YearMonth.from(it) == displayedMonth }
+
 @Preview(showBackground = true)
 @Composable
 fun CycleSplitScreenPreview() {
@@ -881,9 +884,9 @@ fun CycleSplitScreenPreview() {
                 SplitType(2, "Pull", 5, "Yesterday"),
                 SplitType(3, "Legs", 4, "Never run")
             ),
-            gymDaysThisMonth = mapOf(
-                YearMonth.now() to setOf(1, 3, 5, 8, 10, 12, 15, 17, 20, 22)
-            ),
+            gymDays = setOf(1, 3, 5, 8, 10, 12, 15, 17, 20, 22).mapTo(mutableSetOf()) {
+                YearMonth.now().atDay(it)
+            },
             splitCycleEnabled = true,
             currentSplitIndex = 0,
             onToggleSplitCycle = {},

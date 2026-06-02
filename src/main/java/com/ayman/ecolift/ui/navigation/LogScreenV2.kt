@@ -61,12 +61,15 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -462,7 +465,8 @@ fun LogSetRow(
                 modifier = Modifier
                     .weight(0.58f)
                     .alpha(if (set.isCompleted) 0.92f else 1f),
-                placeholder = "LBS",
+                placeholder = if (set.isBodyweight) "BW" else "LBS",
+                isBodyweight = set.isBodyweight,
                 allowDecimal = true,
                 onActivate = {
                     requestInputVisibility()
@@ -516,6 +520,7 @@ fun LogSetRow(
 @Composable
 fun ExerciseLogCard(
     exerciseName: String,
+    muscleGroups: String,
     previousSession: String?,
     isNewPB: Boolean,
     sets: List<LoggedSet>,
@@ -531,6 +536,7 @@ fun ExerciseLogCard(
     onWeightInput: (Int) -> Unit,
     onRepsInput: (Int) -> Unit,
     onShowPlates: (Int) -> Unit,
+    onMuscleGroupChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     onInteraction: () -> Unit = {}
 ) {
@@ -615,15 +621,19 @@ fun ExerciseLogCard(
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable {
-                                heavyHaptic()
-                                onToggleCollapsed()
-                            }
                             .padding(end = 12.dp)
                             .padding(vertical = 1.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    heavyHaptic()
+                                    onToggleCollapsed()
+                                }
+                                .padding(vertical = 1.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
                                 text = exerciseName,
                                 modifier = Modifier.weight(1f),
@@ -646,6 +656,11 @@ fun ExerciseLogCard(
                                 modifier = Modifier.padding(top = 4.dp)
                             )
                         }
+                        MuscleGroupSelector(
+                            muscleGroups = muscleGroups,
+                            onMuscleGroupChange = onMuscleGroupChange,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
                     }
                 
                     OutlinedButton(
@@ -674,7 +689,7 @@ fun ExerciseLogCard(
                 ) {
                     Text("SET", modifier = Modifier.width(28.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("LBS", modifier = Modifier.weight(0.58f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
+                    Text(if (sets.any { it.isBodyweight }) "LOAD" else "LBS", modifier = Modifier.weight(0.58f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("REPS", modifier = Modifier.weight(0.42f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -703,6 +718,83 @@ fun ExerciseLogCard(
 }
 
 @Composable
+private fun MuscleGroupSelector(
+    muscleGroups: String,
+    onMuscleGroupChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = primaryMuscleGroup(muscleGroups)
+
+    Box(modifier = modifier) {
+        Surface(
+            onClick = { expanded = true },
+            modifier = Modifier
+                .height(28.dp)
+                .sizeIn(maxWidth = 190.dp),
+            shape = RoundedCornerShape(50),
+            color = Color(0xFFEAF0EE),
+            border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+            contentColor = Color(0xFF3F4947)
+        ) {
+            Row(
+                modifier = Modifier.padding(start = 10.dp, end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = formatMuscleGroupLabel(muscleGroups),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF3F4947),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = "Change muscle group",
+                    tint = Color(0xFF66706E),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            MuscleGroupChoices.forEach { choice ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = formatMuscleGroupLabel(choice),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFF171A1C)
+                        )
+                    },
+                    leadingIcon = if (choice == selected) {
+                        {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color(0xFF149C8A),
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    onClick = {
+                        expanded = false
+                        onMuscleGroupChange(choice)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun FinishedExerciseRow(
     exerciseName: String,
     isNewPB: Boolean,
@@ -712,9 +804,9 @@ private fun FinishedExerciseRow(
 ) {
     val completedCount = sets.count { it.isCompleted }
     val topSet = sets
-        .filter { it.weight.toFloatOrNull() != null }
+        .filter { it.weight.toFloatOrNull() != null || it.isBodyweight }
         .maxByOrNull { it.weight.toFloatOrNull() ?: 0f }
-    val summary = topSet?.let { "${it.weight} x ${it.reps.ifBlank { "-" }}" }
+    val summary = topSet?.let { "${formatLoggedSetLoad(it)} x ${it.reps.ifBlank { "-" }}" }
         ?: "${sets.size} set${if (sets.size == 1) "" else "s"}"
 
     Row(
@@ -773,6 +865,59 @@ private fun FinishedExerciseRow(
     }
 }
 
+private fun formatLoggedSetLoad(set: LoggedSet): String =
+    if (set.isBodyweight) {
+        if (set.weight.isBlank()) "BW" else "BW + ${set.weight}"
+    } else {
+        set.weight.ifBlank { "-" }
+    }
+
+private val MuscleGroupChoices = listOf(
+    "CHEST",
+    "BACK",
+    "SHOULDERS",
+    "BICEPS",
+    "TRICEPS",
+    "QUADS",
+    "HAMSTRINGS",
+    "GLUTES",
+    "CALVES",
+    "CORE",
+    "FOREARMS",
+    "FULL BODY",
+    "CARDIO",
+    "OTHER",
+)
+
+private fun primaryMuscleGroup(muscleGroups: String): String? =
+    muscleGroups
+        .split("·")
+        .firstOrNull()
+        ?.trim()
+        ?.uppercase()
+        ?.takeIf { it in MuscleGroupChoices }
+
+private fun formatMuscleGroupLabel(muscleGroups: String): String {
+    val groups = muscleGroups
+        .split("·")
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+
+    if (groups.isEmpty()) return "Choose category"
+
+    return groups.joinToString(" + ") { group ->
+        group
+            .lowercase()
+            .split(" ")
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { word ->
+                word.replaceFirstChar { char ->
+                    if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
+                }
+            }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NumberInputWithSteppers(
@@ -784,12 +929,18 @@ fun NumberInputWithSteppers(
     modifier: Modifier = Modifier,
     isLocked: Boolean = false,
     placeholder: String = "",
+    isBodyweight: Boolean = false,
     allowDecimal: Boolean = true,
     onLongPress: (() -> Unit)? = null,
     onActivate: () -> Unit = {},
 ) {
     val displayValue = suggestedValue ?: value
     val isShowingSuggestion = suggestedValue != null
+    val fieldText = when {
+        isBodyweight && displayValue.isBlank() -> "BW"
+        else -> displayValue.ifBlank { placeholder }
+    }
+    val isPlaceholder = displayValue.isBlank() && !isBodyweight
 
     Row(
         modifier = modifier
@@ -811,12 +962,13 @@ fun NumberInputWithSteppers(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = displayValue.ifBlank { placeholder },
+                text = fieldText,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 color = when {
-                    displayValue.isBlank() -> Color(0xFF66706E)
+                    isPlaceholder -> Color(0xFF66706E)
+                    isBodyweight && displayValue.isBlank() -> Color(0xFF149C8A)
                     isShowingSuggestion -> Color(0xFF171A1C).copy(alpha = 0.48f)
                     else -> Color(0xFF171A1C)
                 },
@@ -868,10 +1020,18 @@ private fun CustomNumberKeyboard(
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val label = if (kind == NumberInputKind.Weight) "Weight" else "Reps"
-    val placeholder = if (kind == NumberInputKind.Weight) "LBS" else "REPS"
-    val displayValue = when {
+    val label = when {
+        kind == NumberInputKind.Weight && isBodyweight -> "Added load"
+        kind == NumberInputKind.Weight -> "Weight"
+        else -> "Reps"
+    }
+    val placeholder = when {
         kind == NumberInputKind.Weight && isBodyweight -> "BW"
+        kind == NumberInputKind.Weight -> "LBS"
+        else -> "REPS"
+    }
+    val displayValue = when {
+        kind == NumberInputKind.Weight && isBodyweight && value.isBlank() -> "BW"
         value.isBlank() -> placeholder
         else -> value
     }
@@ -1734,6 +1894,7 @@ fun LogScreen(
     onToggleBodyweight: (Int, Int) -> Unit,
     onSetFocused: (Int, Int) -> Unit,
     onFinishExercise: (Int) -> Unit,
+    onMuscleGroupChange: (Int, String) -> Unit,
     restTimerSeconds: Int?,
     onCancelRestTimer: () -> Unit,
     chromeReveal: ChromeRevealState = ChromeRevealState(),
@@ -1969,6 +2130,7 @@ fun LogScreen(
                 val isCollapsed = exercise.exerciseId in finishedExerciseIds
                 ExerciseLogCard(
                     exerciseName = exercise.exerciseName,
+                    muscleGroups = exercise.muscleGroups,
                     previousSession = exercise.previousSession,
                     isNewPB = exercise.isNewPB,
                     sets = exercise.sets,
@@ -1990,6 +2152,7 @@ fun LogScreen(
                     onRepsStep = { setIndex, delta -> onRepsStep(i, setIndex, delta) },
                     onWeightInput = { setIndex -> activateNumberInput(i, setIndex, NumberInputKind.Weight) },
                     onRepsInput = { setIndex -> activateNumberInput(i, setIndex, NumberInputKind.Reps) },
+                    onMuscleGroupChange = { muscleGroup -> onMuscleGroupChange(i, muscleGroup) },
                     onShowPlates = { setIndex ->
                         chromeReveal.locked = true
                         scope.launch { chromeReveal.animateTo(0f) }
@@ -2063,8 +2226,8 @@ fun LogScreen(
                         activeNumberInput = activeTarget.copy(
                             value = when {
                                 activeTarget.kind != NumberInputKind.Weight -> activeTarget.value
-                                willBeBodyweight -> ""
-                                else -> "0"
+                                willBeBodyweight -> activeSet.weight
+                                else -> activeSet.weight
                             }
                         )
                     },
@@ -2133,7 +2296,7 @@ fun LogScreenPreview() {
                 ExerciseLog(
                     exerciseId = 1L,
                     exerciseName = "Bench Press",
-                    muscleGroups = "",
+                    muscleGroups = "CHEST · TRICEPS",
                     previousSession = "Last: 185 × 10",
                     isNewPB = true,
                     sets = listOf(
@@ -2145,7 +2308,7 @@ fun LogScreenPreview() {
                 ExerciseLog(
                     exerciseId = 2L,
                     exerciseName = "Lateral Raise",
-                    muscleGroups = "",
+                    muscleGroups = "SHOULDERS",
                     previousSession = null,
                     sets = emptyList()
                 )
@@ -2171,6 +2334,7 @@ fun LogScreenPreview() {
             onToggleBodyweight = { _, _ -> },
             onSetFocused = { _, _ -> },
             onFinishExercise = {},
+            onMuscleGroupChange = { _, _ -> },
             restTimerSeconds = null,
             onCancelRestTimer = {}
         )

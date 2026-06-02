@@ -97,11 +97,11 @@ class PatchValidatorTest {
     }
 
     @Test
-    fun `LogSet rejects bodyweight with nonzero weight`() {
-        assertRejected(validator.validate(DbPatch.LogSet(
+    fun `LogSet accepts bodyweight with added load`() {
+        assertOk(validator.validate(DbPatch.LogSet(
             exerciseId = 1, date = "2026-04-16", setNumber = 1,
             weightLbs = 50, reps = 12, isBodyweight = true
-        )), "bodyweight")
+        )))
     }
 
     @Test

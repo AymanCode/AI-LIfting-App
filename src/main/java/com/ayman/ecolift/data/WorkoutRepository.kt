@@ -1,8 +1,13 @@
 package com.ayman.ecolift.data
 
 import androidx.room.withTransaction
+import com.ayman.ecolift.data.progress.ComparisonWindow
+import com.ayman.ecolift.data.progress.CycleComparison
+import com.ayman.ecolift.data.progress.CycleProgressCalculator
+import com.ayman.ecolift.data.progress.CycleProgressCore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
@@ -18,6 +23,15 @@ class WorkoutRepository(private val db: AppDatabase) {
     fun observeCycleSlots(): Flow<List<CycleSlot>> = db.cycleSlotDao().observeAll()
 
     suspend fun getCycleSlots(): List<CycleSlot> = db.cycleSlotDao().getAll()
+
+    suspend fun getUserBodyweightLbs(): Int? =
+        db.userSettingsDao().get()?.userBodyweightLbs
+
+    suspend fun setUserBodyweightLbs(bodyweightLbs: Int?) {
+        db.userSettingsDao().upsert(
+            UserSettings(userBodyweightLbs = bodyweightLbs?.takeIf { it > 0 })
+        )
+    }
 
     suspend fun addCycleSlot(name: String): Long {
         val nextOrder = db.cycleSlotDao().getMaxOrderIndex() + 1
@@ -148,6 +162,32 @@ class WorkoutRepository(private val db: AppDatabase) {
             ?: LocalDate.now().toString()
     }
 
+    suspend fun activeCycleProgress(): CycleProgressCore =
+        buildActiveCycleProgress().core
+
+    suspend fun activeCycleComparison(window: ComparisonWindow): CycleComparison {
+        val coreResult = buildActiveCycleProgress()
+        return CycleProgressCalculator.compare(
+            coreResult = coreResult,
+            priorSetsByExerciseId = loadPriorSets(coreResult.core.lifts.map { it.exerciseId }, coreResult.core.startDate),
+            window = window,
+            userBodyweightLbs = getUserBodyweightLbs(),
+        )
+    }
+
+    suspend fun archivedCycleProgress(archiveId: Long): CycleProgressCore =
+        buildArchivedCycleProgress(archiveId).core
+
+    suspend fun archivedCycleComparison(archiveId: Long, window: ComparisonWindow): CycleComparison {
+        val coreResult = buildArchivedCycleProgress(archiveId)
+        return CycleProgressCalculator.compare(
+            coreResult = coreResult,
+            priorSetsByExerciseId = loadPriorSets(coreResult.core.lifts.map { it.exerciseId }, coreResult.core.startDate),
+            window = window,
+            userBodyweightLbs = getUserBodyweightLbs(),
+        )
+    }
+
     suspend fun archiveCurrentCycle(name: String, startDate: String, endDate: String): Long {
         val parsedStart = LocalDate.parse(startDate)
         val parsedEnd = LocalDate.parse(endDate)
@@ -194,8 +234,90 @@ class WorkoutRepository(private val db: AppDatabase) {
                     snapshotJson = archiveJson.encodeToString(snapshot),
                 )
             )
-            db.cycleDao().upsert(getCycle().copy(startDate = parsedEnd.plusDays(1).toString(), name = null))
+            db.splitExerciseDao().deleteAll()
+            db.cycleSlotDao().deleteAll()
+            db.cycleDao().upsert(
+                getCycle().copy(
+                    isActive = false,
+                    numTypes = 0,
+                    nextSessionType = null,
+                    startDate = parsedEnd.plusDays(1).toString(),
+                    name = null,
+                )
+            )
             archiveId
         }
     }
+
+    private suspend fun buildActiveCycleProgress(): CycleProgressCalculator.CoreResult {
+        val startDate = getActiveCycleStart()
+        val latestDate = db.workoutSetDao().getLatestWorkoutDate()
+        val endDate = latestDate?.takeIf { it >= startDate } ?: startDate
+        val sets = db.workoutSetDao().getSetsInRange(startDate, endDate)
+        val slots = db.cycleSlotDao().getAll()
+        val splitExercises = db.splitExerciseDao().getAll()
+        val workoutDays = db.workoutDayDao().getAll()
+        val snapshot = CycleSnapshotBuilder.build(
+            startDate = startDate,
+            endDate = endDate,
+            slots = slots,
+            splitExercises = splitExercises,
+            workoutDays = workoutDays,
+            sets = sets,
+            exerciseNames = exerciseMetaFor(sets.map { it.exerciseId }),
+        )
+        return CycleProgressCalculator.buildCore(
+            snapshot = snapshot,
+            sets = sets.map { it.toProgressInput() },
+            userBodyweightLbs = getUserBodyweightLbs(),
+            realSlotCount = slots.size,
+        )
+    }
+
+    private suspend fun buildArchivedCycleProgress(archiveId: Long): CycleProgressCalculator.CoreResult {
+        val archive = requireNotNull(db.archivedCycleDao().getById(archiveId)) {
+            "Archived cycle not found: $archiveId"
+        }
+        val snapshot = archiveJson.decodeFromString<CycleSnapshot>(archive.snapshotJson)
+        val sets = db.workoutSetDao().getSetsInRange(archive.startDate, archive.endDate)
+        return CycleProgressCalculator.buildCore(
+            snapshot = snapshot,
+            sets = sets.map { it.toProgressInput() },
+            userBodyweightLbs = getUserBodyweightLbs(),
+            realSlotCount = snapshot.splits.count { it.bucketKind == SplitBucketKind.Real },
+        )
+    }
+
+    private suspend fun loadPriorSets(
+        exerciseIds: List<Long>,
+        beforeDate: String,
+    ): Map<Long, List<CycleProgressCalculator.SetInput>> =
+        exerciseIds.distinct().associateWith { exerciseId ->
+            db.workoutSetDao()
+                .getHistoryBeforeDate(exerciseId, beforeDate)
+                .map { it.toProgressInput() }
+        }
+
+    private suspend fun exerciseMetaFor(exerciseIds: List<Long>): Map<Long, ExerciseMeta> {
+        val ids = exerciseIds.distinct()
+        if (ids.isEmpty()) return emptyMap()
+        return db.exerciseDao().getByIds(ids).associate { exercise ->
+            exercise.id to ExerciseMeta(
+                name = exercise.name,
+                isBodyweight = exercise.isBodyweight,
+            )
+        }
+    }
+
+    private fun WorkoutSet.toProgressInput(): CycleProgressCalculator.SetInput =
+        CycleProgressCalculator.SetInput(
+            id = id,
+            exerciseId = exerciseId,
+            date = date,
+            setNumber = setNumber,
+            weightLbs = weightLbs,
+            reps = reps,
+            isBodyweight = isBodyweight,
+            completed = completed,
+        )
 }
