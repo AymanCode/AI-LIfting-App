@@ -289,6 +289,20 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun addSetFrom(exerciseId: Long, sourceSetId: Long) {
+        viewModelScope.launch {
+            val date = currentDate.value
+            val source = _sessionSets.value.find { it.id == sourceSetId && it.exerciseId == exerciseId }
+            val newSet = setRepository.addSet(date, exerciseId)
+            val copiedSet = source?.let { copyValuesForAppendedSet(newSet, it) } ?: newSet
+            if (source != null) {
+                setRepository.updateSet(copiedSet)
+            }
+            _sessionSets.update { it + copiedSet }
+            updateHistoricalHints(date, _sessionSets.value)
+        }
+    }
+
     fun updateWeight(setId: Long, input: String) {
         beginSetEntry(setId)
         val before = _sessionSets.value.find { it.id == setId }
@@ -882,6 +896,15 @@ private data class SmartSetAdjustment(
 
 private fun normalizedSetWeight(set: WorkoutSet, weightLbs: Int?): Int? =
     if (set.isBodyweight) normalizedBodyweightLoad(weightLbs) else weightLbs
+
+internal fun copyValuesForAppendedSet(newSet: WorkoutSet, source: WorkoutSet): WorkoutSet =
+    newSet.copy(
+        weightLbs = normalizedSetWeight(source, source.weightLbs),
+        reps = source.reps,
+        isBodyweight = source.isBodyweight,
+        completed = false,
+        restTimeSeconds = null,
+    )
 
 private fun formatHistoryLoadLabel(sets: List<WorkoutSet>): String {
     val topSet = sets.maxWithOrNull(

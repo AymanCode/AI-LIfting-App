@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ayman.ecolift.ui.theme.GlassPaletteChoice
 import com.ayman.ecolift.ui.viewmodel.OrchestratorViewModel
 import java.time.format.DateTimeFormatter
 import java.time.LocalTime
@@ -12,6 +13,8 @@ import java.time.LocalTime
 @Composable
 fun AiScreen(
     viewModel: OrchestratorViewModel = viewModel(),
+    paletteChoice: GlassPaletteChoice = GlassPaletteChoice.Sage,
+    onPaletteChoiceChange: (GlassPaletteChoice) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -81,6 +84,8 @@ fun AiScreen(
             }
         },
         onSettings = { },
+        paletteChoice = paletteChoice,
+        onPaletteChoiceChange = onPaletteChoiceChange,
         modifier = modifier
     )
 }

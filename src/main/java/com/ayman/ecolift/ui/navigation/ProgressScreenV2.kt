@@ -72,6 +72,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ayman.ecolift.ui.theme.GlassPaletteChoice
+import com.ayman.ecolift.ui.theme.GlassPaletteSwitch
+import com.ayman.ecolift.ui.theme.LocalGlassPalette
+import com.ayman.ecolift.ui.theme.LogType
+import com.ayman.ecolift.ui.theme.glassPanel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -112,14 +117,17 @@ fun ProgressExerciseListItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    val palette = LocalGlassPalette.current
+    val shape = RoundedCornerShape(14.dp)
+    Surface(
         modifier = modifier
             .fillMaxWidth()
+            .glassPanel(palette, shape)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        shape = shape,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, palette.glassStroke),
+        shadowElevation = 0.dp
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
@@ -128,20 +136,20 @@ fun ProgressExerciseListItem(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = exerciseName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF171A1C)
+                    style = LogType.exerciseTitle,
+                    color = palette.ink,
+                    maxLines = 1
                 )
                 Text(
                     text = muscleGroups.uppercase(),
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF66706E),
+                    color = palette.inkSubtle,
                     letterSpacing = 0.sp
                 )
                 Text(
                     text = lastSetLabel,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF66706E),
+                    color = palette.inkMuted,
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
@@ -151,27 +159,27 @@ fun ProgressExerciseListItem(
                 horizontalAlignment = Alignment.End
             ) {
                 if (trendPercent > 0.05f) {
-                    Icon(Icons.Default.TrendingUp, contentDescription = "Up", tint = Color(0xFF149C8A), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.TrendingUp, contentDescription = "Up", tint = palette.complete, modifier = Modifier.size(16.dp))
                     Text(
                         text = "+${"%.1f".format(trendPercent)}%",
                         style = MaterialTheme.typography.labelMedium,
-                        color = Color(0xFF149C8A),
+                        color = palette.complete,
                         fontWeight = FontWeight.Bold
                     )
                 } else if (trendPercent < -0.05f) {
-                    Icon(Icons.Default.TrendingDown, contentDescription = "Down", tint = Color(0xFFB9473F), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.TrendingDown, contentDescription = "Down", tint = palette.danger, modifier = Modifier.size(16.dp))
                     Text(
                         text = "${"%.1f".format(trendPercent)}%",
                         style = MaterialTheme.typography.labelMedium,
-                        color = Color(0xFFB9473F),
+                        color = palette.danger,
                         fontWeight = FontWeight.Bold
                     )
                 } else {
-                    Icon(Icons.Default.Remove, contentDescription = "Neutral", tint = Color(0xFF66706E), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Remove, contentDescription = "Neutral", tint = palette.inkSubtle, modifier = Modifier.size(16.dp))
                     Text(
                         text = "—",
                         style = MaterialTheme.typography.labelMedium,
-                        color = Color(0xFF66706E),
+                        color = palette.inkSubtle,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -189,31 +197,34 @@ fun StatCard(
     subLabel: String? = null,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    val palette = LocalGlassPalette.current
+    val shape = RoundedCornerShape(14.dp)
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .glassPanel(palette, shape),
+        shape = shape,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, palette.glassStroke),
+        shadowElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Text(
                 text = label.uppercase(),
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF66706E)
+                color = palette.inkSubtle
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = value,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF171A1C)
+                style = LogType.railValue,
+                color = palette.ink
             )
             if (delta != null) {
                 val deltaColor = when (deltaPositive) {
-                    true -> Color(0xFF149C8A)
-                    false -> Color(0xFFB9473F)
-                    null -> Color(0xFF66706E)
+                    true -> palette.complete
+                    false -> palette.danger
+                    null -> palette.inkSubtle
                 }
                 Text(
                     text = delta,
@@ -226,7 +237,7 @@ fun StatCard(
                 Text(
                     text = subLabel,
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF66706E),
+                    color = palette.inkSubtle,
                     modifier = Modifier.padding(top = if (delta != null) 2.dp else 4.dp)
                 )
             }
@@ -256,8 +267,11 @@ fun ProgressDetailScreen(
     onBack: () -> Unit,
     onRangeChange: (TimeRangeV2) -> Unit,
     onMetricChange: (ProgressMetricV2) -> Unit,
+    paletteChoice: GlassPaletteChoice = GlassPaletteChoice.Sage,
+    onPaletteChoiceChange: (GlassPaletteChoice) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -271,30 +285,33 @@ fun ProgressDetailScreen(
                             text = exerciseName.uppercase(),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF171A1C)
+                            color = palette.ink
                         )
                         Text(
                             text = "Performance overview",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF66706E)
+                            color = palette.inkSubtle
                         )
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.glassPanel(palette, CircleShape)
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                             contentDescription = "Back",
-                            tint = Color(0xFF171A1C)
+                            tint = palette.ink
                         )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color(0xFFF4F6F5)
+                    containerColor = Color.Transparent
                 )
             )
         },
-        containerColor = Color(0xFFF4F6F5)
+        containerColor = Color.Transparent
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
@@ -303,6 +320,14 @@ fun ProgressDetailScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item {
+                GlassPaletteSwitch(
+                    selected = paletteChoice,
+                    onSelect = onPaletteChoiceChange,
+                    palette = palette
+                )
+            }
+
             // Time range chips
             item {
                 LazyRow(
@@ -316,16 +341,16 @@ fun ProgressDetailScreen(
                             label = { Text(range.label) },
                             shape = RoundedCornerShape(50),
                             colors = FilterChipDefaults.filterChipColors(
-                                containerColor = Color.Transparent,
-                                selectedContainerColor = Color(0xFF149C8A),
-                                labelColor = Color(0xFF171A1C),
-                                selectedLabelColor = Color.White
+                                containerColor = palette.glassFill,
+                                selectedContainerColor = palette.accent.copy(alpha = 0.90f),
+                                labelColor = palette.inkMuted,
+                                selectedLabelColor = palette.ink
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = range == selectedRange,
-                                borderColor = Color(0xFF66706E).copy(alpha = 0.4f),
-                                selectedBorderColor = Color.Transparent
+                                borderColor = palette.glassStroke,
+                                selectedBorderColor = palette.glassStrokeStrong
                             )
                         )
                     }
@@ -335,10 +360,12 @@ fun ProgressDetailScreen(
             // Metric segmented control
             item {
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .glassPanel(palette, RoundedCornerShape(14.dp), strong = true),
                     shape = RoundedCornerShape(12.dp),
-                    color = Color.White,
-                    border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+                    color = Color.Transparent,
+                    border = BorderStroke(1.dp, palette.glassStrokeStrong),
                     shadowElevation = 0.dp
                 ) {
                     Row(modifier = Modifier.fillMaxWidth()) {
@@ -349,8 +376,8 @@ fun ProgressDetailScreen(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
-                                    containerColor = if (isSelected) Color(0xFFEAF7F4) else Color.Transparent,
-                                    contentColor = if (isSelected) Color(0xFF149C8A) else Color(0xFF66706E)
+                                    containerColor = if (isSelected) palette.accentStrong.copy(alpha = 0.18f) else Color.Transparent,
+                                    contentColor = if (isSelected) palette.accentStrong else palette.inkMuted
                                 )
                             ) {
                                 Text(
@@ -370,12 +397,14 @@ fun ProgressDetailScreen(
 
             // Chart section
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .glassPanel(palette, RoundedCornerShape(14.dp), strong = true),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.Transparent,
+                    border = BorderStroke(1.dp, palette.glassStrokeStrong),
+                    shadowElevation = 0.dp
                 ) {
                     if (dataPoints.size < 2) {
                         Column(
@@ -387,20 +416,20 @@ fun ProgressDetailScreen(
                             Icon(
                                 Icons.Outlined.ShowChart,
                                 contentDescription = null,
-                                tint = Color(0xFF149C8A).copy(alpha = 0.4f),
+                                tint = palette.accentStrong.copy(alpha = 0.6f),
                                 modifier = Modifier.size(48.dp)
                             )
                             Text(
                                 text = "Not enough data yet",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Medium,
-                                color = Color(0xFF171A1C),
+                                color = palette.ink,
                                 modifier = Modifier.padding(top = 12.dp)
                             )
                             Text(
                                 text = "Log ${maxOf(0, 2 - dataPoints.size)} more session(s) to see your trend",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF66706E),
+                                color = palette.inkMuted,
                                 modifier = Modifier.padding(top = 4.dp)
                             )
                             if (dataPoints.size == 1) {
@@ -413,7 +442,7 @@ fun ProgressDetailScreen(
                                     text = "%.0f".format(value),
                                     style = MaterialTheme.typography.headlineLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF171A1C),
+                                    color = palette.ink,
                                     modifier = Modifier.padding(top = 16.dp)
                                 )
                             }
@@ -461,7 +490,7 @@ fun ProgressDetailScreen(
                                 for (i in 0..2) {
                                     val y = height * (i / 2f)
                                     drawLine(
-                                        color = Color(0xFF171A1C).copy(alpha = 0.1f),
+                                        color = palette.ink.copy(alpha = 0.10f),
                                         start = Offset(0f, y),
                                         end = Offset(width, y),
                                         strokeWidth = 1f
@@ -497,12 +526,12 @@ fun ProgressDetailScreen(
                                     
                                     drawPath(
                                         path = fillPath,
-                                        color = Color(0xFF149C8A).copy(alpha = 0.10f)
+                                        color = palette.accent.copy(alpha = 0.12f)
                                     )
                                     
                                     drawPath(
                                         path = path,
-                                        color = Color(0xFF149C8A),
+                                        color = palette.accentStrong,
                                         style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
                                     )
                                     
@@ -511,12 +540,12 @@ fun ProgressDetailScreen(
                                         val x = i * xStep
                                         val y = height - (((values[i] - minY) / yRange) * height)
                                         drawCircle(
-                                            color = Color.White,
+                                            color = palette.ink,
                                             radius = 6.dp.toPx(),
                                             center = Offset(x, y)
                                         )
                                         drawCircle(
-                                            color = Color(0xFF149C8A),
+                                            color = palette.accentStrong,
                                             radius = 4.dp.toPx(),
                                             center = Offset(x, y)
                                         )
@@ -530,9 +559,9 @@ fun ProgressDetailScreen(
                                 verticalArrangement = Arrangement.SpaceBetween,
                                 horizontalAlignment = Alignment.End
                             ) {
-                                Text("%.0f".format(maxY), style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
-                                Text("%.0f".format(minY + (maxY - minY) / 2), style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
-                                Text("%.0f".format(minY), style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
+                                Text("%.0f".format(maxY), style = MaterialTheme.typography.labelSmall, color = palette.inkSubtle)
+                                Text("%.0f".format(minY + (maxY - minY) / 2), style = MaterialTheme.typography.labelSmall, color = palette.inkSubtle)
+                                Text("%.0f".format(minY), style = MaterialTheme.typography.labelSmall, color = palette.inkSubtle)
                             }
                             
                             // X-axis labels
@@ -543,8 +572,8 @@ fun ProgressDetailScreen(
                                     .padding(top = 16.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(dataPoints.first().date.format(DateTimeFormatter.ofPattern("MMM d")), style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
-                                Text(dataPoints.last().date.format(DateTimeFormatter.ofPattern("MMM d")), style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
+                                Text(dataPoints.first().date.format(DateTimeFormatter.ofPattern("MMM d")), style = MaterialTheme.typography.labelSmall, color = palette.inkSubtle)
+                                Text(dataPoints.last().date.format(DateTimeFormatter.ofPattern("MMM d")), style = MaterialTheme.typography.labelSmall, color = palette.inkSubtle)
                             }
                             
                             // Tooltip
@@ -565,12 +594,12 @@ fun ProgressDetailScreen(
                                     modifier = Modifier
                                         .align(Alignment.TopStart)
                                         .padding(start = tooltipStart, top = tooltipTop)
-                                        .background(Color(0xFF171A1C).copy(alpha = 0.9f), RoundedCornerShape(8.dp))
+                                        .background(palette.pageBottom.copy(alpha = 0.92f), RoundedCornerShape(8.dp))
                                         .padding(8.dp)
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("%.0f".format(value), color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                                        Text(point.date.format(DateTimeFormatter.ofPattern("MMM d")), color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
+                                        Text("%.0f".format(value), color = palette.ink, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                        Text(point.date.format(DateTimeFormatter.ofPattern("MMM d")), color = palette.inkMuted, style = MaterialTheme.typography.labelSmall)
                                     }
                                 }
                             }
@@ -581,18 +610,14 @@ fun ProgressDetailScreen(
 
             // Insight banner
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = when (insightType) {
-                            InsightTypeV2.POSITIVE -> Color(0xFF149C8A).copy(alpha = 0.10f)
-                            InsightTypeV2.NEUTRAL -> Color(0xFFF4F6F5)
-                            InsightTypeV2.NEGATIVE -> Color(0xFFB9473F).copy(alpha = 0.08f)
-                        }
-                    ),
-                    border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .glassPanel(palette, RoundedCornerShape(14.dp)),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.Transparent,
+                    border = BorderStroke(1.dp, palette.glassStroke),
+                    shadowElevation = 0.dp
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
@@ -604,9 +629,9 @@ fun ProgressDetailScreen(
                                 .clip(CircleShape)
                                 .background(
                                     when (insightType) {
-                                        InsightTypeV2.POSITIVE -> Color(0xFF149C8A)
-                                        InsightTypeV2.NEUTRAL -> Color(0xFF66706E)
-                                        InsightTypeV2.NEGATIVE -> Color(0xFFB9473F)
+                                        InsightTypeV2.POSITIVE -> palette.complete
+                                        InsightTypeV2.NEUTRAL -> palette.inkSubtle
+                                        InsightTypeV2.NEGATIVE -> palette.danger
                                     }
                                 )
                         )
@@ -614,7 +639,7 @@ fun ProgressDetailScreen(
                         Text(
                             text = insightText,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFF171A1C)
+                            color = palette.ink
                         )
                     }
                 }
@@ -704,12 +729,15 @@ fun ProgressScreen(
     onSelectedSplitIndexChange: (Int) -> Unit = {},
     onPreviousSplit: () -> Unit = {},
     onNextSplit: () -> Unit = {},
+    paletteChoice: GlassPaletteChoice = GlassPaletteChoice.Sage,
+    onPaletteChoiceChange: (GlassPaletteChoice) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        containerColor = Color(0xFFF4F6F5)
+        containerColor = Color.Transparent
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -717,6 +745,13 @@ fun ProgressScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
+            GlassPaletteSwitch(
+                selected = paletteChoice,
+                onSelect = onPaletteChoiceChange,
+                palette = palette,
+                modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 4.dp)
+            )
+
             ProgressOrganizationControl(
                 selectedMode = organizationMode,
                 onModeChange = onOrganizationModeChange,
@@ -736,21 +771,21 @@ fun ProgressScreen(
                     Text(
                         "Search exercises...",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF66706E)
+                        color = palette.inkSubtle
                     )
                 },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF66706E)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = palette.inkMuted) },
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    color = Color(0xFF171A1C),
+                    color = palette.ink,
                     fontWeight = FontWeight.SemiBold
                 ),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White,
-                    focusedBorderColor = Color(0xFF149C8A),
-                    unfocusedBorderColor = Color(0xFFDDE6E3),
-                    cursorColor = Color(0xFF149C8A)
+                    focusedContainerColor = palette.glassFillStrong,
+                    unfocusedContainerColor = palette.glassFill,
+                    focusedBorderColor = palette.glassStrokeStrong,
+                    unfocusedBorderColor = palette.glassStroke,
+                    cursorColor = palette.accentStrong
                 ),
                 singleLine = true
             )
@@ -826,11 +861,12 @@ private fun ProgressOrganizationControl(
     onModeChange: (ProgressOrganizationModeV2) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
     Surface(
-        modifier = modifier,
+        modifier = modifier.glassPanel(palette, RoundedCornerShape(14.dp), strong = true),
         shape = RoundedCornerShape(12.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, palette.glassStrokeStrong),
         shadowElevation = 0.dp
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -841,8 +877,8 @@ private fun ProgressOrganizationControl(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
-                        containerColor = if (selected) Color(0xFF149C8A).copy(alpha = 0.12f) else Color.Transparent,
-                        contentColor = if (selected) Color(0xFF171A1C) else Color(0xFF66706E)
+                        containerColor = if (selected) palette.accentStrong.copy(alpha = 0.18f) else Color.Transparent,
+                        contentColor = if (selected) palette.ink else palette.inkMuted
                     )
                 ) {
                     Text(
@@ -870,8 +906,11 @@ private fun SplitProgressHeader(
     onNext: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
     Row(
-        modifier = modifier,
+        modifier = modifier
+            .glassPanel(palette, RoundedCornerShape(16.dp), strong = true)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -879,7 +918,7 @@ private fun SplitProgressHeader(
             Icon(
                 imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                 contentDescription = "Previous split",
-                tint = if (canGoPrevious) Color(0xFF171A1C) else Color(0xFF66706E).copy(alpha = 0.45f)
+                tint = if (canGoPrevious) palette.ink else palette.inkSubtle.copy(alpha = 0.45f)
             )
         }
         Column(
@@ -890,13 +929,13 @@ private fun SplitProgressHeader(
                 text = page.name,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF171A1C),
+                color = palette.ink,
                 textAlign = TextAlign.Center
             )
             Text(
                 text = "Split ${pageIndex + 1} of $pageCount",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF66706E),
+                color = palette.inkSubtle,
                 textAlign = TextAlign.Center
             )
         }
@@ -904,7 +943,7 @@ private fun SplitProgressHeader(
             Icon(
                 imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                 contentDescription = "Next split",
-                tint = if (canGoNext) Color(0xFF171A1C) else Color(0xFF66706E).copy(alpha = 0.45f)
+                tint = if (canGoNext) palette.ink else palette.inkSubtle.copy(alpha = 0.45f)
             )
         }
     }
@@ -947,14 +986,18 @@ private fun ProgressEmptyState(
     text: String,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
     Box(
-        modifier = modifier.padding(horizontal = 16.dp, vertical = 32.dp),
+        modifier = modifier
+            .padding(horizontal = 16.dp, vertical = 32.dp)
+            .glassPanel(palette, RoundedCornerShape(16.dp))
+            .padding(horizontal = 18.dp, vertical = 28.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFF66706E),
+            color = palette.inkMuted,
             textAlign = TextAlign.Center
         )
     }

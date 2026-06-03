@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ayman.ecolift.ui.theme.GlassPaletteChoice
 import com.ayman.ecolift.ui.viewmodel.ProgressOrganizationMode
 import com.ayman.ecolift.ui.viewmodel.ProgressViewModel
 import com.ayman.ecolift.ui.viewmodel.TimeframeFilter
@@ -17,6 +18,8 @@ fun ProgressScreen(
     viewModel: ProgressViewModel = viewModel(),
     onOpenBackups: () -> Unit = {},
     initialExerciseId: Long? = null,
+    paletteChoice: GlassPaletteChoice = GlassPaletteChoice.Sage,
+    onPaletteChoiceChange: (GlassPaletteChoice) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -104,6 +107,8 @@ fun ProgressScreen(
                     }
                 )
             },
+            paletteChoice = paletteChoice,
+            onPaletteChoiceChange = onPaletteChoiceChange,
             modifier = modifier
         )
     } else {
@@ -152,6 +157,8 @@ fun ProgressScreen(
                     viewModel.selectExercise(exId)
                 }
             },
+            paletteChoice = paletteChoice,
+            onPaletteChoiceChange = onPaletteChoiceChange,
             modifier = modifier
         )
     }

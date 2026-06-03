@@ -12,6 +12,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ayman.ecolift.ui.viewmodel.LogViewModel
 import com.ayman.ecolift.data.WeightLbs
 import androidx.compose.ui.Modifier
+import com.ayman.ecolift.ui.theme.GlassPaletteChoice
+import com.ayman.ecolift.ui.theme.LogGlassPalette
+import com.ayman.ecolift.ui.theme.palette
 
 @Composable
 fun TodayScreen(
@@ -19,6 +22,9 @@ fun TodayScreen(
     modifier: Modifier = Modifier,
     initialSplitId: Long? = null,
     chromeReveal: ChromeRevealState = remember { ChromeRevealState() },
+    paletteChoice: GlassPaletteChoice = GlassPaletteChoice.Sage,
+    onPaletteChoiceChange: (GlassPaletteChoice) -> Unit = {},
+    palette: LogGlassPalette = paletteChoice.palette(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val workedDays by viewModel.workedDays.collectAsStateWithLifecycle()
@@ -52,6 +58,7 @@ fun TodayScreen(
             isNewPB = ex.isNewPB,
             sets = ex.sets.map { set ->
                 LoggedSet(
+                    id = set.id,
                     setNumber = set.setNumber,
                     weight = WeightLbs.formatStored(set.weightLbs),
                     reps = set.reps?.toString() ?: "",
@@ -111,30 +118,15 @@ fun TodayScreen(
             }
         },
         onAddSet = { exIndex -> viewModel.addSet(uiState.exercises[exIndex].exerciseId) },
-        onCompleteSet = { exIndex, setIndex ->
-            viewModel.toggleCompleted(uiState.exercises[exIndex].sets[setIndex].id)
-        },
-        onDeleteSet = { exIndex, setIndex ->
-            viewModel.deleteSet(uiState.exercises[exIndex].sets[setIndex].id)
-        },
-        onWeightChange = { exIndex, setIndex, value ->
-            viewModel.updateWeight(uiState.exercises[exIndex].sets[setIndex].id, value)
-        },
-        onWeightStep = { exIndex, setIndex, delta ->
-            viewModel.adjustWeight(uiState.exercises[exIndex].sets[setIndex].id, delta)
-        },
-        onRepsChange = { exIndex, setIndex, value ->
-            viewModel.updateReps(uiState.exercises[exIndex].sets[setIndex].id, value)
-        },
-        onRepsStep = { exIndex, setIndex, delta ->
-            viewModel.adjustReps(uiState.exercises[exIndex].sets[setIndex].id, delta)
-        },
-        onToggleBodyweight = { exIndex, setIndex ->
-            viewModel.toggleBodyweight(uiState.exercises[exIndex].sets[setIndex].id)
-        },
-        onSetFocused = { exIndex, setIndex ->
-            viewModel.focusSetInput(uiState.exercises[exIndex].sets[setIndex].id)
-        },
+        onAddSetFrom = { exerciseId, sourceSetId -> viewModel.addSetFrom(exerciseId, sourceSetId) },
+        onCompleteSet = viewModel::toggleCompleted,
+        onDeleteSet = viewModel::deleteSet,
+        onWeightChange = viewModel::updateWeight,
+        onWeightStep = viewModel::adjustWeight,
+        onRepsChange = viewModel::updateReps,
+        onRepsStep = viewModel::adjustReps,
+        onToggleBodyweight = viewModel::toggleBodyweight,
+        onSetFocused = viewModel::focusSetInput,
         onFinishExercise = { exIndex ->
             viewModel.finishExercise(uiState.exercises[exIndex].exerciseId)
         },
@@ -144,6 +136,9 @@ fun TodayScreen(
         restTimerSeconds = uiState.restStopwatchSeconds,
         onCancelRestTimer = viewModel::cancelRestTimer,
         chromeReveal = chromeReveal,
+        paletteChoice = paletteChoice,
+        onPaletteChoiceChange = onPaletteChoiceChange,
+        palette = palette,
         modifier = modifier
     )
 }

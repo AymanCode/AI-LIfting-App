@@ -171,6 +171,12 @@ object Migrations {
         }
     }
 
+    val MIGRATION_15_16 = object : Migration(15, 16) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            addColumnIfMissing(db, "user_settings", "glass_palette_choice", "TEXT DEFAULT NULL")
+        }
+    }
+
     val ALL_MIGRATIONS = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
@@ -186,6 +192,7 @@ object Migrations {
         MIGRATION_12_13,
         MIGRATION_13_14,
         MIGRATION_14_15,
+        MIGRATION_15_16,
     )
 
     private fun migrateLegacyWorkoutSchemaToV3Shape(db: SupportSQLiteDatabase) {

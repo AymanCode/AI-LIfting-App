@@ -2,7 +2,6 @@ package com.ayman.ecolift.ui.navigation
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.LinearEasing
@@ -53,8 +52,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
@@ -64,7 +61,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.FitnessCenter
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -75,11 +71,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -92,6 +91,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
@@ -102,10 +102,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.ui.geometry.Size
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -117,6 +117,11 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -131,17 +136,25 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ayman.ecolift.ui.theme.AnimatedCounter
 import com.ayman.ecolift.ui.theme.AnimatedVolumeCounter
+import com.ayman.ecolift.ui.theme.DefaultLogGlassPalette
+import com.ayman.ecolift.ui.theme.GlassPaletteChoice
+import com.ayman.ecolift.ui.theme.GlassPaletteSwitch
+import com.ayman.ecolift.ui.theme.LogGlassPalette
+import com.ayman.ecolift.ui.theme.LogMaterialTypography
+import com.ayman.ecolift.ui.theme.LogType
 import com.ayman.ecolift.ui.theme.bounceClick
+import com.ayman.ecolift.ui.theme.glassPanel
+import com.ayman.ecolift.ui.theme.palette
 import com.ayman.ecolift.ui.theme.rememberHeavyHaptic
 import com.ayman.ecolift.ui.theme.rememberLightHaptic
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 data class SplitSlot(
     val id: Long,
@@ -151,6 +164,7 @@ data class SplitSlot(
 )
 
 data class LoggedSet(
+    val id: Long,
     val setNumber: Int,
     val weight: String,
     val reps: String,
@@ -176,11 +190,18 @@ data class ExerciseSearchResult(val name: String, val muscleGroups: String)
 private enum class NumberInputKind { Weight, Reps }
 
 private data class NumberInputTarget(
-    val exerciseIndex: Int,
-    val setIndex: Int,
+    val setId: Long,
     val kind: NumberInputKind,
     val value: String,
+    val replaceOnNextKey: Boolean = false,
 )
+
+private data class SetActionTarget(
+    val exerciseId: Long,
+    val set: LoggedSet,
+)
+
+private enum class RowSwipeIntent { Delete, Copy }
 
 private fun LazyListState.isAtTop(): Boolean =
     firstVisibleItemIndex == 0 && firstVisibleItemScrollOffset == 0
@@ -230,6 +251,7 @@ fun LogTopBar(
     onDateClick: () -> Unit,
     onPreviousDay: () -> Unit,
     onNextDay: () -> Unit,
+    palette: LogGlassPalette = DefaultLogGlassPalette,
     modifier: Modifier = Modifier
 ) {
     CenterAlignedTopAppBar(
@@ -238,52 +260,63 @@ fun LogTopBar(
         title = {
             Column(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
+                    .glassPanel(palette, RoundedCornerShape(16.dp), strong = true)
                     .clickable(onClick = onDateClick)
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = dateLabel,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF171A1C)
+                    style = LogType.dateTitle,
+                    color = palette.ink
                 )
                 if (cycleSlotLabel != null) {
                     Text(
                         text = cycleSlotLabel,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF149C8A)
+                        color = palette.accentStrong
                     )
                 } else {
                     Text(
                         text = "No cycle slot",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF66706E)
+                        color = palette.inkSubtle
                     )
                 }
             }
         },
         navigationIcon = {
-            IconButton(onClick = onPreviousDay) {
+            IconButton(
+                onClick = onPreviousDay,
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .glassPanel(palette, CircleShape)
+                    .size(42.dp)
+            ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                     contentDescription = "Previous Day",
-                    tint = Color(0xFF171A1C)
+                    tint = palette.ink
                 )
             }
         },
         actions = {
-            IconButton(onClick = onNextDay) {
+            IconButton(
+                onClick = onNextDay,
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .glassPanel(palette, CircleShape)
+                    .size(42.dp)
+            ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                     contentDescription = "Next Day",
-                    tint = Color(0xFF171A1C)
+                    tint = palette.ink
                 )
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = Color(0xFFF4F6F5)
+            containerColor = Color.Transparent
         )
     )
 }
@@ -292,16 +325,14 @@ fun LogTopBar(
 fun SplitChip(
     slot: SplitSlot,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    palette: LogGlassPalette = DefaultLogGlassPalette,
 ) {
-    val bgColor = if (isSelected) Color(0xFF171A1C) else Color.White
-    val textColor = if (isSelected) Color.White else Color(0xFF171A1C)
-    val borderColor = if (isSelected) Color.Transparent else Color(0xFF171A1C).copy(alpha = 0.15f)
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
-        color = bgColor,
-        border = BorderStroke(1.dp, borderColor),
+        color = if (isSelected) palette.ink.copy(alpha = 0.92f) else palette.glassFillStrong,
+        border = BorderStroke(1.dp, if (isSelected) palette.glassStrokeStrong else palette.glassStroke),
         tonalElevation = if (isSelected) 0.dp else 1.dp,
         modifier = Modifier.height(34.dp)
     ) {
@@ -315,21 +346,21 @@ fun SplitChip(
                     modifier = Modifier
                         .size(6.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF149C8A))
+                        .background(palette.accent)
                 )
             }
-            Text(
-                text = slot.displayName,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                color = textColor
-            )
+                Text(
+                    text = slot.displayName,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                    color = if (isSelected) Color.White else palette.ink
+                )
             if (slot.isExpected) {
                 Text(
                     text = slot.slotLabel.uppercase(),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = if (isSelected) Color.White.copy(alpha = 0.75f) else Color(0xFF149C8A)
+                    color = if (isSelected) Color.White.copy(alpha = 0.76f) else palette.accentStrong
                 )
             }
         }
@@ -341,6 +372,7 @@ fun SplitSelectorStrip(
     splits: List<SplitSlot>,
     selectedId: Long?,
     onSelect: (Long?) -> Unit,
+    palette: LogGlassPalette = DefaultLogGlassPalette,
     modifier: Modifier = Modifier
 ) {
     if (splits.isEmpty()) return
@@ -355,12 +387,12 @@ fun SplitSelectorStrip(
                 text = "Today's workout",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF171A1C)
+                color = palette.ink
             )
             Text(
                 text = "Choose a saved plan to load its exercises",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF66706E)
+                color = palette.inkSubtle
             )
         }
         LazyRow(
@@ -372,7 +404,8 @@ fun SplitSelectorStrip(
                 SplitChip(
                     slot = slot,
                     isSelected = isSelected,
-                    onClick = { onSelect(if (isSelected) null else slot.id) }
+                    onClick = { onSelect(if (isSelected) null else slot.id) },
+                    palette = palette
                 )
             }
         }
@@ -383,136 +416,443 @@ fun SplitSelectorStrip(
 @Composable
 fun LogSetRow(
     set: LoggedSet,
-    onWeightChange: (String) -> Unit,
+    palette: LogGlassPalette,
     onWeightStep: (Int) -> Unit,
-    onRepsChange: (String) -> Unit,
     onRepsStep: (Int) -> Unit,
     onCompleteSet: () -> Unit,
-    onDeleteSet: () -> Unit,
+    onDeleteSet: (LoggedSet) -> Unit,
+    onAddSetFrom: () -> Unit,
     onWeightInput: () -> Unit,
     onRepsInput: () -> Unit,
     modifier: Modifier = Modifier,
     onShowPlates: () -> Unit = {},
+    onOpenActions: () -> Unit = {},
 ) {
     val lightHaptic = rememberLightHaptic()
     val heavyHaptic = rememberHeavyHaptic()
-    val bringIntoViewRequester = remember { BringIntoViewRequester() }
-    val scope = rememberCoroutineScope()
-
-    fun requestInputVisibility() {
-        scope.launch {
-            delay(220)
-            bringIntoViewRequester.bringIntoView()
-        }
+    var swipeOffset by remember { mutableStateOf(0f) }
+    var swipeIntent by remember { mutableStateOf<RowSwipeIntent?>(null) }
+    val animatedSwipeOffset by animateFloatAsState(
+        targetValue = swipeOffset,
+        animationSpec = spring(stiffness = 720f, dampingRatio = 0.82f),
+        label = "set_vertical_swipe"
+    )
+    val swipeThresholdPx = with(LocalDensity.current) { 54.dp.toPx() }
+    val rowShape = RoundedCornerShape(14.dp)
+    val rowFill = if (set.isCompleted) {
+        Brush.linearGradient(
+            listOf(
+                palette.complete.copy(alpha = 0.30f),
+                palette.glassFillStrong,
+                palette.auraCyan.copy(alpha = 0.18f)
+            )
+        )
+    } else {
+        Brush.linearGradient(
+            listOf(
+                palette.glassFill.copy(alpha = 0.86f),
+                palette.glassFillStrong.copy(alpha = 0.42f)
+            )
+        )
     }
 
-    Column(
-            modifier = modifier
+    Box(
+        modifier = modifier
             .fillMaxWidth()
-            .bringIntoViewRequester(bringIntoViewRequester)
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (set.isCompleted) Color(0xFFEAF7F4).copy(alpha = 0.68f) else Color.Transparent)
-            .drawBehind {
-                if (set.isCompleted) {
-                    drawRect(
-                        color = Color(0xFF149C8A),
-                        topLeft = Offset.Zero,
-                        size = Size(2.dp.toPx(), size.height)
-                    )
+            .graphicsLayer {
+                translationY = animatedSwipeOffset
+                alpha = 1f - (abs(animatedSwipeOffset) / 320f).coerceIn(0f, 0.12f)
+            }
+            .semantics {
+                contentDescription = "Set ${set.setNumber}, ${formatLoggedSetLoad(set)} pounds, ${set.reps.ifBlank { "no" }} reps"
+                stateDescription = if (set.isCompleted) "Completed" else "Incomplete"
+                customActions = listOf(
+                    CustomAccessibilityAction(if (set.isCompleted) "Mark incomplete" else "Mark complete") {
+                        onCompleteSet()
+                        true
+                    },
+                    CustomAccessibilityAction("Add copied set") {
+                        onAddSetFrom()
+                        true
+                    },
+                    CustomAccessibilityAction("Delete set") {
+                        onDeleteSet(set)
+                        true
+                    },
+                    CustomAccessibilityAction("Edit weight") {
+                        onWeightInput()
+                        true
+                    },
+                    CustomAccessibilityAction("Edit reps") {
+                        onRepsInput()
+                        true
+                    },
+                )
+            }
+            .pointerInput(set.id) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val start = down.position
+                    var last = start
+                    var axis: String? = null
+                    var isUp = false
+
+                    while (!isUp) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: continue
+                        last = change.position
+                        if (change.changedToUpIgnoreConsumed()) {
+                            isUp = true
+                            continue
+                        }
+                        val dx = last.x - start.x
+                        val dy = last.y - start.y
+                        if (axis == null && (abs(dx) > viewConfiguration.touchSlop || abs(dy) > viewConfiguration.touchSlop)) {
+                            axis = if (abs(dy) > abs(dx) * 1.25f) "vertical" else "other"
+                        }
+                        if (axis == "vertical") {
+                            change.consume()
+                            swipeOffset = dy.coerceIn(-swipeThresholdPx * 1.35f, swipeThresholdPx * 1.35f) * 0.42f
+                            swipeIntent = when {
+                                dy <= -swipeThresholdPx * 0.56f -> RowSwipeIntent.Delete
+                                dy >= swipeThresholdPx * 0.56f -> RowSwipeIntent.Copy
+                                else -> null
+                            }
+                        }
+                    }
+
+                    val finalIntent = swipeIntent
+                    val finalDy = last.y - start.y
+                    swipeOffset = 0f
+                    swipeIntent = null
+                    if (axis == "vertical" && abs(finalDy) >= swipeThresholdPx) {
+                        heavyHaptic()
+                        if (finalIntent == RowSwipeIntent.Delete || finalDy < 0f) {
+                            onDeleteSet(set)
+                        } else {
+                            onAddSetFrom()
+                        }
+                    }
                 }
             }
-            .padding(start = 8.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)
+            .combinedClickable(
+                onClick = {},
+                onLongClick = {
+                    heavyHaptic()
+                    onOpenActions()
+                }
+            )
+            .glassPanel(palette, rowShape, completed = set.isCompleted)
+            .background(rowFill, rowShape)
+            .padding(horizontal = 10.dp, vertical = 9.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(30.dp)
-                    .clip(CircleShape)
-                    .background(if (set.isCompleted) Color(0xFF149C8A) else Color(0xFFEAF0EE))
-                    .bounceClick {
-                        heavyHaptic()
-                        onCompleteSet()
-                    },
-                contentAlignment = Alignment.Center
+            Surface(
+                onClick = {
+                    heavyHaptic()
+                    onCompleteSet()
+                },
+                modifier = Modifier.size(42.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = if (set.isCompleted) palette.complete else palette.glassFillStrong,
+                border = BorderStroke(1.dp, if (set.isCompleted) palette.complete else palette.glassStroke),
+                contentColor = if (set.isCompleted) Color.White else palette.ink
             ) {
-                if (set.isCompleted) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp)
-                    )
-                } else {
-                    Text(
-                        text = set.setNumber.toString(),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF171A1C)
-                    )
+                Box(contentAlignment = Alignment.Center) {
+                    if (set.isCompleted) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(16.dp)
+                                .clip(RoundedCornerShape(5.dp))
+                                .border(
+                                    width = 2.dp,
+                                    color = palette.inkMuted.copy(alpha = 0.72f),
+                                    shape = RoundedCornerShape(5.dp)
+                                )
+                        )
+                    }
                 }
             }
 
-            NumberInputWithSteppers(
-                value = set.weight,
-                suggestedValue = set.suggestedWeight,
-                onValueChange = onWeightChange,
-                onDecrement = { lightHaptic(); onWeightStep(-5) },
-                onIncrement = { lightHaptic(); onWeightStep(5) },
-                modifier = Modifier
-                    .weight(0.58f)
-                    .alpha(if (set.isCompleted) 0.92f else 1f),
-                placeholder = if (set.isBodyweight) "BW" else "LBS",
-                isBodyweight = set.isBodyweight,
-                allowDecimal = true,
-                onActivate = {
-                    requestInputVisibility()
-                    onWeightInput()
-                },
-                onLongPress = {
-                    if (!set.isBodyweight && set.weight.isNotBlank()) {
-                        onShowPlates()
+            if (set.isCompleted) {
+                CompletedSetSummary(
+                    set = set,
+                    palette = palette,
+                    modifier = Modifier.weight(1f)
+                )
+            } else {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    GlassDragValue(
+                        value = set.weight,
+                        suggestedValue = set.suggestedWeight,
+                        label = if (set.isBodyweight) "load" else "lbs",
+                        placeholder = if (set.isBodyweight) "BW" else "0",
+                        isBodyweight = set.isBodyweight,
+                        step = 5,
+                        palette = palette,
+                        onStep = { delta -> lightHaptic(); onWeightStep(delta) },
+                        onActivate = onWeightInput,
+                        onLongPress = {
+                            if (!set.isBodyweight && set.weight.isNotBlank()) onShowPlates()
+                        }
+                    )
+
+                    GlassDragValue(
+                        value = set.reps,
+                        suggestedValue = set.suggestedReps,
+                        label = "reps",
+                        placeholder = "0",
+                        step = 1,
+                        palette = palette,
+                        onStep = { delta -> lightHaptic(); onRepsStep(delta) },
+                        onActivate = onRepsInput
+                    )
+
+                    set.restSeconds?.let { restSeconds ->
+                        Text(
+                            text = "Rest ${formatRestDuration(restSeconds)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = palette.accentStrong,
+                            modifier = Modifier.padding(start = 2.dp)
+                        )
                     }
                 }
-            )
+            }
+        }
 
-            NumberInputWithSteppers(
-                value = set.reps,
-                suggestedValue = set.suggestedReps,
-                onValueChange = onRepsChange,
-                onDecrement = { lightHaptic(); onRepsStep(-1) },
-                onIncrement = { lightHaptic(); onRepsStep(1) },
-                modifier = Modifier
-                    .weight(0.42f)
-                    .alpha(if (set.isCompleted) 0.92f else 1f),
-                placeholder = "REPS",
-                allowDecimal = false,
-                onActivate = {
-                    requestInputVisibility()
-                    onRepsInput()
-                }
-            )
-
-            IconButton(onClick = onDeleteSet, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    Icons.Outlined.Close,
-                    contentDescription = "Delete set",
-                    tint = Color(0xFF66706E).copy(alpha = 0.45f),
-                    modifier = Modifier.size(15.dp)
+        AnimatedVisibility(
+            visible = swipeIntent != null,
+            enter = fadeIn(tween(80)),
+            exit = fadeOut(tween(80)),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            val isDelete = swipeIntent == RowSwipeIntent.Delete
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = if (isDelete) palette.danger.copy(alpha = 0.94f) else palette.accentStrong.copy(alpha = 0.94f),
+                contentColor = Color.White
+            ) {
+                Text(
+                    text = if (isDelete) "Remove set" else "Copy set",
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
             }
         }
 
-        set.restSeconds?.let { restSeconds ->
+    }
+}
+
+@Composable
+private fun CompletedSetSummary(
+    set: LoggedSet,
+    palette: LogGlassPalette,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(50.dp),
+        shape = shape,
+        color = palette.glassFillStrong.copy(alpha = 0.78f),
+        border = BorderStroke(1.dp, palette.glassStrokeStrong),
+        shadowElevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             Text(
-                text = "Rest ${formatRestDuration(restSeconds)} before set",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF149C8A).copy(alpha = 0.78f),
-                modifier = Modifier.padding(start = 40.dp, top = 3.dp)
+                text = completedLoadLabel(set),
+                modifier = Modifier.weight(1f),
+                style = LogType.completedSummary,
+                color = palette.ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
+            Text(
+                text = "x",
+                style = LogType.completedSummary,
+                fontWeight = FontWeight.Medium,
+                color = palette.inkSubtle
+            )
+            Text(
+                text = "${set.reps.ifBlank { "-" }} reps",
+                style = LogType.completedSummary,
+                color = palette.ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun GlassDragValue(
+    value: String,
+    suggestedValue: String?,
+    label: String,
+    placeholder: String,
+    step: Int,
+    palette: LogGlassPalette,
+    onStep: (Int) -> Unit,
+    onActivate: () -> Unit,
+    modifier: Modifier = Modifier,
+    isBodyweight: Boolean = false,
+    onLongPress: (() -> Unit)? = null,
+) {
+    val displayValue = suggestedValue ?: value
+    val isShowingSuggestion = suggestedValue != null
+    val fieldText = when {
+        isBodyweight && displayValue.isBlank() -> "BW"
+        else -> displayValue.ifBlank { placeholder }
+    }
+    val isPlaceholder = displayValue.isBlank() && !isBodyweight
+    val density = LocalDensity.current
+    val tickPx = with(density) { 26.dp.toPx() }
+    var dragCarry by remember { mutableStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
+    val numericValue = displayValue.toFloatOrNull() ?: 0f
+    val targetFill = when (step) {
+        5 -> (0.22f + numericValue / 360f).coerceIn(0.16f, 0.88f)
+        else -> (0.18f + numericValue / 28f).coerceIn(0.16f, 0.88f)
+    }
+    val railFill by animateFloatAsState(
+        targetValue = if (isDragging) (targetFill + 0.10f).coerceAtMost(0.96f) else targetFill,
+        animationSpec = tween(140),
+        label = "drag_rail_fill"
+    )
+    val railShape = RoundedCornerShape(12.dp)
+    val railGradient = Brush.horizontalGradient(
+        listOf(
+            palette.accent.copy(alpha = if (isDragging) 0.68f else 0.46f),
+            palette.auraBlue.copy(alpha = if (isDragging) 0.64f else 0.42f)
+        )
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .clip(railShape)
+            .background(
+                Brush.horizontalGradient(
+                    listOf(
+                        palette.glassFillStrong.copy(alpha = if (isDragging) 0.92f else 0.74f),
+                        palette.glassFill.copy(alpha = if (isDragging) 0.76f else 0.54f)
+                    )
+                ),
+                railShape
+            )
+            .border(
+                width = 1.dp,
+                color = if (isDragging) palette.accentStrong.copy(alpha = 0.52f) else palette.glassStroke,
+                shape = railShape
+            )
+            .combinedClickable(
+                onClick = onActivate,
+                onLongClick = { onLongPress?.invoke() }
+            )
+            .pointerInput(step) {
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        dragCarry = 0f
+                        isDragging = true
+                    },
+                    onDragCancel = {
+                        dragCarry = 0f
+                        isDragging = false
+                    },
+                    onDragEnd = {
+                        dragCarry = 0f
+                        isDragging = false
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        dragCarry += dragAmount
+                        val ticks = (dragCarry / tickPx).roundToInt()
+                        if (ticks != 0) {
+                            onStep(ticks * step)
+                            dragCarry -= ticks * tickPx
+                        }
+                    }
+                )
+            }
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(railFill)
+                .background(railGradient)
+                .align(Alignment.CenterStart)
+        )
+
+        Row(
+            modifier = Modifier
+                .matchParentSize()
+                .padding(start = 12.dp, end = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = label.uppercase(Locale.US),
+                modifier = Modifier.width(46.dp),
+                style = LogType.railLabel,
+                color = palette.inkMuted.copy(alpha = 0.90f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = fieldText,
+                modifier = Modifier.weight(1f),
+                style = LogType.railValue,
+                color = when {
+                    isPlaceholder -> palette.inkSubtle
+                    isBodyweight && displayValue.isBlank() -> palette.accentStrong
+                    isShowingSuggestion -> palette.ink.copy(alpha = 0.52f)
+                    isDragging -> palette.accentStrong
+                    else -> palette.ink
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.End
+            )
+
+            Box(
+                modifier = Modifier
+                    .width(26.dp)
+                    .height(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(18.dp)
+                        .height(2.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(palette.inkSubtle.copy(alpha = if (isDragging) 0.70f else 0.46f))
+                )
+            }
         }
     }
 }
@@ -526,17 +866,19 @@ fun ExerciseLogCard(
     sets: List<LoggedSet>,
     isCollapsed: Boolean,
     onAddSet: () -> Unit,
+    onAddSetFrom: (Long) -> Unit,
     onToggleCollapsed: () -> Unit,
-    onCompleteSet: (Int) -> Unit,
-    onDeleteSet: (Int) -> Unit,
-    onWeightChange: (Int, String) -> Unit,
-    onWeightStep: (Int, Int) -> Unit,
-    onRepsChange: (Int, String) -> Unit,
-    onRepsStep: (Int, Int) -> Unit,
-    onWeightInput: (Int) -> Unit,
-    onRepsInput: (Int) -> Unit,
-    onShowPlates: (Int) -> Unit,
+    onSwipeFinishAndCollapse: () -> Unit,
+    onCompleteSet: (Long) -> Unit,
+    onDeleteSet: (LoggedSet) -> Unit,
+    onWeightStep: (Long, Int) -> Unit,
+    onRepsStep: (Long, Int) -> Unit,
+    onWeightInput: (Long) -> Unit,
+    onRepsInput: (Long) -> Unit,
+    onShowPlates: (LoggedSet) -> Unit,
+    onOpenSetActions: (LoggedSet) -> Unit,
     onMuscleGroupChange: (String) -> Unit,
+    palette: LogGlassPalette,
     modifier: Modifier = Modifier,
     onInteraction: () -> Unit = {}
 ) {
@@ -547,47 +889,66 @@ fun ExerciseLogCard(
         animationSpec = spring(stiffness = 650f, dampingRatio = 0.78f),
         label = "exercise_swipe_offset"
     )
-    val completedCardColor = Color(0xFFF5FAF8)
     val isFullyCompleted = sets.isNotEmpty() && sets.all { it.isCompleted }
-    val cardContainerColor by animateColorAsState(
-        targetValue = if (isCollapsed || isFullyCompleted) completedCardColor else Color.White,
-        animationSpec = tween(durationMillis = 220),
-        label = "exercise_card_container_color"
-    )
     val cardCornerRadius by animateDpAsState(
-        targetValue = if (isCollapsed) 10.dp else 12.dp,
+        targetValue = if (isCollapsed) 14.dp else 18.dp,
         animationSpec = spring(stiffness = 650f, dampingRatio = 0.82f),
         label = "exercise_card_corner_radius"
     )
+    val completionGlow by animateFloatAsState(
+        targetValue = if (isFullyCompleted || isCollapsed) 1f else 0f,
+        animationSpec = tween(durationMillis = 280),
+        label = "exercise_complete_glow"
+    )
+    val cardShape = RoundedCornerShape(cardCornerRadius)
+    val cardSwipeStartLimitPx = with(LocalDensity.current) { 154.dp.toPx() }
 
-    Card(
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .graphicsLayer {
                 translationX = animatedOffset
                 alpha = 1f - (abs(animatedOffset) / 900f).coerceIn(0f, 0.18f)
             }
-            .pointerInput(isCollapsed) {
-                if (isCollapsed) return@pointerInput
+            .pointerInput(isCollapsed, isFullyCompleted, sets.size, cardSwipeStartLimitPx) {
+                if (isCollapsed || sets.isEmpty()) return@pointerInput
+                var isCardSwipeActive = false
                 detectHorizontalDragGestures(
-                    onDragEnd = {
-                        if (abs(dragOffset) > 96f) {
-                            heavyHaptic()
-                            onToggleCollapsed()
-                        }
+                    onDragStart = { startOffset ->
+                        isCardSwipeActive = isFullyCompleted || startOffset.y <= cardSwipeStartLimitPx
                         dragOffset = 0f
                     },
-                    onDragCancel = { dragOffset = 0f },
+                    onDragEnd = {
+                        if (isCardSwipeActive && abs(dragOffset) > 96f) {
+                            heavyHaptic()
+                            onSwipeFinishAndCollapse()
+                        }
+                        dragOffset = 0f
+                        isCardSwipeActive = false
+                    },
+                    onDragCancel = {
+                        dragOffset = 0f
+                        isCardSwipeActive = false
+                    },
                     onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        dragOffset = (dragOffset + dragAmount).coerceIn(-140f, 140f)
+                        if (isCardSwipeActive) {
+                            change.consume()
+                            dragOffset = (dragOffset + dragAmount).coerceIn(-140f, 140f)
+                        }
                     }
                 )
-            },
-        shape = RoundedCornerShape(cardCornerRadius),
-        colors = CardDefaults.cardColors(containerColor = cardContainerColor),
-        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isCollapsed) 0.dp else 1.dp)
+            }
+            .drawBehind {
+                if (completionGlow > 0f) {
+                    drawCircle(
+                        color = palette.complete.copy(alpha = 0.18f * completionGlow),
+                        radius = size.minDimension * 0.72f,
+                        center = Offset(size.width * 0.78f, size.height * 0.20f)
+                    )
+                }
+            }
+            .glassPanel(palette, cardShape, strong = isFullyCompleted || isCollapsed, completed = isFullyCompleted || isCollapsed)
+            .padding(vertical = if (isCollapsed) 0.dp else 4.dp)
     ) {
         AnimatedContent(
             targetState = isCollapsed,
@@ -602,19 +963,19 @@ fun ExerciseLogCard(
                     exerciseName = exerciseName,
                     isNewPB = isNewPB,
                     sets = sets,
-                    onExpand = onToggleCollapsed
+                    onExpand = onToggleCollapsed,
+                    palette = palette
                 )
                 return@AnimatedContent
             }
 
             Column(
-                modifier = Modifier.padding(vertical = 12.dp)
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Header
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
+                        .fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Top
                 ) {
@@ -628,8 +989,10 @@ fun ExerciseLogCard(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable {
-                                    heavyHaptic()
-                                    onToggleCollapsed()
+                                    if (isFullyCompleted) {
+                                        heavyHaptic()
+                                        onToggleCollapsed()
+                                    }
                                 }
                                 .padding(vertical = 1.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -637,83 +1000,128 @@ fun ExerciseLogCard(
                             Text(
                                 text = exerciseName,
                                 modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF171A1C),
+                                style = LogType.exerciseTitle,
+                                color = palette.ink,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
                             if (isNewPB) {
                                 Spacer(Modifier.width(8.dp))
-                                PrBadge()
+                                PrBadge(palette = palette)
                             }
                         }
                         if (previousSession != null) {
                             Text(
                                 text = previousSession,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF149C8A).copy(alpha = 0.85f),
+                                style = LogType.meta,
+                                color = palette.accentStrong.copy(alpha = 0.85f),
                                 modifier = Modifier.padding(top = 4.dp)
                             )
                         }
                         MuscleGroupSelector(
                             muscleGroups = muscleGroups,
                             onMuscleGroupChange = onMuscleGroupChange,
+                            palette = palette,
                             modifier = Modifier.padding(top = 8.dp)
                         )
                     }
                 
-                    OutlinedButton(
+                    Surface(
                         onClick = { onInteraction(); onAddSet() },
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, Color(0xFF149C8A)),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF149C8A)),
-                        modifier = Modifier.height(34.dp).bounceClick(onClick = { onInteraction(); onAddSet() }),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                        shape = RoundedCornerShape(14.dp),
+                        color = palette.glassFillStrong,
+                        border = BorderStroke(1.dp, palette.glassStrokeStrong),
+                        contentColor = palette.accentStrong,
+                        modifier = Modifier.height(38.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = palette.accentStrong)
                         Spacer(Modifier.width(4.dp))
-                        Text("Set", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        Text("Set", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = palette.accentStrong)
+                        }
                     }
             }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            // Column Headers
+
+            GlassExerciseProgress(
+                completed = sets.count { it.isCompleted },
+                total = sets.size,
+                palette = palette
+            )
+
             if (sets.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 8.dp, end = 4.dp, top = 2.dp, bottom = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("SET", modifier = Modifier.width(28.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (sets.any { it.isBodyweight }) "LOAD" else "LBS", modifier = Modifier.weight(0.58f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("REPS", modifier = Modifier.weight(0.42f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color(0xFF66706E))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Spacer(modifier = Modifier.width(32.dp))
-                }
-                
-                // Set Rows
-                sets.forEachIndexed { index, set ->
+                sets.forEach { set ->
                     LogSetRow(
                         set = set,
-                        onWeightChange = { onWeightChange(index, it) },
-                        onWeightStep = { onWeightStep(index, it) },
-                        onRepsChange = { onRepsChange(index, it) },
-                        onRepsStep = { onRepsStep(index, it) },
-                        onCompleteSet = { onCompleteSet(index) },
-                        onDeleteSet = { onDeleteSet(index) },
-                        onWeightInput = { onWeightInput(index) },
-                        onRepsInput = { onRepsInput(index) },
-                        onShowPlates = { onShowPlates(index) },
+                        palette = palette,
+                        onWeightStep = { onWeightStep(set.id, it) },
+                        onRepsStep = { onRepsStep(set.id, it) },
+                        onCompleteSet = { onCompleteSet(set.id) },
+                        onDeleteSet = onDeleteSet,
+                        onAddSetFrom = { onAddSetFrom(set.id) },
+                        onWeightInput = { onWeightInput(set.id) },
+                        onRepsInput = { onRepsInput(set.id) },
+                        onShowPlates = { onShowPlates(set) },
+                        onOpenActions = { onOpenSetActions(set) },
                     )
                 }
-            }
+            } else {
+                Text(
+                    text = "Add a set to start logging this exercise",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = palette.inkSubtle,
+                    textAlign = TextAlign.Center
+                )
             }
         }
+    }
+}
+}
+
+@Composable
+private fun GlassExerciseProgress(
+    completed: Int,
+    total: Int,
+    palette: LogGlassPalette,
+    modifier: Modifier = Modifier
+) {
+    val progress by animateFloatAsState(
+        targetValue = if (total == 0) 0f else completed.toFloat() / total.toFloat(),
+        animationSpec = tween(260),
+        label = "exercise_progress"
+    )
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(6.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Color.White.copy(alpha = 0.38f))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(progress)
+                    .clip(RoundedCornerShape(50))
+                    .background(Brush.linearGradient(listOf(palette.auraBlue, palette.complete)))
+            )
+        }
+        Text(
+            text = "$completed/$total",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (total > 0 && completed == total) palette.complete else palette.inkSubtle
+        )
     }
 }
 
@@ -721,6 +1129,7 @@ fun ExerciseLogCard(
 private fun MuscleGroupSelector(
     muscleGroups: String,
     onMuscleGroupChange: (String) -> Unit,
+    palette: LogGlassPalette = DefaultLogGlassPalette,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -733,9 +1142,9 @@ private fun MuscleGroupSelector(
                 .height(28.dp)
                 .sizeIn(maxWidth = 190.dp),
             shape = RoundedCornerShape(50),
-            color = Color(0xFFEAF0EE),
-            border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
-            contentColor = Color(0xFF3F4947)
+            color = palette.glassFillStrong.copy(alpha = 0.64f),
+            border = BorderStroke(1.dp, palette.glassStroke),
+            contentColor = palette.inkMuted
         ) {
             Row(
                 modifier = Modifier.padding(start = 10.dp, end = 6.dp),
@@ -746,14 +1155,14 @@ private fun MuscleGroupSelector(
                     text = formatMuscleGroupLabel(muscleGroups),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF3F4947),
+                    color = palette.inkMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Icon(
                     imageVector = Icons.Default.KeyboardArrowDown,
                     contentDescription = "Change muscle group",
-                    tint = Color(0xFF66706E),
+                    tint = palette.inkSubtle,
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -762,32 +1171,69 @@ private fun MuscleGroupSelector(
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
+            modifier = Modifier.sizeIn(minWidth = 208.dp, maxWidth = 232.dp, maxHeight = 360.dp),
+            shape = RoundedCornerShape(16.dp),
+            containerColor = palette.glassFillStrong.copy(alpha = 0.96f),
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
+            border = BorderStroke(1.dp, palette.glassStrokeStrong)
         ) {
             MuscleGroupChoices.forEach { choice ->
+                val isSelected = choice == selected
                 DropdownMenuItem(
+                    modifier = Modifier
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(
+                            if (isSelected) {
+                                palette.accent.copy(alpha = 0.18f)
+                            } else {
+                                Color.Transparent
+                            }
+                        ),
                     text = {
                         Text(
                             text = formatMuscleGroupLabel(choice),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFF171A1C)
+                            style = LogType.menuItem,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (isSelected) palette.ink else palette.inkMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     },
-                    leadingIcon = if (choice == selected) {
-                        {
+                    leadingIcon = {
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(RoundedCornerShape(7.dp))
+                                .background(
+                                    if (isSelected) palette.complete.copy(alpha = 0.94f) else palette.glassFill.copy(alpha = 0.82f)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSelected) palette.complete else palette.glassStroke,
+                                    shape = RoundedCornerShape(7.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
                             Icon(
                                 imageVector = Icons.Default.Check,
                                 contentDescription = null,
-                                tint = Color(0xFF149C8A),
-                                modifier = Modifier.size(17.dp)
+                                    tint = Color(0xFF06100F),
+                                    modifier = Modifier.size(14.dp)
                             )
+                            }
                         }
-                    } else {
-                        null
                     },
                     onClick = {
                         expanded = false
                         onMuscleGroupChange(choice)
-                    }
+                    },
+                    colors = MenuDefaults.itemColors(
+                        textColor = palette.inkMuted,
+                        leadingIconColor = palette.inkMuted
+                    )
                 )
             }
         }
@@ -800,6 +1246,7 @@ private fun FinishedExerciseRow(
     isNewPB: Boolean,
     sets: List<LoggedSet>,
     onExpand: () -> Unit,
+    palette: LogGlassPalette = DefaultLogGlassPalette,
     modifier: Modifier = Modifier
 ) {
     val completedCount = sets.count { it.isCompleted }
@@ -812,16 +1259,9 @@ private fun FinishedExerciseRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .drawBehind {
-                drawRect(
-                    color = Color(0xFF149C8A),
-                    topLeft = Offset.Zero,
-                    size = Size(2.dp.toPx(), size.height)
-                )
-            }
+            .glassPanel(palette, RoundedCornerShape(14.dp), strong = true, completed = true)
             .clickable(onClick = onExpand)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -829,7 +1269,7 @@ private fun FinishedExerciseRow(
             modifier = Modifier
                 .size(26.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF149C8A)),
+                .background(palette.complete),
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
@@ -841,26 +1281,26 @@ private fun FinishedExerciseRow(
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF171A1C),
+                    color = palette.ink,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 if (isNewPB) {
                     Spacer(Modifier.width(8.dp))
-                    PrBadge()
+                    PrBadge(palette = palette)
                 }
             }
             Text(
                 text = "$completedCount/${sets.size} sets complete · Top $summary",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF66706E)
+                color = palette.inkSubtle
             )
         }
         Text(
             text = "Edit",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color(0xFF149C8A)
+            color = palette.accentStrong
         )
     }
 }
@@ -870,6 +1310,13 @@ private fun formatLoggedSetLoad(set: LoggedSet): String =
         if (set.weight.isBlank()) "BW" else "BW + ${set.weight}"
     } else {
         set.weight.ifBlank { "-" }
+    }
+
+private fun completedLoadLabel(set: LoggedSet): String =
+    if (set.isBodyweight) {
+        formatLoggedSetLoad(set)
+    } else {
+        "${set.weight.ifBlank { "-" }} lbs"
     }
 
 private val MuscleGroupChoices = listOf(
@@ -1018,6 +1465,7 @@ private fun CustomNumberKeyboard(
     onToggleBodyweight: () -> Unit,
     onSwitchField: () -> Unit,
     onDone: () -> Unit,
+    palette: LogGlassPalette = DefaultLogGlassPalette,
     modifier: Modifier = Modifier,
 ) {
     val label = when {
@@ -1042,16 +1490,15 @@ private fun CustomNumberKeyboard(
         Icons.AutoMirrored.Outlined.KeyboardArrowLeft
     }
     val switchDescription = if (kind == NumberInputKind.Weight) "Switch to reps" else "Switch to weight"
-    val accent = Color(0xFF149C8A)
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 10.dp),
-        shape = RoundedCornerShape(18.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFF171A1C).copy(alpha = 0.08f)),
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp
+        shape = RoundedCornerShape(20.dp),
+        color = palette.glassFillStrong,
+        border = BorderStroke(1.dp, palette.glassStrokeStrong),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -1066,12 +1513,14 @@ private fun CustomNumberKeyboard(
                     label = label,
                     value = displayValue,
                     isPlaceholder = isPlaceholder,
+                    palette = palette,
                     modifier = Modifier.weight(1f)
                 )
                 NumberKeyboardIconKey(
                     imageVector = switchIcon,
                     contentDescription = switchDescription,
                     onClick = onSwitchField,
+                    palette = palette,
                     modifier = Modifier
                         .width(52.dp)
                         .height(54.dp)
@@ -1079,39 +1528,48 @@ private fun CustomNumberKeyboard(
             }
 
             KeyboardKeyRow {
-                NumberKeyboardKey("1", onClick = { onKey("1") }, modifier = Modifier.weight(1f))
-                NumberKeyboardKey("2", onClick = { onKey("2") }, modifier = Modifier.weight(1f))
-                NumberKeyboardKey("3", onClick = { onKey("3") }, modifier = Modifier.weight(1f))
+                NumberKeyboardKey("1", onClick = { onKey("1") }, palette = palette, modifier = Modifier.weight(1f))
+                NumberKeyboardKey("2", onClick = { onKey("2") }, palette = palette, modifier = Modifier.weight(1f))
+                NumberKeyboardKey("3", onClick = { onKey("3") }, palette = palette, modifier = Modifier.weight(1f))
                 NumberKeyboardKey(
                     label = "BW",
                     onClick = onToggleBodyweight,
-                    color = if (isBodyweight) accent.copy(alpha = 0.16f) else Color(0xFFF1F4F3),
-                    contentColor = if (isBodyweight) accent else Color(0xFF171A1C),
+                    color = if (isBodyweight) palette.accent.copy(alpha = 0.18f) else palette.glassFill,
+                    contentColor = if (isBodyweight) palette.accentStrong else palette.ink,
+                    palette = palette,
                     modifier = Modifier.weight(1f)
                 )
             }
             KeyboardKeyRow {
-                NumberKeyboardKey("4", onClick = { onKey("4") }, modifier = Modifier.weight(1f))
-                NumberKeyboardKey("5", onClick = { onKey("5") }, modifier = Modifier.weight(1f))
-                NumberKeyboardKey("6", onClick = { onKey("6") }, modifier = Modifier.weight(1f))
-                NumberKeyboardKey("DEL", onClick = onBackspace, modifier = Modifier.weight(1f))
+                NumberKeyboardKey("4", onClick = { onKey("4") }, palette = palette, modifier = Modifier.weight(1f))
+                NumberKeyboardKey("5", onClick = { onKey("5") }, palette = palette, modifier = Modifier.weight(1f))
+                NumberKeyboardKey("6", onClick = { onKey("6") }, palette = palette, modifier = Modifier.weight(1f))
+                NumberKeyboardKey("DEL", onClick = onBackspace, palette = palette, modifier = Modifier.weight(1f))
             }
             KeyboardKeyRow {
-                NumberKeyboardKey("7", onClick = { onKey("7") }, modifier = Modifier.weight(1f))
-                NumberKeyboardKey("8", onClick = { onKey("8") }, modifier = Modifier.weight(1f))
-                NumberKeyboardKey("9", onClick = { onKey("9") }, modifier = Modifier.weight(1f))
-                NumberKeyboardKey("CLR", onClick = onClear, modifier = Modifier.weight(1f))
+                NumberKeyboardKey("7", onClick = { onKey("7") }, palette = palette, modifier = Modifier.weight(1f))
+                NumberKeyboardKey("8", onClick = { onKey("8") }, palette = palette, modifier = Modifier.weight(1f))
+                NumberKeyboardKey("9", onClick = { onKey("9") }, palette = palette, modifier = Modifier.weight(1f))
+                NumberKeyboardKey("CLR", onClick = onClear, palette = palette, modifier = Modifier.weight(1f))
             }
             KeyboardKeyRow {
                 NumberKeyboardKey(
                     label = ".",
                     onClick = { if (kind == NumberInputKind.Weight) onKey(".") },
                     enabled = kind == NumberInputKind.Weight,
+                    palette = palette,
                     modifier = Modifier.weight(1f)
                 )
-                NumberKeyboardKey("0", onClick = { onKey("0") }, modifier = Modifier.weight(1f))
-                NumberKeyboardKey("00", onClick = { onKey("00") }, modifier = Modifier.weight(1f))
-                NumberKeyboardKey("OK", onClick = onDone, modifier = Modifier.weight(1f))
+                NumberKeyboardKey("0", onClick = { onKey("0") }, palette = palette, modifier = Modifier.weight(1f))
+                NumberKeyboardKey("00", onClick = { onKey("00") }, palette = palette, modifier = Modifier.weight(1f))
+                NumberKeyboardKey(
+                    "OK",
+                    onClick = onDone,
+                    color = palette.accentStrong,
+                    contentColor = Color.White,
+                    palette = palette,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }
@@ -1122,13 +1580,14 @@ private fun NumberKeyboardDisplayField(
     label: String,
     value: String,
     isPlaceholder: Boolean,
+    palette: LogGlassPalette,
     modifier: Modifier = Modifier,
 ) {
     Surface(
         modifier = modifier.height(54.dp),
-        shape = RoundedCornerShape(8.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFF171A1C).copy(alpha = 0.12f)),
+        shape = RoundedCornerShape(12.dp),
+        color = palette.glassFillStrong,
+        border = BorderStroke(1.dp, palette.glassStroke),
         shadowElevation = 1.dp
     ) {
         Column(
@@ -1142,7 +1601,7 @@ private fun NumberKeyboardDisplayField(
                 text = label.uppercase(),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF66706E),
+                color = palette.inkSubtle,
                 maxLines = 1
             )
             Text(
@@ -1150,7 +1609,7 @@ private fun NumberKeyboardDisplayField(
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = if (isPlaceholder) Color(0xFF66706E) else Color(0xFF171A1C),
+                color = if (isPlaceholder) palette.inkSubtle else palette.ink,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -1164,21 +1623,22 @@ private fun NumberKeyboardIconKey(
     imageVector: ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
+    palette: LogGlassPalette,
     modifier: Modifier = Modifier,
 ) {
     Surface(
         onClick = onClick,
         modifier = modifier.clip(RoundedCornerShape(10.dp)),
         shape = RoundedCornerShape(10.dp),
-        color = Color(0xFFF1F4F3),
-        contentColor = Color(0xFF171A1C),
-        border = BorderStroke(1.dp, Color(0xFF171A1C).copy(alpha = 0.07f)),
+        color = palette.glassFill,
+        contentColor = palette.ink,
+        border = BorderStroke(1.dp, palette.glassStroke),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = imageVector,
                 contentDescription = contentDescription,
-                tint = Color(0xFF171A1C),
+                tint = palette.ink,
                 modifier = Modifier.size(22.dp)
             )
         }
@@ -1199,11 +1659,17 @@ private fun NumberKeyboardKey(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    color: Color = Color(0xFFF1F4F3),
-    contentColor: Color = Color(0xFF171A1C),
+    color: Color? = null,
+    contentColor: Color? = null,
+    palette: LogGlassPalette = DefaultLogGlassPalette,
     enabled: Boolean = true,
 ) {
-    val effectiveContentColor = if (enabled) contentColor else Color(0xFF66706E).copy(alpha = 0.38f)
+    val effectiveColor = color ?: palette.glassFill
+    val effectiveContentColor = if (enabled) {
+        contentColor ?: palette.ink
+    } else {
+        palette.inkSubtle.copy(alpha = 0.42f)
+    }
     Surface(
         onClick = onClick,
         enabled = enabled,
@@ -1211,9 +1677,9 @@ private fun NumberKeyboardKey(
             .height(42.dp)
             .clip(RoundedCornerShape(10.dp)),
         shape = RoundedCornerShape(10.dp),
-        color = if (enabled) color else Color(0xFFF1F4F3).copy(alpha = 0.45f),
+        color = if (enabled) effectiveColor else palette.glassFill.copy(alpha = 0.45f),
         contentColor = effectiveContentColor,
-        border = BorderStroke(1.dp, Color(0xFF171A1C).copy(alpha = if (enabled) 0.07f else 0.03f)),
+        border = BorderStroke(1.dp, palette.glassStroke.copy(alpha = if (enabled) 1f else 0.45f)),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
@@ -1229,12 +1695,15 @@ private fun NumberKeyboardKey(
 }
 
 @Composable
-private fun PrBadge(modifier: Modifier = Modifier) {
+private fun PrBadge(
+    modifier: Modifier = Modifier,
+    palette: LogGlassPalette = DefaultLogGlassPalette
+) {
     Surface(
         modifier = modifier.height(22.dp),
         shape = RoundedCornerShape(50),
-        color = Color(0xFF149C8A).copy(alpha = 0.13f),
-        border = BorderStroke(1.dp, Color(0xFF149C8A).copy(alpha = 0.24f))
+        color = palette.accent.copy(alpha = 0.13f),
+        border = BorderStroke(1.dp, palette.accent.copy(alpha = 0.26f))
     ) {
         Box(
             modifier = Modifier.padding(horizontal = 8.dp),
@@ -1244,7 +1713,7 @@ private fun PrBadge(modifier: Modifier = Modifier) {
                 text = "PR",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF149C8A)
+                color = palette.accentStrong
             )
         }
     }
@@ -1254,6 +1723,7 @@ private fun PrBadge(modifier: Modifier = Modifier) {
 private fun PlateCalculatorSheet(
     weightText: String,
     onClose: () -> Unit,
+    palette: LogGlassPalette = DefaultLogGlassPalette,
     modifier: Modifier = Modifier
 ) {
     val plateLoad = remember(weightText) { calculatePlateLoad(weightText) }
@@ -1261,6 +1731,7 @@ private fun PlateCalculatorSheet(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .glassPanel(palette, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp), strong = true)
             .padding(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -1269,19 +1740,19 @@ private fun PlateCalculatorSheet(
                 text = "Plate load",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF171A1C)
+                color = palette.ink
             )
             Text(
                 text = "${plateLoad.targetLabel} total · 45 lb bar",
                 style = MaterialTheme.typography.labelMedium,
-                color = Color(0xFF66706E)
+                color = palette.inkSubtle
             )
         }
 
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = Color(0xFFEAF7F4),
-            border = BorderStroke(1.dp, Color(0xFF149C8A).copy(alpha = 0.18f))
+            color = palette.complete.copy(alpha = 0.13f),
+            border = BorderStroke(1.dp, palette.glassStrokeStrong)
         ) {
             Row(
                 modifier = Modifier
@@ -1293,13 +1764,13 @@ private fun PlateCalculatorSheet(
                 Text(
                     text = "Per side",
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color(0xFF66706E)
+                    color = palette.inkSubtle
                 )
                 Text(
                     text = plateLoad.perSideLabel,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF171A1C),
+                    color = palette.ink,
                     textAlign = TextAlign.End
                 )
             }
@@ -1309,7 +1780,7 @@ private fun PlateCalculatorSheet(
             Text(
                 text = plateLoad.note,
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF66706E)
+                color = palette.inkSubtle
             )
         }
 
@@ -1318,7 +1789,100 @@ private fun PlateCalculatorSheet(
             modifier = Modifier.align(Alignment.End),
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
         ) {
-            Text("Close", style = MaterialTheme.typography.labelMedium, color = Color(0xFF149C8A))
+            Text("Close", style = MaterialTheme.typography.labelMedium, color = palette.accentStrong)
+        }
+    }
+}
+
+@Composable
+private fun GlassSetActionSheet(
+    target: SetActionTarget,
+    palette: LogGlassPalette,
+    onComplete: () -> Unit,
+    onAddCopiedSet: () -> Unit,
+    onEditWeight: () -> Unit,
+    onEditReps: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .glassPanel(palette, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp), strong = true)
+            .padding(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = "Set ${target.set.setNumber}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = palette.ink
+            )
+            Text(
+                text = "${formatLoggedSetLoad(target.set)} lb · ${target.set.reps.ifBlank { "-" }} reps",
+                style = MaterialTheme.typography.labelMedium,
+                color = palette.inkSubtle
+            )
+        }
+
+        GlassSheetActionButton(
+            label = if (target.set.isCompleted) "Mark incomplete" else "Mark complete",
+            palette = palette,
+            onClick = onComplete
+        )
+        GlassSheetActionButton(
+            label = "Add copied set",
+            palette = palette,
+            onClick = onAddCopiedSet
+        )
+        GlassSheetActionButton(
+            label = "Edit weight",
+            palette = palette,
+            onClick = onEditWeight
+        )
+        GlassSheetActionButton(
+            label = "Edit reps",
+            palette = palette,
+            onClick = onEditReps
+        )
+        GlassSheetActionButton(
+            label = "Delete set",
+            palette = palette,
+            isDanger = true,
+            onClick = onDelete
+        )
+    }
+}
+
+@Composable
+private fun GlassSheetActionButton(
+    label: String,
+    palette: LogGlassPalette,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isDanger: Boolean = false,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(48.dp),
+        shape = RoundedCornerShape(14.dp),
+        color = if (isDanger) palette.danger.copy(alpha = 0.12f) else palette.glassFill,
+        border = BorderStroke(1.dp, if (isDanger) palette.danger.copy(alpha = 0.32f) else palette.glassStroke),
+        contentColor = if (isDanger) palette.danger else palette.ink
+    ) {
+        Box(
+            modifier = Modifier.padding(horizontal = 14.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isDanger) palette.danger else palette.ink
+            )
         }
     }
 }
@@ -1564,6 +2128,7 @@ fun SearchBarWithDropdown(
     onQueryChange: (String) -> Unit,
     onAddExercise: (ExerciseSearchResult) -> Unit,
     onFocusChanged: (Boolean) -> Unit = {},
+    palette: LogGlassPalette = DefaultLogGlassPalette,
     modifier: Modifier = Modifier
 ) {
     val focusManager = LocalFocusManager.current
@@ -1589,28 +2154,28 @@ fun SearchBarWithDropdown(
                 Text(
                     "Search or add exercise...",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF66706E)
+                    color = palette.inkSubtle
                 )
             },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF66706E)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = palette.inkSubtle) },
             trailingIcon = {
                 if (query.isNotEmpty()) {
                     IconButton(onClick = { addExerciseAndClose(ExerciseSearchResult(query, "CUSTOM")) }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add", tint = Color(0xFF149C8A))
+                        Icon(Icons.Default.Add, contentDescription = "Add", tint = palette.accentStrong)
                     }
                 }
             },
             textStyle = MaterialTheme.typography.bodyMedium.copy(
-                color = Color(0xFF171A1C),
+                color = palette.ink,
                 fontWeight = FontWeight.SemiBold
             ),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White,
-                focusedBorderColor = Color(0xFF149C8A),
-                unfocusedBorderColor = Color(0xFFDDE6E3),
-                cursorColor = Color(0xFF149C8A)
+                focusedContainerColor = palette.glassFillStrong,
+                unfocusedContainerColor = palette.glassFill,
+                focusedBorderColor = palette.glassStrokeStrong,
+                unfocusedBorderColor = palette.glassStroke,
+                cursorColor = palette.accentStrong
             ),
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Text,
@@ -1632,9 +2197,9 @@ fun SearchBarWithDropdown(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = palette.glassFillStrong),
+                border = BorderStroke(1.dp, palette.glassStroke),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
@@ -1651,12 +2216,12 @@ fun SearchBarWithDropdown(
                                 Text(
                                     text = result.name,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = Color(0xFF171A1C),
+                                    color = palette.ink,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            Icon(Icons.Default.Add, contentDescription = "Add", tint = Color(0xFF149C8A), modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Add, contentDescription = "Add", tint = palette.accentStrong, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -1666,17 +2231,21 @@ fun SearchBarWithDropdown(
 }
 
 @Composable
-fun EmptyLogState(modifier: Modifier = Modifier) {
+fun EmptyLogState(
+    modifier: Modifier = Modifier,
+    palette: LogGlassPalette = DefaultLogGlassPalette
+) {
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .glassPanel(palette, RoundedCornerShape(18.dp), strong = true)
             .padding(vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
             Icons.Outlined.FitnessCenter,
             contentDescription = null,
-            tint = Color(0xFF149C8A).copy(alpha = 0.72f),
+            tint = palette.accentStrong.copy(alpha = 0.72f),
             modifier = Modifier.size(42.dp)
         )
         Spacer(modifier = Modifier.height(14.dp))
@@ -1684,13 +2253,13 @@ fun EmptyLogState(modifier: Modifier = Modifier) {
             text = "No exercises yet",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF171A1C)
+            color = palette.ink
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "Search above to start today's log",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF66706E)
+            color = palette.inkSubtle
         )
     }
 }
@@ -1700,7 +2269,8 @@ private fun LogCalendarSheet(
     selectedDate: LocalDate,
     workedDays: Set<LocalDate>,
     onDateSelected: (LocalDate) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    palette: LogGlassPalette = DefaultLogGlassPalette
 ) {
     val today = remember { LocalDate.now() }
     var visibleMonth by remember(selectedDate) { mutableStateOf(YearMonth.from(selectedDate)) }
@@ -1709,11 +2279,24 @@ private fun LogCalendarSheet(
     val firstDayOfMonth = visibleMonth.atDay(1)
     val leadingDays = firstDayOfMonth.dayOfWeek.value % 7
     val gridStart = firstDayOfMonth.minusDays(leadingDays.toLong())
+    val sheetShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            .clip(sheetShape)
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        palette.glassFillStrong.copy(alpha = 0.98f),
+                        palette.pageBottom.copy(alpha = 0.96f),
+                        palette.pageTop.copy(alpha = 0.94f)
+                    )
+                ),
+                sheetShape
+            )
+            .border(1.dp, palette.glassStrokeStrong, sheetShape)
+            .padding(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Row(
@@ -1725,23 +2308,22 @@ private fun LogCalendarSheet(
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                     contentDescription = "Previous month",
-                    tint = Color(0xFF171A1C)
+                    tint = palette.ink
                 )
             }
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = visibleMonth.format(monthFormatter),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF171A1C)
+                    style = LogType.dateTitle,
+                    color = palette.ink
                 )
                 TextButton(onClick = { onDateSelected(today) }) {
                     Text(
                         text = "Today",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF149C8A)
+                        color = palette.accentStrong
                     )
                 }
             }
@@ -1750,7 +2332,7 @@ private fun LogCalendarSheet(
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                     contentDescription = "Next month",
-                    tint = Color(0xFF171A1C)
+                    tint = palette.ink
                 )
             }
         }
@@ -1765,7 +2347,7 @@ private fun LogCalendarSheet(
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF66706E),
+                    color = palette.inkSubtle,
                     textAlign = TextAlign.Center
                 )
             }
@@ -1786,6 +2368,7 @@ private fun LogCalendarSheet(
                             isInVisibleMonth = YearMonth.from(date) == visibleMonth,
                             isWorkedDay = workedDays.contains(date),
                             onDateSelected = onDateSelected,
+                            palette = palette,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -1799,7 +2382,7 @@ private fun LogCalendarSheet(
         ) {
             Text(
                 text = "Close",
-                color = Color(0xFF66706E),
+                color = palette.inkSubtle,
                 fontWeight = FontWeight.SemiBold
             )
         }
@@ -1814,22 +2397,23 @@ private fun LogCalendarDay(
     isInVisibleMonth: Boolean,
     isWorkedDay: Boolean,
     onDateSelected: (LocalDate) -> Unit,
+    palette: LogGlassPalette = DefaultLogGlassPalette,
     modifier: Modifier = Modifier
 ) {
     val isSelected = date == selectedDate
     val isToday = date == today
     val containerColor = when {
-        isSelected -> Color(0xFF149C8A)
-        isToday -> Color(0xFF149C8A).copy(alpha = 0.10f)
+        isSelected -> palette.accentStrong
+        isToday -> palette.accent.copy(alpha = 0.13f)
         else -> Color.Transparent
     }
     val contentColor = when {
         isSelected -> Color.White
-        isInVisibleMonth -> Color(0xFF171A1C)
-        else -> Color(0xFF66706E).copy(alpha = 0.45f)
+        isInVisibleMonth -> palette.ink
+        else -> palette.inkSubtle.copy(alpha = 0.45f)
     }
     val border = if (isToday && !isSelected) {
-        BorderStroke(1.dp, Color(0xFF149C8A).copy(alpha = 0.55f))
+        BorderStroke(1.dp, palette.glassStrokeStrong)
     } else {
         null
     }
@@ -1844,7 +2428,7 @@ private fun LogCalendarDay(
         Box(contentAlignment = Alignment.Center) {
             Text(
                 text = date.dayOfMonth.toString(),
-                style = MaterialTheme.typography.bodyMedium,
+                style = LogType.calendarDay,
                 fontWeight = if (isSelected || isToday || isWorkedDay) FontWeight.Bold else FontWeight.Medium,
                 color = contentColor,
                 textAlign = TextAlign.Center
@@ -1856,7 +2440,7 @@ private fun LogCalendarDay(
                         .padding(bottom = 5.dp)
                         .size(4.dp)
                         .clip(CircleShape)
-                        .background(if (isSelected) Color.White else Color(0xFF149C8A))
+                        .background(if (isSelected) Color.White else palette.accentStrong)
                 )
             }
         }
@@ -1885,27 +2469,36 @@ fun LogScreen(
     onSearchQueryChange: (String) -> Unit,
     onAddExercise: (ExerciseSearchResult) -> Unit,
     onAddSet: (Int) -> Unit,
-    onCompleteSet: (Int, Int) -> Unit,
-    onDeleteSet: (Int, Int) -> Unit,
-    onWeightChange: (Int, Int, String) -> Unit,
-    onWeightStep: (Int, Int, Int) -> Unit,
-    onRepsChange: (Int, Int, String) -> Unit,
-    onRepsStep: (Int, Int, Int) -> Unit,
-    onToggleBodyweight: (Int, Int) -> Unit,
-    onSetFocused: (Int, Int) -> Unit,
+    onAddSetFrom: (Long, Long) -> Unit,
+    onCompleteSet: (Long) -> Unit,
+    onDeleteSet: (Long) -> Unit,
+    onWeightChange: (Long, String) -> Unit,
+    onWeightStep: (Long, Int) -> Unit,
+    onRepsChange: (Long, String) -> Unit,
+    onRepsStep: (Long, Int) -> Unit,
+    onToggleBodyweight: (Long) -> Unit,
+    onSetFocused: (Long) -> Unit,
     onFinishExercise: (Int) -> Unit,
     onMuscleGroupChange: (Int, String) -> Unit,
     restTimerSeconds: Int?,
     onCancelRestTimer: () -> Unit,
     chromeReveal: ChromeRevealState = ChromeRevealState(),
+    paletteChoice: GlassPaletteChoice = GlassPaletteChoice.Sage,
+    onPaletteChoiceChange: (GlassPaletteChoice) -> Unit = {},
+    palette: LogGlassPalette = paletteChoice.palette(),
     modifier: Modifier = Modifier
 ) {
     var finishedExerciseIds by remember { mutableStateOf(emptySet<Long>()) }
+    val pendingDeletedSetIdsState = remember { mutableStateOf(emptySet<Long>()) }
+    var pendingDeletedSetIds by pendingDeletedSetIdsState
     var plateSheetWeight by rememberSaveable { mutableStateOf<String?>(null) }
     var isCalendarVisible by rememberSaveable { mutableStateOf(false) }
     var activeNumberInput by remember { mutableStateOf<NumberInputTarget?>(null) }
+    var activeSetActions by remember { mutableStateOf<SetActionTarget?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
     val plateSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val calendarSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val setActionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val focusManager = LocalFocusManager.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val listState = rememberLazyListState()
@@ -1917,10 +2510,20 @@ fun LogScreen(
     val selectedCalendarDate = remember(currentDate) {
         runCatching { LocalDate.parse(currentDate) }.getOrDefault(LocalDate.now())
     }
+    val latestOnDeleteSet = rememberUpdatedState(onDeleteSet)
+
+    fun flushPendingDeletes() {
+        val ids = pendingDeletedSetIdsState.value
+        if (ids.isEmpty()) return
+        pendingDeletedSetIdsState.value = emptySet()
+        ids.forEach { setId -> latestOnDeleteSet.value(setId) }
+    }
     
     LaunchedEffect(currentDate) {
+        flushPendingDeletes()
         finishedExerciseIds = emptySet()
         activeNumberInput = null
+        activeSetActions = null
         chromeReveal.locked = false
         chromeReveal.snap(1f)
     }
@@ -1928,7 +2531,9 @@ fun LogScreen(
     DisposableEffect(lifecycleOwner, focusManager) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
+                flushPendingDeletes()
                 activeNumberInput = null
+                activeSetActions = null
                 plateSheetWeight = null
                 isCalendarVisible = false
                 focusManager.clearFocus()
@@ -1937,14 +2542,19 @@ fun LogScreen(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose {
+            flushPendingDeletes()
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     val orderedExercises = exercises
         .mapIndexed { index, exercise -> IndexedExercise(index, exercise) }
     val activeTarget = activeNumberInput
     val activeSet = activeTarget?.let { target ->
-        exercises.getOrNull(target.exerciseIndex)?.sets?.getOrNull(target.setIndex)
+        exercises.asSequence()
+            .flatMap { it.sets.asSequence() }
+            .firstOrNull { it.id == target.setId }
     }
     val isNumberKeyboardVisible = activeTarget != null && activeSet != null
     val keyboardHeightPadding = 306.dp
@@ -2023,8 +2633,10 @@ fun LogScreen(
     }
 
     fun selectCalendarDate(date: LocalDate) {
+        flushPendingDeletes()
         activeNumberInput = null
         plateSheetWeight = null
+        activeSetActions = null
         focusManager.clearFocus()
         isCalendarVisible = false
         onDateSelected(date.toString())
@@ -2032,28 +2644,41 @@ fun LogScreen(
         revealChrome()
     }
 
+    fun goToPreviousDay() {
+        flushPendingDeletes()
+        onPreviousDay()
+    }
+
+    fun goToNextDay() {
+        flushPendingDeletes()
+        onNextDay()
+    }
+
     fun commitNumberInput(target: NumberInputTarget, rawValue: String) {
         val allowDecimal = target.kind == NumberInputKind.Weight
         val maxLength = if (allowDecimal) 6 else 3
         val nextValue = sanitizeNumberInput(rawValue, allowDecimal).take(maxLength)
-        activeNumberInput = target.copy(value = nextValue)
+        activeNumberInput = target.copy(value = nextValue, replaceOnNextKey = false)
         when (target.kind) {
-            NumberInputKind.Weight -> onWeightChange(target.exerciseIndex, target.setIndex, nextValue)
-            NumberInputKind.Reps -> onRepsChange(target.exerciseIndex, target.setIndex, nextValue)
+            NumberInputKind.Weight -> onWeightChange(target.setId, nextValue)
+            NumberInputKind.Reps -> onRepsChange(target.setId, nextValue)
         }
     }
 
-    fun activateNumberInput(exerciseIndex: Int, setIndex: Int, kind: NumberInputKind) {
-        val set = exercises.getOrNull(exerciseIndex)?.sets?.getOrNull(setIndex) ?: return
+    fun activateNumberInput(setId: Long, kind: NumberInputKind) {
+        val set = exercises.asSequence()
+            .flatMap { it.sets.asSequence() }
+            .firstOrNull { it.id == setId } ?: return
+        activeSetActions = null
         focusManager.clearFocus()
         chromeReveal.locked = true
         scope.launch { chromeReveal.animateTo(0f) }
-        onSetFocused(exerciseIndex, setIndex)
+        onSetFocused(setId)
         activeNumberInput = NumberInputTarget(
-            exerciseIndex = exerciseIndex,
-            setIndex = setIndex,
+            setId = setId,
             kind = kind,
             value = if (kind == NumberInputKind.Weight) set.weight else set.reps,
+            replaceOnNextKey = true,
         )
     }
 
@@ -2062,6 +2687,7 @@ fun LogScreen(
         val allowDecimal = target.kind == NumberInputKind.Weight
         if (rawKey == "." && (!allowDecimal || target.value.contains("."))) return
         val candidate = when {
+            target.replaceOnNextKey -> rawKey
             target.value == "0" && rawKey != "." -> rawKey
             else -> target.value + rawKey
         }
@@ -2070,20 +2696,43 @@ fun LogScreen(
 
     fun switchNumberInputField() {
         val target = activeNumberInput ?: return
-        val set = exercises.getOrNull(target.exerciseIndex)?.sets?.getOrNull(target.setIndex) ?: return
+        val set = exercises.asSequence()
+            .flatMap { it.sets.asSequence() }
+            .firstOrNull { it.id == target.setId } ?: return
         val nextKind = if (target.kind == NumberInputKind.Weight) NumberInputKind.Reps else NumberInputKind.Weight
         activeNumberInput = target.copy(
             kind = nextKind,
-            value = if (nextKind == NumberInputKind.Weight) set.weight else set.reps
+            value = if (nextKind == NumberInputKind.Weight) set.weight else set.reps,
+            replaceOnNextKey = true,
         )
-        onSetFocused(target.exerciseIndex, target.setIndex)
+        onSetFocused(target.setId)
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color(0xFFF4F6F5))
-    ) {
+    fun requestDeleteSet(set: LoggedSet) {
+        if (set.id in pendingDeletedSetIds) return
+        activeSetActions = null
+        activeNumberInput = null
+        pendingDeletedSetIds = pendingDeletedSetIds + set.id
+        scope.launch {
+            val result = snackbarHostState.showSnackbar(
+                message = "Set ${set.setNumber} removed",
+                actionLabel = "Undo",
+                duration = SnackbarDuration.Short
+            )
+            val isStillPending = set.id in pendingDeletedSetIdsState.value
+            if (!isStillPending) return@launch
+            pendingDeletedSetIdsState.value = pendingDeletedSetIdsState.value - set.id
+            if (result != SnackbarResult.ActionPerformed) {
+                onDeleteSet(set.id)
+            }
+        }
+    }
+
+    MaterialTheme(typography = LogMaterialTypography) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+        ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -2100,6 +2749,13 @@ fun LogScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
             item {
+                GlassPaletteSwitch(
+                    selected = paletteChoice,
+                    onSelect = onPaletteChoiceChange,
+                    palette = palette
+                )
+            }
+            item {
                 SearchBarWithDropdown(
                     query = searchQuery,
                     results = searchResults,
@@ -2108,7 +2764,8 @@ fun LogScreen(
                     onAddExercise = onAddExercise,
                     onFocusChanged = { focused ->
                         if (!focused) revealChrome()
-                    }
+                    },
+                    palette = palette
                 )
             }
             if (splits.isNotEmpty()) {
@@ -2116,7 +2773,8 @@ fun LogScreen(
                     SplitSelectorStrip(
                         splits = splits,
                         selectedId = selectedSplitId,
-                        onSelect = onSelectSplit
+                        onSelect = onSelectSplit,
+                        palette = palette
                     )
                 }
             }
@@ -2128,14 +2786,16 @@ fun LogScreen(
                 val i = item.originalIndex
                 val exercise = item.exercise
                 val isCollapsed = exercise.exerciseId in finishedExerciseIds
+                val visibleSets = exercise.sets.filterNot { it.id in pendingDeletedSetIds }
                 ExerciseLogCard(
                     exerciseName = exercise.exerciseName,
                     muscleGroups = exercise.muscleGroups,
                     previousSession = exercise.previousSession,
                     isNewPB = exercise.isNewPB,
-                    sets = exercise.sets,
+                    sets = visibleSets,
                     isCollapsed = isCollapsed,
                     onAddSet = { onAddSet(i) },
+                    onAddSetFrom = { setId -> onAddSetFrom(exercise.exerciseId, setId) },
                     onToggleCollapsed = {
                         if (!isCollapsed) onFinishExercise(i)
                         finishedExerciseIds = if (isCollapsed) {
@@ -2144,26 +2804,40 @@ fun LogScreen(
                             finishedExerciseIds + exercise.exerciseId
                         }
                     },
-                    onCompleteSet = { setIndex -> onCompleteSet(i, setIndex) },
-                    onDeleteSet = { setIndex -> onDeleteSet(i, setIndex) },
-                    onWeightChange = { setIndex, value -> onWeightChange(i, setIndex, value) },
-                    onWeightStep = { setIndex, delta -> onWeightStep(i, setIndex, delta) },
-                    onRepsChange = { setIndex, value -> onRepsChange(i, setIndex, value) },
-                    onRepsStep = { setIndex, delta -> onRepsStep(i, setIndex, delta) },
-                    onWeightInput = { setIndex -> activateNumberInput(i, setIndex, NumberInputKind.Weight) },
-                    onRepsInput = { setIndex -> activateNumberInput(i, setIndex, NumberInputKind.Reps) },
+                    onSwipeFinishAndCollapse = {
+                        if (visibleSets.isNotEmpty()) {
+                            visibleSets
+                                .filterNot { it.isCompleted }
+                                .forEach { set -> onCompleteSet(set.id) }
+                            if (!isCollapsed) {
+                                onFinishExercise(i)
+                                finishedExerciseIds = finishedExerciseIds + exercise.exerciseId
+                            }
+                        }
+                    },
+                    onCompleteSet = { setId -> onCompleteSet(setId) },
+                    onDeleteSet = { set -> requestDeleteSet(set) },
+                    onWeightStep = { setId, delta -> onWeightStep(setId, delta) },
+                    onRepsStep = { setId, delta -> onRepsStep(setId, delta) },
+                    onWeightInput = { setId -> activateNumberInput(setId, NumberInputKind.Weight) },
+                    onRepsInput = { setId -> activateNumberInput(setId, NumberInputKind.Reps) },
                     onMuscleGroupChange = { muscleGroup -> onMuscleGroupChange(i, muscleGroup) },
-                    onShowPlates = { setIndex ->
+                    onShowPlates = { set ->
                         chromeReveal.locked = true
                         scope.launch { chromeReveal.animateTo(0f) }
-                        plateSheetWeight = exercise.sets[setIndex].weight
+                        plateSheetWeight = set.weight
                     },
+                    onOpenSetActions = { set ->
+                        activeNumberInput = null
+                        activeSetActions = SetActionTarget(exercise.exerciseId, set)
+                    },
+                    palette = palette,
                     modifier = Modifier.animateItem(),
                     onInteraction = {}
                 )
             }
             if (exercises.isEmpty() && !isSearchActive) {
-                item { EmptyLogState() }
+                item { EmptyLogState(palette = palette) }
             }
         }
 
@@ -2174,8 +2848,9 @@ fun LogScreen(
                 dateLabel = dateLabel,
                 cycleSlotLabel = cycleSlotLabel,
                 onDateClick = ::openCalendarSheet,
-                onPreviousDay = onPreviousDay,
-                onNextDay = onNextDay,
+                onPreviousDay = ::goToPreviousDay,
+                onNextDay = ::goToNextDay,
+                palette = palette,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
@@ -2215,20 +2890,21 @@ fun LogScreen(
                     isBodyweight = activeSet.isBodyweight,
                     onKey = ::appendNumberInput,
                     onBackspace = {
-                        commitNumberInput(activeTarget, activeTarget.value.dropLast(1))
+                        commitNumberInput(activeTarget.copy(replaceOnNextKey = false), activeTarget.value.dropLast(1))
                     },
                     onClear = {
-                        commitNumberInput(activeTarget, "")
+                        commitNumberInput(activeTarget.copy(replaceOnNextKey = false), "")
                     },
                     onToggleBodyweight = {
                         val willBeBodyweight = !activeSet.isBodyweight
-                        onToggleBodyweight(activeTarget.exerciseIndex, activeTarget.setIndex)
+                        onToggleBodyweight(activeTarget.setId)
                         activeNumberInput = activeTarget.copy(
                             value = when {
                                 activeTarget.kind != NumberInputKind.Weight -> activeTarget.value
                                 willBeBodyweight -> activeSet.weight
                                 else -> activeSet.weight
-                            }
+                            },
+                            replaceOnNextKey = true,
                         )
                     },
                     onSwitchField = ::switchNumberInputField,
@@ -2237,6 +2913,7 @@ fun LogScreen(
                         chromeReveal.locked = false
                         revealChrome()
                     },
+                    palette = palette,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = navigationBarPadding)
@@ -2247,13 +2924,15 @@ fun LogScreen(
                 ModalBottomSheet(
                     onDismissRequest = ::closeCalendarSheet,
                     sheetState = calendarSheetState,
-                    containerColor = Color.White
+                    containerColor = Color.Transparent,
+                    scrimColor = palette.scrim
                 ) {
                     LogCalendarSheet(
                         selectedDate = selectedCalendarDate,
                         workedDays = workedDays,
                         onDateSelected = ::selectCalendarDate,
-                        onClose = ::closeCalendarSheet
+                        onClose = ::closeCalendarSheet,
+                        palette = palette
                     )
                 }
             }
@@ -2262,14 +2941,55 @@ fun LogScreen(
                 ModalBottomSheet(
                     onDismissRequest = ::closePlateSheet,
                     sheetState = plateSheetState,
-                    containerColor = Color.White
+                    containerColor = Color.Transparent,
+                    scrimColor = palette.scrim
                 ) {
                     PlateCalculatorSheet(
                         weightText = weight,
-                        onClose = ::closePlateSheet
+                        onClose = ::closePlateSheet,
+                        palette = palette
                     )
                 }
             }
+
+            activeSetActions?.let { target ->
+                ModalBottomSheet(
+                    onDismissRequest = { activeSetActions = null },
+                    sheetState = setActionSheetState,
+                    containerColor = Color.Transparent,
+                    scrimColor = palette.scrim
+                ) {
+                    GlassSetActionSheet(
+                        target = target,
+                        palette = palette,
+                        onComplete = {
+                            activeSetActions = null
+                            onCompleteSet(target.set.id)
+                        },
+                        onAddCopiedSet = {
+                            activeSetActions = null
+                            onAddSetFrom(target.exerciseId, target.set.id)
+                        },
+                        onEditWeight = {
+                            activateNumberInput(target.set.id, NumberInputKind.Weight)
+                        },
+                        onEditReps = {
+                            activateNumberInput(target.set.id, NumberInputKind.Reps)
+                        },
+                        onDelete = {
+                            requestDeleteSet(target.set)
+                        }
+                    )
+                }
+            }
+
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 16.dp, vertical = navigationBarPadding + 14.dp)
+            )
+        }
     }
 }
 
@@ -2300,9 +3020,9 @@ fun LogScreenPreview() {
                     previousSession = "Last: 185 × 10",
                     isNewPB = true,
                     sets = listOf(
-                        LoggedSet(1, "185", "10", false, true),
-                        LoggedSet(2, "185", "8", false, true, restSeconds = 94),
-                        LoggedSet(3, "185", "5", false, false)
+                        LoggedSet(101L, 1, "185", "10", false, true),
+                        LoggedSet(102L, 2, "185", "8", false, true, restSeconds = 94),
+                        LoggedSet(103L, 3, "185", "5", false, false)
                     )
                 ),
                 ExerciseLog(
@@ -2325,14 +3045,15 @@ fun LogScreenPreview() {
             onSearchQueryChange = {},
             onAddExercise = {},
             onAddSet = {},
-            onCompleteSet = { _, _ -> },
-            onDeleteSet = { _, _ -> },
-            onWeightChange = { _, _, _ -> },
-            onWeightStep = { _, _, _ -> },
-            onRepsChange = { _, _, _ -> },
-            onRepsStep = { _, _, _ -> },
-            onToggleBodyweight = { _, _ -> },
-            onSetFocused = { _, _ -> },
+            onAddSetFrom = { _, _ -> },
+            onCompleteSet = {},
+            onDeleteSet = {},
+            onWeightChange = { _, _ -> },
+            onWeightStep = { _, _ -> },
+            onRepsChange = { _, _ -> },
+            onRepsStep = { _, _ -> },
+            onToggleBodyweight = {},
+            onSetFocused = {},
             onFinishExercise = {},
             onMuscleGroupChange = { _, _ -> },
             restTimerSeconds = null,
