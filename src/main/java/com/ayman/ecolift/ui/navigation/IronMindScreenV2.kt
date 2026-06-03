@@ -49,11 +49,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ayman.ecolift.ui.theme.GlassPaletteChoice
+import com.ayman.ecolift.ui.theme.GlassPaletteSwitch
+import com.ayman.ecolift.ui.theme.LocalGlassPalette
+import com.ayman.ecolift.ui.theme.glassPanel
 
 sealed class IronMindMessage {
     data class UserMessage(val text: String, val timestamp: String) : IronMindMessage()
@@ -99,6 +102,7 @@ fun IronMindTopBar(
     onSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
     CenterAlignedTopAppBar(
         modifier = modifier.statusBarsPadding(),
         windowInsets = WindowInsets(0),
@@ -108,26 +112,29 @@ fun IronMindTopBar(
                     text = "IronMind",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF171A1C)
+                    color = palette.ink
                 )
                 Text(
                     text = sessionLabel ?: "No active session",
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (sessionLabel != null) Color(0xFF149C8A) else Color(0xFF66706E)
+                    color = if (sessionLabel != null) palette.accentStrong else palette.inkSubtle
                 )
             }
         },
         navigationIcon = {
-            IconButton(onClick = onSettings) {
+            IconButton(
+                onClick = onSettings,
+                modifier = Modifier.glassPanel(palette, CircleShape)
+            ) {
                 Icon(
                     imageVector = Icons.Outlined.Settings,
                     contentDescription = "Settings",
-                    tint = Color(0xFF171A1C)
+                    tint = palette.ink
                 )
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = Color(0xFFF4F6F5)
+            containerColor = Color.Transparent
         )
     )
 }
@@ -137,6 +144,8 @@ fun UserMessageBubble(
     message: IronMindMessage.UserMessage,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
+    val shape = RoundedCornerShape(topStart = 16.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End
@@ -148,22 +157,19 @@ fun UserMessageBubble(
         ) {
             Box(
                 modifier = Modifier
-                    .background(
-                        color = Color(0xFF171A1C),
-                        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
-                    )
+                    .glassPanel(palette, shape, strong = true)
                     .padding(horizontal = 12.dp, vertical = 10.dp)
             ) {
                 Text(
                     text = message.text,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White
+                    color = palette.ink
                 )
             }
             Text(
                 text = message.timestamp,
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF66706E),
+                color = palette.inkSubtle,
                 modifier = Modifier.padding(top = 4.dp)
             )
         }
@@ -175,22 +181,23 @@ fun InlineStatsCard(
     stats: StatsPayload,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFFF1F4F3), RoundedCornerShape(10.dp))
+            .glassPanel(palette, RoundedCornerShape(10.dp))
             .padding(horizontal = 10.dp, vertical = 12.dp)
     ) {
         Text(
             text = stats.exerciseName.uppercase(),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF66706E),
+            color = palette.inkSubtle,
             letterSpacing = 0.sp
         )
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 6.dp),
-            color = Color(0xFF171A1C).copy(alpha = 0.1f)
+            color = palette.glassStroke
         )
         if (stats.pr != null) {
             StatRow("Current PR", stats.pr)
@@ -209,6 +216,7 @@ fun InlineStatsCard(
 
 @Composable
 private fun StatRow(label: String, value: String) {
+    val palette = LocalGlassPalette.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -218,13 +226,13 @@ private fun StatRow(label: String, value: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF66706E)
+            color = palette.inkSubtle
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
-            color = Color(0xFF171A1C)
+            color = palette.ink
         )
     }
 }
@@ -235,6 +243,8 @@ fun AiMessageBubble(
     onRecoveryAction: (RecoveryPayload, RecoveryAction) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
+    val bubbleShape = RoundedCornerShape(topStart = 4.dp, topEnd = 14.dp, bottomStart = 14.dp, bottomEnd = 14.dp)
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Start
@@ -242,13 +252,13 @@ fun AiMessageBubble(
         Box(
             modifier = Modifier
                 .size(34.dp)
-                .background(Color(0xFF149C8A).copy(alpha = 0.15f), CircleShape),
+                .background(palette.accentStrong.copy(alpha = 0.18f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "✦",
                 style = MaterialTheme.typography.labelMedium,
-                color = Color(0xFF149C8A)
+                color = palette.accentStrong
             )
         }
         Column(
@@ -259,21 +269,14 @@ fun AiMessageBubble(
         ) {
             Box(
                 modifier = Modifier
-                    .background(
-                        color = Color(0xFFFFFFFF),
-                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 14.dp, bottomStart = 14.dp, bottomEnd = 14.dp)
-                    )
-                    .border(
-                        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
-                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 14.dp, bottomStart = 14.dp, bottomEnd = 14.dp)
-                    )
+                    .glassPanel(palette, bubbleShape)
                     .padding(horizontal = 12.dp, vertical = 10.dp)
             ) {
                 Column {
                     Text(
                         text = message.text,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF171A1C)
+                        color = palette.ink
                     )
                     if (message.statsCard != null) {
                         InlineStatsCard(
@@ -293,7 +296,7 @@ fun AiMessageBubble(
             Text(
                 text = message.timestamp,
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF66706E),
+                color = palette.inkSubtle,
                 modifier = Modifier.padding(top = 4.dp)
             )
         }
@@ -307,42 +310,43 @@ private fun RecoveryDraftSection(
     onAction: (RecoveryPayload, RecoveryAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
     Column(modifier = modifier.fillMaxWidth()) {
         HorizontalDivider(
             modifier = Modifier.padding(bottom = 8.dp),
-            color = Color(0xFF171A1C).copy(alpha = 0.1f)
+            color = palette.glassStroke
         )
         Text(
             text = "Original",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF66706E)
+            color = palette.inkSubtle
         )
         Text(
             text = recovery.originalText,
-            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-            color = Color(0xFF171A1C),
+            style = MaterialTheme.typography.bodySmall,
+            color = palette.ink,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 4.dp)
-                .background(Color(0xFFF1F4F3), RoundedCornerShape(8.dp))
+                .glassPanel(palette, RoundedCornerShape(8.dp))
                 .padding(horizontal = 8.dp, vertical = 7.dp)
         )
         Text(
             text = "Template",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF66706E),
+            color = palette.inkSubtle,
             modifier = Modifier.padding(top = 8.dp)
         )
         Text(
             text = recovery.suggestedTemplate,
-            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-            color = Color(0xFF171A1C),
+            style = MaterialTheme.typography.bodySmall,
+            color = palette.ink,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 4.dp)
-                .background(Color(0xFFF1F4F3), RoundedCornerShape(8.dp))
+                .glassPanel(palette, RoundedCornerShape(8.dp))
                 .padding(horizontal = 8.dp, vertical = 7.dp)
         )
         Row(
@@ -354,12 +358,28 @@ private fun RecoveryDraftSection(
             AssistChip(
                 onClick = { onAction(recovery, RecoveryAction.EditOriginal) },
                 label = { Text("Edit", style = MaterialTheme.typography.labelMedium) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                colors = AssistChipDefaults.assistChipColors(
+                    containerColor = palette.glassFillStrong,
+                    labelColor = palette.ink
+                ),
+                border = AssistChipDefaults.assistChipBorder(
+                    enabled = true,
+                    borderColor = palette.glassStroke
+                )
             )
             AssistChip(
                 onClick = { onAction(recovery, RecoveryAction.UseTemplate) },
                 label = { Text("Use template", style = MaterialTheme.typography.labelMedium) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                colors = AssistChipDefaults.assistChipColors(
+                    containerColor = palette.glassFillStrong,
+                    labelColor = palette.ink
+                ),
+                border = AssistChipDefaults.assistChipBorder(
+                    enabled = true,
+                    borderColor = palette.glassStroke
+                )
             )
         }
         Row(
@@ -369,13 +389,31 @@ private fun RecoveryDraftSection(
             AssistChip(
                 onClick = { onAction(recovery, RecoveryAction.SaveForReview) },
                 label = { Text("Save", style = MaterialTheme.typography.labelMedium) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                colors = AssistChipDefaults.assistChipColors(
+                    containerColor = palette.glassFillStrong,
+                    labelColor = palette.ink
+                ),
+                border = AssistChipDefaults.assistChipBorder(
+                    enabled = true,
+                    borderColor = palette.glassStroke
+                )
             )
             AssistChip(
                 onClick = { onAction(recovery, RecoveryAction.TryAi) },
                 enabled = recovery.canTryModel,
                 label = { Text(if (recovery.canTryModel) "Try AI" else "AI offline", style = MaterialTheme.typography.labelMedium) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                colors = AssistChipDefaults.assistChipColors(
+                    containerColor = palette.glassFillStrong,
+                    labelColor = palette.ink,
+                    disabledContainerColor = palette.glassFill,
+                    disabledLabelColor = palette.inkSubtle
+                ),
+                border = AssistChipDefaults.assistChipBorder(
+                    enabled = recovery.canTryModel,
+                    borderColor = palette.glassStroke
+                )
             )
         }
     }
@@ -385,6 +423,8 @@ private fun RecoveryDraftSection(
 fun AiThinkingBubble(
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
+    val bubbleShape = RoundedCornerShape(topStart = 4.dp, topEnd = 14.dp, bottomStart = 14.dp, bottomEnd = 14.dp)
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Start
@@ -392,26 +432,19 @@ fun AiThinkingBubble(
         Box(
             modifier = Modifier
                 .size(34.dp)
-                .background(Color(0xFF149C8A).copy(alpha = 0.15f), CircleShape),
+                .background(palette.accentStrong.copy(alpha = 0.18f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "✦",
                 style = MaterialTheme.typography.labelMedium,
-                color = Color(0xFF149C8A)
+                color = palette.accentStrong
             )
         }
         Box(
             modifier = Modifier
                 .padding(start = 8.dp)
-                    .background(
-                        color = Color(0xFFFFFFFF),
-                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 14.dp, bottomStart = 14.dp, bottomEnd = 14.dp)
-                    )
-                    .border(
-                    border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
-                    shape = RoundedCornerShape(topStart = 4.dp, topEnd = 14.dp, bottomStart = 14.dp, bottomEnd = 14.dp)
-                )
+                .glassPanel(palette, bubbleShape)
                 .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -429,7 +462,7 @@ fun AiThinkingBubble(
                     Box(
                         modifier = Modifier
                             .size(6.dp)
-                            .background(Color(0xFF66706E).copy(alpha = alpha), CircleShape)
+                            .background(palette.inkMuted.copy(alpha = alpha), CircleShape)
                     )
                 }
             }
@@ -444,11 +477,14 @@ fun QuickActionsRow(
     onAction: (QuickAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
     Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = Color.White,
+        modifier = modifier
+            .fillMaxWidth()
+            .glassPanel(palette, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp), strong = true),
+        color = Color.Transparent,
         shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
-        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+        border = BorderStroke(1.dp, palette.glassStrokeStrong),
         shadowElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
@@ -456,7 +492,7 @@ fun QuickActionsRow(
                 text = "Suggested",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF66706E),
+                color = palette.inkSubtle,
                 modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
             )
             LazyRow(
@@ -468,12 +504,12 @@ fun QuickActionsRow(
                         onClick = { onAction(action) },
                         label = { Text(action.label, style = MaterialTheme.typography.labelMedium) },
                         colors = AssistChipDefaults.assistChipColors(
-                            containerColor = Color(0xFFF9FBFA),
-                            labelColor = Color(0xFF171A1C)
+                            containerColor = palette.glassFillStrong,
+                            labelColor = palette.ink
                         ),
                         border = AssistChipDefaults.assistChipBorder(
                             enabled = true,
-                            borderColor = Color(0xFFD2DBD8)
+                            borderColor = palette.glassStroke
                         )
                     )
                 }
@@ -489,39 +525,39 @@ fun IronMindInputBar(
     onSend: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
     Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+        modifier = modifier
+            .fillMaxWidth()
+            .glassPanel(palette, RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp), strong = true),
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, palette.glassStrokeStrong),
         shadowElevation = 0.dp
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = ">",
-                style = MaterialTheme.typography.bodyMedium,
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFF149C8A),
-                modifier = Modifier.padding(end = 8.dp)
+            Box(
+                modifier = Modifier
+                    .padding(end = 10.dp)
+                    .size(8.dp)
+                    .background(palette.accentStrong, CircleShape)
             )
             BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,
                 modifier = Modifier.weight(1f),
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF171A1C)
+                    color = palette.ink
                 ),
-                cursorBrush = SolidColor(Color(0xFF149C8A)),
+                cursorBrush = SolidColor(palette.accentStrong),
                 decorationBox = { innerTextField ->
                     if (query.isEmpty()) {
                         Text(
                             text = "Log your data or run query...",
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = Color(0xFF66706E)
+                                color = palette.inkSubtle
                             )
                         )
                     }
@@ -537,7 +573,7 @@ fun IronMindInputBar(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Send,
                     contentDescription = "Send",
-                    tint = if (isEnabled) Color(0xFF149C8A) else Color(0xFF66706E).copy(alpha = 0.3f)
+                    tint = if (isEnabled) palette.accentStrong else palette.inkSubtle.copy(alpha = 0.3f)
                 )
             }
         }
@@ -556,8 +592,11 @@ fun IronMindScreen(
     onQuickAction: (QuickAction) -> Unit,
     onSettings: () -> Unit,
     onRecoveryAction: (RecoveryPayload, RecoveryAction) -> Unit = { _, _ -> },
+    paletteChoice: GlassPaletteChoice = GlassPaletteChoice.Sage,
+    onPaletteChoiceChange: (GlassPaletteChoice) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -582,7 +621,7 @@ fun IronMindScreen(
                 )
             }
         },
-        containerColor = Color(0xFFF4F6F5)
+        containerColor = Color.Transparent
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
@@ -606,6 +645,14 @@ fun IronMindScreen(
                     )
                     is IronMindMessage.AiThinking -> AiThinkingBubble() // Handled above, but exhaustive
                 }
+            }
+            item(key = "palette_switch") {
+                GlassPaletteSwitch(
+                    selected = paletteChoice,
+                    onSelect = onPaletteChoiceChange,
+                    palette = palette,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
             }
         }
     }

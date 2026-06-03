@@ -89,6 +89,7 @@ import com.ayman.ecolift.ui.viewmodel.SplitExerciseRef
 import com.ayman.ecolift.ui.viewmodel.SplitTabMode
 import com.ayman.ecolift.ui.viewmodel.SplitUiState
 import com.ayman.ecolift.ui.viewmodel.SplitViewModel
+import com.ayman.ecolift.ui.theme.GlassPaletteChoice
 import kotlin.math.roundToInt
 import java.time.LocalDate
 
@@ -108,6 +109,8 @@ fun SplitScreen(
     onNavigateToLog: (splitId: Long) -> Unit = {},
     onNavigateToExerciseProgress: (exerciseId: Long) -> Unit = {},
     onNavigateToArchiveDetail: (archiveId: Long) -> Unit = {},
+    paletteChoice: GlassPaletteChoice = GlassPaletteChoice.Sage,
+    onPaletteChoiceChange: (GlassPaletteChoice) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val availableSessions by viewModel.availableSessions.collectAsStateWithLifecycle()
@@ -152,6 +155,8 @@ fun SplitScreen(
         archives = archives,
         onOpenArchive = onNavigateToArchiveDetail,
         onArchiveCurrentCycle = { showArchiveDialog = true },
+        paletteChoice = paletteChoice,
+        onPaletteChoiceChange = onPaletteChoiceChange,
     )
 
     if (showAddDialog) {
@@ -178,10 +183,12 @@ fun SplitScreen(
 
     val detailSplit = detailSplitId?.let { id -> state.splits.firstOrNull { it.id == id } }
     if (detailSplit != null) {
+        val palette = LocalGlassPalette.current
         ModalBottomSheet(
             onDismissRequest = { detailSplitId = null },
             sheetState = sheetState,
-            containerColor = BackgroundSurface,
+            containerColor = Color.Transparent,
+            scrimColor = palette.scrim,
             dragHandle = { Spacer(Modifier.height(6.dp)) },
         ) {
             SplitDetailSheetV2(
@@ -801,6 +808,7 @@ private fun SplitDetailSheet(
     onClearSaved: () -> Unit,
     onOpenExerciseProgress: (exerciseId: Long) -> Unit,
 ) {
+    val palette = LocalGlassPalette.current
     var showSavePicker by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
 
@@ -991,6 +999,7 @@ private fun SplitDetailSheetV2(
     onClearSaved: () -> Unit,
     onOpenExerciseProgress: (exerciseId: Long) -> Unit,
 ) {
+    val palette = LocalGlassPalette.current
     var showSavePicker by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var name by remember(split.id) { mutableStateOf(split.name) }
@@ -1000,6 +1009,7 @@ private fun SplitDetailSheetV2(
         modifier = Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
+            .glassPanel(palette, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp), strong = true)
             .padding(horizontal = 20.dp)
             .padding(top = 12.dp, bottom = 24.dp),
     ) {
@@ -1009,14 +1019,14 @@ private fun SplitDetailSheetV2(
                 .width(42.dp)
                 .height(4.dp)
                 .clip(RoundedCornerShape(100.dp))
-                .background(BorderDefault),
+                .background(palette.glassStrokeStrong),
         )
 
         Spacer(Modifier.height(18.dp))
         Text(
             text = "Edit split",
             style = MaterialTheme.typography.labelLarge,
-            color = AccentTeal,
+            color = palette.accentStrong,
             fontWeight = FontWeight.W800,
         )
         Spacer(Modifier.height(8.dp))
@@ -1028,14 +1038,16 @@ private fun SplitDetailSheetV2(
             textStyle = TextStyle(
                 fontSize = 24.sp,
                 fontWeight = FontWeight.W800,
-                color = TextPrimary,
+                color = palette.ink,
             ),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AccentTeal,
-                unfocusedBorderColor = BorderDefault,
-                focusedContainerColor = BackgroundSurface,
-                unfocusedContainerColor = BackgroundSurface,
-                cursorColor = AccentTeal,
+                focusedBorderColor = palette.glassStrokeStrong,
+                unfocusedBorderColor = palette.glassStroke,
+                focusedContainerColor = palette.glassFillStrong,
+                unfocusedContainerColor = palette.glassFill,
+                focusedTextColor = palette.ink,
+                unfocusedTextColor = palette.ink,
+                cursorColor = palette.accentStrong,
             ),
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth(),
@@ -1063,35 +1075,35 @@ private fun SplitDetailSheetV2(
                     .height(48.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AccentTeal,
-                    contentColor = Color.White,
+                    containerColor = palette.accent.copy(alpha = 0.90f),
+                    contentColor = palette.ink,
                 ),
             ) {
-                Text("Start workout", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.White)
+                Text("Start workout", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = palette.ink)
             }
             OutlinedButton(
                 onClick = { confirmDelete = true },
                 modifier = Modifier.height(48.dp),
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, ErrorRedSoft),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
+                border = BorderStroke(1.dp, palette.danger.copy(alpha = 0.40f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.danger),
             ) {
-                Icon(Icons.Default.Delete, null, modifier = Modifier.size(14.dp), tint = ErrorRed)
+                Icon(Icons.Default.Delete, null, modifier = Modifier.size(14.dp), tint = palette.danger)
                 Spacer(Modifier.width(5.dp))
-                Text("Delete", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = ErrorRed)
+                Text("Delete", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = palette.danger)
             }
         }
 
         Spacer(Modifier.height(24.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Exercises", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
-                Text("Tap any lift to view progress", color = TextInactive, fontSize = 11.sp)
+                Text("Exercises", style = MaterialTheme.typography.titleSmall, color = palette.ink)
+                Text("Tap any lift to view progress", color = palette.inkSubtle, fontSize = 11.sp)
             }
             if (split.isSaved) {
                 Text(
                     "Reset",
-                    color = TextInactive,
+                    color = palette.inkSubtle,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier
@@ -1120,14 +1132,14 @@ private fun SplitDetailSheetV2(
                     .fillMaxWidth()
                     .height(48.dp),
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, AccentTeal),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentTeal),
+                border = BorderStroke(1.dp, palette.glassStrokeStrong),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.accentStrong),
             ) {
                 Text(
                     "Update exercises from a workout",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp,
-                    color = AccentTeal,
+                    color = palette.accentStrong,
                 )
             }
         }
@@ -1158,16 +1170,17 @@ private fun SplitDetailSheetV2(
 
 @Composable
 private fun SplitMetricPill(text: String) {
+    val palette = LocalGlassPalette.current
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(100.dp))
-            .background(AccentTeal07)
-            .border(1.dp, AccentTeal12, RoundedCornerShape(100.dp))
+            .background(palette.accent.copy(alpha = 0.12f))
+            .border(1.dp, palette.glassStroke, RoundedCornerShape(100.dp))
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         Text(
             text = text,
-            color = TextSecondary,
+            color = palette.inkMuted,
             fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
         )
@@ -1176,6 +1189,7 @@ private fun SplitMetricPill(text: String) {
 
 @Composable
 private fun EmptySplitExercises(onAddExercises: () -> Unit) {
+    val palette = LocalGlassPalette.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1185,20 +1199,20 @@ private fun EmptySplitExercises(onAddExercises: () -> Unit) {
         Icon(
             imageVector = Icons.Outlined.FitnessCenter,
             contentDescription = null,
-            tint = AccentTeal.copy(alpha = 0.45f),
+            tint = palette.accentStrong.copy(alpha = 0.58f),
             modifier = Modifier.size(46.dp),
         )
         Spacer(Modifier.height(12.dp))
         Text(
             "No exercises yet",
-            color = TextPrimary,
+            color = palette.ink,
             fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.height(4.dp))
         Text(
             "Choose a previous workout to fill this split.",
-            color = TextInactive,
+            color = palette.inkSubtle,
             fontSize = 12.sp,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 16.dp),
@@ -1211,27 +1225,28 @@ private fun EmptySplitExercises(onAddExercises: () -> Unit) {
                 .height(48.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = AccentTeal,
-                contentColor = Color.White,
+                containerColor = palette.accent.copy(alpha = 0.90f),
+                contentColor = palette.ink,
             ),
         ) {
-            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Add, contentDescription = null, tint = palette.ink, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
-            Text("Add exercises", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
+            Text("Add exercises", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = palette.ink)
         }
     }
 }
 
 @Composable
 private fun SplitExerciseEditRow(ref: SplitExerciseRef, onClick: () -> Unit) {
+    val palette = LocalGlassPalette.current
     val trend = ref.recentMaxVolume
     val delta = trend.deltaPercentOrNull()
     val first = trend.firstOrNull() ?: 0f
     val last = trend.lastOrNull() ?: 0f
     val trendColor = when {
-        trend.size < 2 -> TextInactive
-        last >= first -> AccentTeal
-        else -> ErrorRed
+        trend.size < 2 -> palette.inkSubtle
+        last >= first -> palette.complete
+        else -> palette.danger
     }
     val trendLabel = when {
         trend.isEmpty() -> "No history yet"
@@ -1244,10 +1259,11 @@ private fun SplitExerciseEditRow(ref: SplitExerciseRef, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .glassPanel(palette, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
-        border = BorderStroke(1.dp, BorderSubtle),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, palette.glassStroke),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -1257,13 +1273,13 @@ private fun SplitExerciseEditRow(ref: SplitExerciseRef, onClick: () -> Unit) {
                 modifier = Modifier
                     .size(34.dp)
                     .clip(CircleShape)
-                    .background(AccentTeal10),
+                    .background(palette.accent.copy(alpha = 0.16f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Outlined.FitnessCenter,
                     contentDescription = null,
-                    tint = AccentTeal,
+                    tint = palette.accentStrong,
                     modifier = Modifier.size(17.dp),
                 )
             }
@@ -1271,7 +1287,7 @@ private fun SplitExerciseEditRow(ref: SplitExerciseRef, onClick: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(
                     ref.displayName,
-                    color = TextPrimary,
+                    color = palette.ink,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -1279,10 +1295,10 @@ private fun SplitExerciseEditRow(ref: SplitExerciseRef, onClick: () -> Unit) {
                 Text(
                     trendLabel,
                     color = when {
-                        trend.isEmpty() || delta == null -> TextInactive
-                        delta > 0 -> AccentTeal
-                        delta < 0 -> ErrorRed
-                        else -> TextInactive
+                        trend.isEmpty() || delta == null -> palette.inkSubtle
+                        delta > 0 -> palette.complete
+                        delta < 0 -> palette.danger
+                        else -> palette.inkSubtle
                     },
                     fontSize = 11.sp,
                 )
@@ -1293,28 +1309,32 @@ private fun SplitExerciseEditRow(ref: SplitExerciseRef, onClick: () -> Unit) {
                 modifier = Modifier.width(64.dp).height(22.dp),
             )
             Spacer(Modifier.width(10.dp))
-            Text(">", color = TextInactive, fontSize = 16.sp)
+            Text(">", color = palette.inkSubtle, fontSize = 16.sp)
         }
     }
 }
 
 @Composable
 private fun ExerciseProgressRow(ref: SplitExerciseRef, onClick: () -> Unit) {
+    val palette = LocalGlassPalette.current
     val trend = ref.recentMaxVolume
     val delta = trend.deltaPercentOrNull()
 
     val first = trend.firstOrNull() ?: 0f
     val last = trend.lastOrNull() ?: 0f
     val trendColor = when {
-        trend.size < 2 -> TextInactive
-        last >= first -> AccentTeal
-        else -> ErrorRed
+        trend.size < 2 -> palette.inkSubtle
+        last >= first -> palette.complete
+        else -> palette.danger
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier
+            .fillMaxWidth()
+            .glassPanel(palette, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundElevated),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -1323,7 +1343,7 @@ private fun ExerciseProgressRow(ref: SplitExerciseRef, onClick: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(
                     ref.displayName,
-                    color = TextPrimary,
+                    color = palette.ink,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                 )
@@ -1337,10 +1357,10 @@ private fun ExerciseProgressRow(ref: SplitExerciseRef, onClick: () -> Unit) {
                         else -> "steady"
                     },
                     color = when {
-                        trend.isEmpty() || delta == null -> TextInactive
-                        delta > 0 -> AccentTeal
-                        delta < 0 -> ErrorRed
-                        else -> TextInactive
+                        trend.isEmpty() || delta == null -> palette.inkSubtle
+                        delta > 0 -> palette.complete
+                        delta < 0 -> palette.danger
+                        else -> palette.inkSubtle
                     },
                     fontSize = 11.sp,
                 )
@@ -1351,7 +1371,7 @@ private fun ExerciseProgressRow(ref: SplitExerciseRef, onClick: () -> Unit) {
                 modifier = Modifier.width(64.dp).height(22.dp),
             )
             Spacer(Modifier.width(10.dp))
-            Text("›", color = TextInactive, fontSize = 20.sp)
+            Text("›", color = palette.inkSubtle, fontSize = 20.sp)
         }
     }
 }
@@ -1362,13 +1382,17 @@ private fun ExerciseProgressRow(ref: SplitExerciseRef, onClick: () -> Unit) {
 
 @Composable
 private fun AddSplitDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    val palette = LocalGlassPalette.current
     var name by remember { mutableStateOf("") }
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .glassPanel(palette, RoundedCornerShape(18.dp), strong = true),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
-            border = BorderStroke(1.dp, BorderDefault),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            border = BorderStroke(1.dp, palette.glassStrokeStrong),
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -1376,41 +1400,41 @@ private fun AddSplitDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
             ) {
                 Text(
                     "Add split",
-                    color = TextPrimary,
+                    color = palette.ink,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
                     "Name it whatever makes sense to you - \"Upper A\", \"Heavy day\", \"Arms\", anything.",
-                    color = TextInactive,
+                    color = palette.inkSubtle,
                     fontSize = 11.sp,
                 )
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    placeholder = { Text("Split name", color = TextInactive) },
+                    placeholder = { Text("Split name", color = palette.inkSubtle) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AccentTeal,
-                        unfocusedBorderColor = BorderSubtle,
-                        focusedContainerColor = BackgroundElevated,
-                        unfocusedContainerColor = BackgroundElevated,
-                        cursorColor = AccentTeal,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
+                        focusedBorderColor = palette.accentStrong,
+                        unfocusedBorderColor = palette.glassStroke,
+                        focusedContainerColor = palette.glassFillStrong,
+                        unfocusedContainerColor = palette.glassFill,
+                        cursorColor = palette.accentStrong,
+                        focusedTextColor = palette.ink,
+                        unfocusedTextColor = palette.ink,
                     ),
                 )
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = TextInactive)
+                        Text("Cancel", color = palette.inkSubtle)
                     }
                     Spacer(Modifier.width(8.dp))
                     Button(
                         onClick = { if (name.isNotBlank()) onConfirm(name.trim()) },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = AccentTeal,
-                            contentColor = BackgroundPrimary,
+                            containerColor = palette.accentStrong,
+                            contentColor = palette.pageTop,
                         ),
                     ) { Text("Add") }
                 }
@@ -1426,6 +1450,7 @@ private fun ArchiveCycleDialog(
     onConfirm: (name: String, start: String, end: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val palette = LocalGlassPalette.current
     var name by remember { mutableStateOf("") }
     var start by remember { mutableStateOf("") }
     var end by remember { mutableStateOf("") }
@@ -1452,10 +1477,11 @@ private fun ArchiveCycleDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(16.dp)
+                .glassPanel(palette, RoundedCornerShape(18.dp), strong = true),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
-            border = BorderStroke(1.dp, BorderDefault),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            border = BorderStroke(1.dp, palette.glassStrokeStrong),
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -1463,28 +1489,28 @@ private fun ArchiveCycleDialog(
             ) {
                 Text(
                     "Archive cycle",
-                    color = TextPrimary,
+                    color = palette.ink,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
                     "Freeze this cycle's progress between two dates. Sets outside the range are not counted.",
-                    color = TextInactive,
+                    color = palette.inkSubtle,
                     fontSize = 11.sp,
                 )
                 val fieldColors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AccentTeal,
-                    unfocusedBorderColor = BorderSubtle,
-                    focusedContainerColor = BackgroundElevated,
-                    unfocusedContainerColor = BackgroundElevated,
-                    cursorColor = AccentTeal,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
+                    focusedBorderColor = palette.accentStrong,
+                    unfocusedBorderColor = palette.glassStroke,
+                    focusedContainerColor = palette.glassFillStrong,
+                    unfocusedContainerColor = palette.glassFill,
+                    cursorColor = palette.accentStrong,
+                    focusedTextColor = palette.ink,
+                    unfocusedTextColor = palette.ink,
                 )
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    placeholder = { Text("Cycle name (optional)", color = TextInactive) },
+                    placeholder = { Text("Cycle name (optional)", color = palette.inkSubtle) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = fieldColors,
@@ -1492,7 +1518,7 @@ private fun ArchiveCycleDialog(
                 OutlinedTextField(
                     value = start,
                     onValueChange = { start = it },
-                    label = { Text("Start (YYYY-MM-DD)", color = TextInactive) },
+                    label = { Text("Start (YYYY-MM-DD)", color = palette.inkSubtle) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = fieldColors,
@@ -1500,7 +1526,7 @@ private fun ArchiveCycleDialog(
                 OutlinedTextField(
                     value = end,
                     onValueChange = { end = it },
-                    label = { Text("End (YYYY-MM-DD)", color = TextInactive) },
+                    label = { Text("End (YYYY-MM-DD)", color = palette.inkSubtle) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = fieldColors,
@@ -1508,14 +1534,14 @@ private fun ArchiveCycleDialog(
                 if (loaded && !validRange) {
                     Text(
                         "Enter valid dates with start on or before end.",
-                        color = ErrorRed,
+                        color = palette.danger,
                         fontSize = 11.sp,
                     )
                 }
                 if (overlap > 0) {
                     Text(
                         "This range overlaps $overlap existing ${if (overlap == 1) "archive" else "archives"}.",
-                        color = ErrorRed,
+                        color = palette.danger,
                         fontSize = 11.sp,
                     )
                 }
@@ -1524,15 +1550,15 @@ private fun ArchiveCycleDialog(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = TextInactive)
+                        Text("Cancel", color = palette.inkSubtle)
                     }
                     Spacer(Modifier.width(8.dp))
                     Button(
                         onClick = { onConfirm(name.trim(), start.trim(), end.trim()) },
                         enabled = validRange,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = AccentTeal,
-                            contentColor = BackgroundPrimary,
+                            containerColor = palette.accentStrong,
+                            contentColor = palette.pageTop,
                         ),
                     ) {
                         Text("Archive")
@@ -1549,12 +1575,16 @@ private fun ConfirmDeleteDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
+    val palette = LocalGlassPalette.current
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .glassPanel(palette, RoundedCornerShape(18.dp), strong = true),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
-            border = BorderStroke(1.dp, BorderDefault),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            border = BorderStroke(1.dp, palette.glassStrokeStrong),
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -1562,24 +1592,24 @@ private fun ConfirmDeleteDialog(
             ) {
                 Text(
                     "Delete \"$splitName\"?",
-                    color = TextPrimary,
+                    color = palette.ink,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
                     "Past workout days stay logged. Only the split entry and its saved exercise list are removed.",
-                    color = TextInactive,
+                    color = palette.inkSubtle,
                     fontSize = 12.sp,
                 )
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = TextInactive)
+                        Text("Cancel", color = palette.inkSubtle)
                     }
                     Spacer(Modifier.width(8.dp))
                     Button(
                         onClick = onConfirm,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = ErrorRed,
+                            containerColor = palette.danger,
                             contentColor = Color.White,
                         ),
                     ) {
@@ -1599,12 +1629,16 @@ private fun SaveFromDayDialog(
     onDismiss: () -> Unit,
     onPick: (String) -> Unit,
 ) {
+    val palette = LocalGlassPalette.current
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .glassPanel(palette, RoundedCornerShape(18.dp), strong = true),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
-            border = BorderStroke(1.dp, BorderDefault),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            border = BorderStroke(1.dp, palette.glassStrokeStrong),
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -1612,20 +1646,20 @@ private fun SaveFromDayDialog(
             ) {
                 Text(
                     "Pick a workout day",
-                    color = TextPrimary,
+                    color = palette.ink,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
                     "The exercises from that day become this split's saved list. Reps/weights stay with the log itself.",
-                    color = TextInactive,
+                    color = palette.inkSubtle,
                     fontSize = 11.sp,
                 )
 
                 if (sessions.isEmpty()) {
                     Text(
                         "No logged workouts yet. Log a session in the Log tab first, then come back.",
-                        color = TextInactive,
+                        color = palette.inkSubtle,
                         fontSize = 12.sp,
                     )
                 } else {
@@ -1637,23 +1671,25 @@ private fun SaveFromDayDialog(
                             val s = sessions[i]
                             Card(
                                 shape = RoundedCornerShape(10.dp),
-                                colors = CardDefaults.cardColors(containerColor = BackgroundElevated),
+                                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                                border = BorderStroke(1.dp, palette.glassStroke),
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .glassPanel(palette, RoundedCornerShape(10.dp))
                                     .clickable { onPick(s.date) },
                             ) {
                                 Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
                                             s.date,
-                                            color = TextPrimary,
+                                            color = palette.ink,
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Medium,
                                             modifier = Modifier.weight(1f),
                                         )
                                         Text(
                                             "${s.exerciseCount} exercises",
-                                            color = TextInactive,
+                                            color = palette.inkSubtle,
                                             fontSize = 11.sp,
                                         )
                                     }
@@ -1661,7 +1697,7 @@ private fun SaveFromDayDialog(
                                         Spacer(Modifier.height(3.dp))
                                         Text(
                                             s.preview.joinToString(" · "),
-                                            color = TextInactive,
+                                            color = palette.inkSubtle,
                                             fontSize = 11.sp,
                                             maxLines = 1,
                                         )
@@ -1674,7 +1710,7 @@ private fun SaveFromDayDialog(
 
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = TextInactive)
+                        Text("Cancel", color = palette.inkSubtle)
                     }
                 }
             }

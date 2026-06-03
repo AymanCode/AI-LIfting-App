@@ -1,5 +1,6 @@
 package com.ayman.ecolift.ui.navigation
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Delete
@@ -35,7 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,19 +45,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ayman.ecolift.data.progress.LiftTrend
 import com.ayman.ecolift.data.progress.ScoreWeights
-import com.ayman.ecolift.ui.theme.AccentTeal
-import com.ayman.ecolift.ui.theme.BackgroundElevated
-import com.ayman.ecolift.ui.theme.BackgroundPrimary
-import com.ayman.ecolift.ui.theme.BackgroundSurface
-import com.ayman.ecolift.ui.theme.ErrorRed
-import com.ayman.ecolift.ui.theme.TextInactive
-import com.ayman.ecolift.ui.theme.TextMuted
-import com.ayman.ecolift.ui.theme.TextPrimary
+import com.ayman.ecolift.ui.theme.LocalGlassPalette
+import com.ayman.ecolift.ui.theme.LogType
+import com.ayman.ecolift.ui.theme.glassPanel
 import com.ayman.ecolift.ui.viewmodel.CycleArchiveViewModel
 import com.ayman.ecolift.ui.viewmodel.formatArchiveDateRange
 import kotlin.math.roundToInt
-
-private val Mono = FontFamily.Monospace
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,17 +75,17 @@ fun CycleArchiveDetailScreen(
     var showWeights by remember { mutableStateOf(false) }
     var detailLift by remember { mutableStateOf<LiftTrend?>(null) }
     var sort by remember { mutableStateOf(TrendSort.VELOCITY) }
+    val palette = LocalGlassPalette.current
 
     Scaffold(
-        containerColor = BackgroundPrimary,
+        containerColor = Color.Transparent,
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
                     Text(
                         text = name.ifBlank { "Archived cycle" },
-                        color = TextPrimary,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        color = palette.ink,
+                        style = LogType.dateTitle,
                     )
                 },
                 navigationIcon = {
@@ -98,7 +93,7 @@ fun CycleArchiveDetailScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = TextPrimary,
+                            tint = palette.ink,
                         )
                     }
                 },
@@ -107,12 +102,13 @@ fun CycleArchiveDetailScreen(
                         Icon(
                             imageVector = Icons.Outlined.Delete,
                             contentDescription = "Delete archive",
-                            tint = TextMuted,
+                            tint = palette.inkMuted,
                         )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = BackgroundPrimary,
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent,
                 ),
             )
         },
@@ -128,7 +124,7 @@ fun CycleArchiveDetailScreen(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("Loading...", color = TextMuted, fontSize = 13.sp)
+                Text("Loading...", color = palette.inkMuted, fontSize = 13.sp)
             }
         } else {
             LazyColumn(
@@ -139,32 +135,36 @@ fun CycleArchiveDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 item(key = "range") {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .glassPanel(palette, RoundedCornerShape(18.dp), strong = true)
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                    ) {
                         Text(
                             formatArchiveDateRange(coreSnapshot.startDate, coreSnapshot.endDate),
-                            color = TextPrimary,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            color = palette.ink,
+                            style = LogType.completedSummary,
                         )
                         Text(
                             "${coreSnapshot.spanDays} days · ${coreSnapshot.lifts.size} lifts",
-                            color = TextMuted,
+                            color = palette.inkMuted,
                             fontSize = 12.sp,
-                            fontFamily = Mono,
                         )
                     }
                 }
                 item(key = "window") {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .glassPanel(palette, RoundedCornerShape(16.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            "COMPARED TO YOUR PREVIOUS",
-                            color = TextMuted,
+                            "Compared to previous",
+                            color = palette.inkMuted,
                             fontSize = 11.sp,
-                            fontFamily = Mono,
-                            letterSpacing = 1.sp,
                             modifier = Modifier.weight(1f),
                         )
                         WindowToggle(selected = window, onSelect = viewModel::setWindow)
@@ -236,12 +236,15 @@ fun CycleArchiveDetailScreen(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            containerColor = BackgroundSurface,
-            title = { Text("Delete this archive?", color = TextPrimary) },
+            modifier = Modifier.glassPanel(palette, RoundedCornerShape(24.dp), strong = true),
+            containerColor = Color.Transparent,
+            titleContentColor = palette.ink,
+            textContentColor = palette.inkMuted,
+            title = { Text("Delete this archive?", color = palette.ink) },
             text = {
                 Text(
                     "This removes the saved snapshot. Your logged workouts are not affected.",
-                    color = TextMuted,
+                    color = palette.inkMuted,
                 )
             },
             confirmButton = {
@@ -252,12 +255,12 @@ fun CycleArchiveDetailScreen(
                         onBack()
                     }
                 ) {
-                    Text("Delete", color = ErrorRed)
+                    Text("Delete", color = palette.danger)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("Cancel", color = TextMuted)
+                    Text("Cancel", color = palette.inkSubtle)
                 }
             },
         )
@@ -272,18 +275,27 @@ private fun WeightTuningSheet(
     onReset: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val palette = LocalGlassPalette.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = BackgroundSurface,
+        containerColor = Color.Transparent,
+        scrimColor = palette.scrim,
+        dragHandle = { Spacer(Modifier.height(6.dp)) },
     ) {
-        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
-            Text("Adjust score weights", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .glassPanel(palette, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp), strong = true)
+                .padding(horizontal = 20.dp)
+                .padding(top = 18.dp, bottom = 28.dp)
+        ) {
+            Text("Adjust score weights", color = palette.ink, style = LogType.exerciseTitle)
             Spacer(Modifier.height(4.dp))
             Text(
                 "The preset works for most lifters. Tune only if you know what you want to emphasize.",
-                color = TextMuted,
+                color = palette.inkMuted,
                 fontSize = 13.sp,
             )
             Spacer(Modifier.height(16.dp))
@@ -292,7 +304,7 @@ private fun WeightTuningSheet(
             WeightSlider("Consistency", weights.consistency) { onChange(weights.copy(consistency = it)) }
             Spacer(Modifier.height(8.dp))
             TextButton(onClick = onReset) {
-                Text("Reset to preset (40 / 35 / 25)", color = AccentTeal)
+                Text("Reset to preset (40 / 35 / 25)", color = palette.accentStrong)
             }
         }
     }
@@ -300,19 +312,20 @@ private fun WeightTuningSheet(
 
 @Composable
 private fun WeightSlider(label: String, value: Int, onChange: (Int) -> Unit) {
+    val palette = LocalGlassPalette.current
     Column(Modifier.padding(vertical = 6.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(label, color = TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
-            Text("$value", color = TextMuted, fontSize = 14.sp, fontFamily = Mono, fontWeight = FontWeight.Bold)
+            Text(label, color = palette.ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text("$value", color = palette.inkMuted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
         Slider(
             value = value.toFloat(),
             onValueChange = { onChange(it.roundToInt()) },
             valueRange = 0f..100f,
             colors = SliderDefaults.colors(
-                thumbColor = AccentTeal,
-                activeTrackColor = AccentTeal,
-                inactiveTrackColor = BackgroundElevated,
+                thumbColor = palette.accentStrong,
+                activeTrackColor = palette.accentStrong,
+                inactiveTrackColor = palette.glassFillStrong,
             ),
         )
     }
@@ -325,27 +338,35 @@ private fun LiftDetailSheet(
     vsPct: Float?,
     onDismiss: () -> Unit,
 ) {
+    val palette = LocalGlassPalette.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val slope = lift.slopePerWeek
     val slopeColor = when {
-        slope == null -> TextMuted
-        slope > 0.05f -> AccentTeal
-        slope < -0.05f -> ErrorRed
-        else -> TextMuted
+        slope == null -> palette.inkMuted
+        slope > 0.05f -> palette.complete
+        slope < -0.05f -> palette.danger
+        else -> palette.inkMuted
     }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = BackgroundSurface,
+        containerColor = Color.Transparent,
+        scrimColor = palette.scrim,
+        dragHandle = { Spacer(Modifier.height(6.dp)) },
     ) {
-        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
-            Text(lift.name, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .glassPanel(palette, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp), strong = true)
+                .padding(horizontal = 20.dp)
+                .padding(top = 18.dp, bottom = 28.dp)
+        ) {
+            Text(lift.name, color = palette.ink, style = LogType.exerciseTitle)
             Spacer(Modifier.height(4.dp))
             Text(
                 if (lift.isBodyweight) "Bodyweight · ${lift.unitLabel}" else "Weighted · ${lift.unitLabel}",
-                color = TextMuted,
+                color = palette.inkMuted,
                 fontSize = 12.sp,
-                fontFamily = Mono,
             )
             Spacer(Modifier.height(16.dp))
             MiniSparkline(
@@ -355,26 +376,26 @@ private fun LiftDetailSheet(
             )
             Spacer(Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                DetailStat("Velocity", if (slope == null) "—" else "${if (slope >= 0f) "+" else ""}${"%.1f".format(slope)} ${lift.unitLabel}", slopeColor)
-                DetailStat("Fit (R²)", if (lift.r2 != null) "%.2f".format(lift.r2) else "—", TextPrimary)
-                DetailStat("vs window", formatPct(vsPct), if ((vsPct ?: 0f) >= 0f) AccentTeal else ErrorRed)
+                DetailStat("Velocity", if (slope == null) "N/A" else "${if (slope >= 0f) "+" else ""}${"%.1f".format(slope)} ${lift.unitLabel}", slopeColor)
+                DetailStat("Fit (R²)", if (lift.r2 != null) "%.2f".format(lift.r2) else "N/A", palette.ink)
+                DetailStat("vs window", formatPct(vsPct), if ((vsPct ?: 0f) >= 0f) palette.complete else palette.danger)
             }
             Spacer(Modifier.height(16.dp))
             Text(
                 "${lift.points.size} sessions logged this cycle.",
-                color = TextInactive,
+                color = palette.inkSubtle,
                 fontSize = 11.sp,
-                fontFamily = Mono,
             )
         }
     }
 }
 
 @Composable
-private fun DetailStat(label: String, value: String, valueColor: androidx.compose.ui.graphics.Color) {
+private fun DetailStat(label: String, value: String, valueColor: Color) {
+    val palette = LocalGlassPalette.current
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(value, color = valueColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(2.dp))
-        Text(label.uppercase(), color = TextMuted, fontSize = 10.sp, fontFamily = Mono, letterSpacing = 1.sp)
+        Text(label, color = palette.inkSubtle, fontSize = 10.sp)
     }
 }

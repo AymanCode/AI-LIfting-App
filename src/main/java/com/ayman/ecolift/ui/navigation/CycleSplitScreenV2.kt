@@ -63,7 +63,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.LocalDate
 import java.time.YearMonth
+import com.ayman.ecolift.ui.theme.GlassPaletteChoice
+import com.ayman.ecolift.ui.theme.GlassPaletteSwitch
+import com.ayman.ecolift.ui.theme.LocalGlassPalette
+import com.ayman.ecolift.ui.theme.LogType
 import com.ayman.ecolift.ui.theme.bounceClick
+import com.ayman.ecolift.ui.theme.glassPanel
 import com.ayman.ecolift.ui.viewmodel.ArchiveCardUi
 import com.ayman.ecolift.ui.viewmodel.SplitTabMode
 
@@ -82,12 +87,16 @@ fun GymCalendarCard(
     onNextMonth: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF)),
-        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    val palette = LocalGlassPalette.current
+    val shape = RoundedCornerShape(16.dp)
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .glassPanel(palette, shape, strong = true),
+        shape = shape,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, palette.glassStrokeStrong),
+        shadowElevation = 0.dp
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -102,20 +111,20 @@ fun GymCalendarCard(
                     Icon(
                         imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                         contentDescription = "Previous Month",
-                        tint = Color(0xFF171A1C)
+                        tint = palette.ink
                     )
                 }
                 Text(
                     text = "${displayedMonth.month.name.lowercase().replaceFirstChar { it.uppercase() }} ${displayedMonth.year}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF171A1C)
+                    color = palette.ink
                 )
                 IconButton(onClick = onNextMonth) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                         contentDescription = "Next Month",
-                        tint = Color(0xFF171A1C)
+                        tint = palette.ink
                     )
                 }
             }
@@ -132,7 +141,7 @@ fun GymCalendarCard(
                     Text(
                         text = day,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF66706E),
+                        color = palette.inkSubtle,
                         modifier = Modifier.width(36.dp),
                         textAlign = TextAlign.Center
                     )
@@ -163,13 +172,13 @@ fun GymCalendarCard(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .border(2.dp, Color(0xFF149C8A), CircleShape)
-                                        .background(Color(0xFF171A1C)),
+                                        .border(2.dp, palette.accentStrong, CircleShape)
+                                        .background(palette.complete),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = date.dayOfMonth.toString(),
-                                        color = Color.White,
+                                        color = palette.ink,
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -179,12 +188,12 @@ fun GymCalendarCard(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .border(1.5.dp, Color(0xFF149C8A), CircleShape),
+                                        .border(1.5.dp, palette.accentStrong, CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = date.dayOfMonth.toString(),
-                                        color = Color(0xFF149C8A),
+                                        color = palette.accentStrong,
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -194,12 +203,12 @@ fun GymCalendarCard(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFF171A1C)),
+                                        .background(palette.accent.copy(alpha = 0.82f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = date.dayOfMonth.toString(),
-                                        color = Color.White,
+                                        color = palette.ink,
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -212,7 +221,7 @@ fun GymCalendarCard(
                                     Text(
                                         text = date.dayOfMonth.toString(),
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = if (isCurrentMonth) Color(0xFF171A1C) else Color(0xFF66706E).copy(alpha = 0.3f)
+                                        color = if (isCurrentMonth) palette.inkMuted else palette.inkSubtle.copy(alpha = 0.34f)
                                     )
                                 }
                             }
@@ -226,7 +235,7 @@ fun GymCalendarCard(
             Text(
                 text = "${countGymDaysInMonth(gymDays, displayedMonth)} workouts this month",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF171A1C).copy(alpha = 0.7f),
+                color = palette.inkMuted,
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
@@ -239,12 +248,16 @@ fun SplitCycleToggleCard(
     onToggle: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF)),
-        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    val palette = LocalGlassPalette.current
+    val shape = RoundedCornerShape(16.dp)
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .glassPanel(palette, shape),
+        shape = shape,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, palette.glassStroke),
+        shadowElevation = 0.dp
     ) {
         Row(
             modifier = Modifier
@@ -255,7 +268,7 @@ fun SplitCycleToggleCard(
             Icon(
                 imageVector = Icons.Outlined.Loop,
                 contentDescription = null,
-                tint = Color(0xFF171A1C),
+                tint = palette.accentStrong,
                 modifier = Modifier.size(24.dp)
             )
             Spacer(modifier = Modifier.width(16.dp))
@@ -263,20 +276,23 @@ fun SplitCycleToggleCard(
                 Text(
                     text = "Enable Split Cycle",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = Color(0xFF171A1C)
+                    color = palette.ink
                 )
                 Text(
                     text = "Pre-load exercises based on your rotation",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF66706E)
+                    color = palette.inkSubtle
                 )
             }
             Switch(
                 checked = enabled,
                 onCheckedChange = onToggle,
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = Color(0xFF149C8A)
+                    checkedThumbColor = palette.ink,
+                    checkedTrackColor = palette.accent,
+                    uncheckedThumbColor = palette.inkMuted,
+                    uncheckedTrackColor = palette.glassFillStrong,
+                    uncheckedBorderColor = palette.glassStroke
                 )
             )
         }
@@ -293,12 +309,16 @@ fun TodaySplitHeroCard(
     onEditSplit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    val palette = LocalGlassPalette.current
+    val shape = RoundedCornerShape(16.dp)
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .glassPanel(palette, shape, strong = true),
+        shape = shape,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, palette.glassStrokeStrong),
+        shadowElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -309,42 +329,41 @@ fun TodaySplitHeroCard(
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF149C8A))
+                        .background(palette.complete)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "TODAY",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF149C8A),
+                    color = palette.accentStrong,
                     letterSpacing = 0.sp
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
                     text = dayLabel,
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF66706E)
+                    color = palette.inkSubtle
                 )
             }
             
             Text(
                 text = splitName,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF171A1C),
+                style = LogType.exerciseTitle,
+                color = palette.ink,
                 modifier = Modifier.padding(top = 8.dp)
             )
             
             Text(
                 text = "$exerciseCount exercises · $lastRunLabel",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF66706E),
+                color = palette.inkMuted,
                 modifier = Modifier.padding(top = 4.dp)
             )
             
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 16.dp),
-                color = Color(0xFF171A1C).copy(alpha = 0.1f)
+                color = palette.glassStroke
             )
             
             Row(
@@ -358,14 +377,14 @@ fun TodaySplitHeroCard(
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF149C8A),
-                        contentColor = Color.White
+                        containerColor = palette.accent.copy(alpha = 0.92f),
+                        contentColor = palette.ink
                     )
                 ) {
                     Text(
                         text = "Start Workout",
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White
+                        color = palette.ink
                     )
                 }
                 OutlinedButton(
@@ -374,12 +393,12 @@ fun TodaySplitHeroCard(
                         .width(96.dp)
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.5.dp, Color(0xFF149C8A)),
+                    border = BorderStroke(1.5.dp, palette.glassStrokeStrong),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color(0xFF149C8A)
+                        contentColor = palette.accentStrong
                     )
                 ) {
-                    Text(text = "Edit", color = Color(0xFF149C8A), fontWeight = FontWeight.SemiBold)
+                    Text(text = "Edit", color = palette.accentStrong, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -392,17 +411,22 @@ fun RotationCycleRow(
     currentIndex: Int,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Color(0xFF171A1C).copy(alpha = 0.08f)),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF4F6F5))
+    val palette = LocalGlassPalette.current
+    val shape = RoundedCornerShape(16.dp)
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .glassPanel(palette, shape),
+        shape = shape,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, palette.glassStroke),
+        shadowElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = "ROTATION",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF66706E),
+                color = palette.inkSubtle,
                 modifier = Modifier.padding(bottom = 10.dp)
             )
             
@@ -418,9 +442,9 @@ fun RotationCycleRow(
                         modifier = Modifier
                             .height(34.dp)
                             .clip(RoundedCornerShape(50))
-                            .background(if (isActive) Color(0xFF171A1C) else Color.Transparent)
+                            .background(if (isActive) palette.accent.copy(alpha = 0.78f) else Color.Transparent)
                             .border(
-                                BorderStroke(1.dp, if (isActive) Color.Transparent else Color(0xFF171A1C).copy(alpha = 0.2f)),
+                                BorderStroke(1.dp, if (isActive) palette.glassStrokeStrong else palette.glassStroke),
                                 RoundedCornerShape(50)
                             )
                             .padding(horizontal = 14.dp),
@@ -430,14 +454,14 @@ fun RotationCycleRow(
                             text = name,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (isActive) Color.White else Color(0xFF171A1C).copy(alpha = 0.45f)
+                            color = if (isActive) palette.ink else palette.inkMuted
                         )
                     }
                     
                     if (index < splits.size - 1) {
                         Text(
                             text = "→",
-                            color = Color(0xFF66706E),
+                            color = palette.inkSubtle,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(horizontal = 8.dp)
                         )
@@ -448,7 +472,7 @@ fun RotationCycleRow(
             Text(
                 text = "Cycle repeats after ${splits.size} days",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF66706E),
+                color = palette.inkSubtle,
                 modifier = Modifier.padding(top = 10.dp)
             )
         }
@@ -464,11 +488,16 @@ fun SplitListItem(
     onOptionsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    val palette = LocalGlassPalette.current
+    val shape = RoundedCornerShape(14.dp)
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .glassPanel(palette, shape),
+        shape = shape,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, palette.glassStroke),
+        shadowElevation = 0.dp
     ) {
         Row(
             modifier = Modifier
@@ -479,7 +508,7 @@ fun SplitListItem(
             Icon(
                 imageVector = Icons.Default.DragHandle,
                 contentDescription = "Reorder",
-                tint = Color(0xFF171A1C).copy(alpha = 0.35f),
+                tint = palette.inkSubtle,
                 modifier = Modifier
                     .size(20.dp)
                     .padding(end = 12.dp)
@@ -491,7 +520,7 @@ fun SplitListItem(
                         text = split.name,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFF171A1C)
+                        color = palette.ink
                     )
                     
                     if (isToday) {
@@ -499,16 +528,16 @@ fun SplitListItem(
                             modifier = Modifier
                                 .padding(start = 8.dp)
                                 .clip(RoundedCornerShape(50))
-                                .background(Color(0xFF149C8A).copy(alpha = 0.12f))
-                                .border(1.dp, Color(0xFF149C8A).copy(alpha = 0.4f), RoundedCornerShape(50))
+                                .background(palette.complete.copy(alpha = 0.20f))
+                                .border(1.dp, palette.complete.copy(alpha = 0.55f), RoundedCornerShape(50))
                                 .padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
                             Text(
                                 text = "TODAY",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF149C8A)
-                            )
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = palette.complete
+                                )
                         }
                     }
                 }
@@ -516,7 +545,7 @@ fun SplitListItem(
                 Text(
                     text = "$exerciseCount exercises · $lastRunLabel",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF66706E),
+                    color = palette.inkSubtle,
                     modifier = Modifier.padding(top = 3.dp)
                 )
             }
@@ -528,7 +557,7 @@ fun SplitListItem(
                 Icon(
                     imageVector = Icons.Outlined.MoreVert,
                     contentDescription = "Options",
-                    tint = Color(0xFF66706E),
+                    tint = palette.inkSubtle,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -545,6 +574,7 @@ fun MySplitsSection(
     onSplitOptions: (SplitType) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
     Column(modifier = modifier.fillMaxWidth()) {
         // Section Header Row
         Row(
@@ -558,19 +588,19 @@ fun MySplitsSection(
                 text = "MY SPLITS",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF66706E)
+                color = palette.inkSubtle
             )
             TextButton(
                 onClick = onAddSplit,
                 colors = ButtonDefaults.textButtonColors(
-                    containerColor = Color(0xFF149C8A),
-                    contentColor = Color.White
+                    containerColor = palette.accent.copy(alpha = 0.86f),
+                    contentColor = palette.ink
                 ),
                 shape = RoundedCornerShape(50),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
                 modifier = Modifier.height(32.dp).bounceClick(onClick = onAddSplit)
             ) {
-                Text("+ Add Split", style = MaterialTheme.typography.labelMedium, color = Color.White)
+                Text("+ Add Split", style = MaterialTheme.typography.labelMedium, color = palette.ink)
             }
         }
 
@@ -585,7 +615,7 @@ fun MySplitsSection(
                 Icon(
                     imageVector = Icons.Outlined.FitnessCenter,
                     contentDescription = null,
-                    tint = Color(0xFF149C8A),
+                    tint = palette.accentStrong,
                     modifier = Modifier
                         .size(48.dp)
                         .alpha(0.5f)
@@ -595,13 +625,13 @@ fun MySplitsSection(
                     text = "No splits yet",
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF171A1C)
+                    color = palette.ink
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Tap '+ Add Split' above to create your first workout type",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF66706E),
+                    color = palette.inkSubtle,
                     textAlign = TextAlign.Center
                 )
             }
@@ -609,7 +639,7 @@ fun MySplitsSection(
             Text(
                 text = "Hold to reorder",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF66706E).copy(alpha = 0.5f),
+                color = palette.inkSubtle.copy(alpha = 0.72f),
                 modifier = Modifier.padding(bottom = 6.dp)
             )
             
@@ -646,13 +676,16 @@ fun CycleSplitScreen(
     archives: List<ArchiveCardUi> = emptyList(),
     onOpenArchive: (Long) -> Unit = {},
     onArchiveCurrentCycle: () -> Unit = {},
+    paletteChoice: GlassPaletteChoice = GlassPaletteChoice.Sage,
+    onPaletteChoiceChange: (GlassPaletteChoice) -> Unit = {},
 ) {
     var displayedMonth by remember { mutableStateOf(YearMonth.now()) }
+    val palette = LocalGlassPalette.current
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        containerColor = Color(0xFFF4F6F5)
+        containerColor = Color.Transparent
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -660,6 +693,12 @@ fun CycleSplitScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
+            GlassPaletteSwitch(
+                selected = paletteChoice,
+                onSelect = onPaletteChoiceChange,
+                palette = palette,
+                modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 4.dp)
+            )
             SplitTabToggle(
                 selected = tabMode,
                 onSelect = onTabModeChange,
@@ -730,11 +769,11 @@ fun CycleSplitScreen(
                                 onClick = onArchiveCurrentCycle,
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF149C8A))
+                                colors = ButtonDefaults.buttonColors(containerColor = palette.accent.copy(alpha = 0.90f))
                             ) {
                                 Text(
                                     text = "Archive current cycle",
-                                    color = Color.White,
+                                    color = palette.ink,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
@@ -744,11 +783,13 @@ fun CycleSplitScreen(
                                 Text(
                                     text = "No archived cycles yet. Archive your current cycle to snapshot its progress.",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = Color(0xFF66706E),
+                                    color = palette.inkMuted,
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .glassPanel(palette, RoundedCornerShape(16.dp))
                                         .padding(top = 24.dp)
+                                        .padding(horizontal = 18.dp, vertical = 24.dp)
                                 )
                             }
                         } else {
@@ -773,11 +814,12 @@ private fun SplitTabToggle(
     onSelect: (SplitTabMode) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalGlassPalette.current
     Surface(
-        modifier = modifier,
+        modifier = modifier.glassPanel(palette, RoundedCornerShape(14.dp), strong = true),
         shape = RoundedCornerShape(12.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, palette.glassStrokeStrong),
         shadowElevation = 0.dp
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -789,11 +831,11 @@ private fun SplitTabToggle(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.textButtonColors(
                         containerColor = if (isSelected) {
-                            Color(0xFF149C8A).copy(alpha = 0.12f)
+                            palette.accentStrong.copy(alpha = 0.18f)
                         } else {
                             Color.Transparent
                         },
-                        contentColor = if (isSelected) Color(0xFF171A1C) else Color(0xFF66706E)
+                        contentColor = if (isSelected) palette.ink else palette.inkMuted
                     )
                 ) {
                     Text(
@@ -813,12 +855,16 @@ private fun SplitTabToggle(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ArchiveListCard(card: ArchiveCardUi, onClick: () -> Unit) {
+    val palette = LocalGlassPalette.current
+    val shape = RoundedCornerShape(14.dp)
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFDDE6E3)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .glassPanel(palette, shape),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, palette.glassStroke),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -826,19 +872,19 @@ private fun ArchiveListCard(card: ArchiveCardUi, onClick: () -> Unit) {
                 text = card.name.ifBlank { "Untitled cycle" },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF171A1C)
+                color = palette.ink
             )
             Spacer(Modifier.height(2.dp))
             Text(
                 text = card.dateRangeLabel,
                 style = MaterialTheme.typography.labelMedium,
-                color = Color(0xFF66706E)
+                color = palette.inkSubtle
             )
             Spacer(Modifier.height(8.dp))
             Text(
                 text = "${card.splitCount} splits · ${card.sessionCount} sessions · ${"%,d".format(card.totalVolumeLbs)} lb",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF171A1C)
+                color = palette.inkMuted
             )
         }
     }

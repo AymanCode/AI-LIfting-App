@@ -3,6 +3,7 @@ package com.ayman.ecolift.ui.navigation
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,7 +34,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,40 +47,31 @@ import com.ayman.ecolift.data.progress.LiftTrend
 import com.ayman.ecolift.data.progress.Movement
 import com.ayman.ecolift.data.progress.RepBucket
 import com.ayman.ecolift.data.progress.ScoreBreakdown
-import com.ayman.ecolift.ui.theme.AccentTeal
-import com.ayman.ecolift.ui.theme.BackgroundElevated
-import com.ayman.ecolift.ui.theme.BackgroundSurface
-import com.ayman.ecolift.ui.theme.BorderSubtle
-import com.ayman.ecolift.ui.theme.ErrorRed
-import com.ayman.ecolift.ui.theme.GaugeTeal
-import com.ayman.ecolift.ui.theme.HeroInk
-import com.ayman.ecolift.ui.theme.HeroInkElevated
-import com.ayman.ecolift.ui.theme.HeroTextMuted
-import com.ayman.ecolift.ui.theme.HeroTextPrimary
 import com.ayman.ecolift.ui.theme.HoldAmber
-import com.ayman.ecolift.ui.theme.TextInactive
-import com.ayman.ecolift.ui.theme.TextMuted
-import com.ayman.ecolift.ui.theme.TextPrimary
+import com.ayman.ecolift.ui.theme.GlassPalette
+import com.ayman.ecolift.ui.theme.LocalGlassPalette
+import com.ayman.ecolift.ui.theme.LogUiFontFamily
+import com.ayman.ecolift.ui.theme.glassPanel
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private val Mono = FontFamily.Monospace
+private val Mono = LogUiFontFamily
 
-internal fun movementColor(movement: Movement): Color = when (movement) {
-    Movement.IMPROVED -> AccentTeal
-    Movement.REGRESSED -> ErrorRed
+internal fun movementColor(movement: Movement, palette: GlassPalette): Color = when (movement) {
+    Movement.IMPROVED -> palette.complete
+    Movement.REGRESSED -> palette.danger
     Movement.HELD -> HoldAmber
 }
 
 internal fun formatPct(value: Float?): String =
-    if (value == null) "—" else "${if (value >= 0f) "+" else ""}${value.roundToInt()}%"
+    if (value == null) "N/A" else "${if (value >= 0f) "+" else ""}${value.roundToInt()}%"
 
 internal fun verdictWord(score: Int): String = when {
     score >= 80 -> "Excellent cycle"
     score >= 62 -> "Strong cycle"
     score >= 45 -> "Steady progress"
     score >= 30 -> "Maintaining"
-    else -> "Backslide"
+    else -> "Down cycle"
 }
 
 internal fun verdictBlurb(score: Int, window: ComparisonWindow): String {
@@ -89,15 +80,15 @@ internal fun verdictBlurb(score: Int, window: ComparisonWindow): String {
         score >= 62 -> "You out-paced your previous $w on most split lifts."
         score >= 45 -> "Most split lifts improved versus your previous $w."
         score >= 30 -> "You largely held your ground versus your previous $w."
-        else -> "Most lifts slipped versus your previous $w — worth a look."
+        else -> "Most lifts slipped versus your previous $w, worth a look."
     }
 }
 
 /** Gauge/verdict tint keyed to the composite score, tuned for the dark hero card. */
-internal fun verdictColor(score: Int): Color = when {
-    score >= 45 -> GaugeTeal
+internal fun verdictColor(score: Int, palette: GlassPalette): Color = when {
+    score >= 45 -> palette.complete
     score >= 30 -> HoldAmber
-    else -> ErrorRed
+    else -> palette.danger
 }
 
 internal fun ComparisonWindow.label(): String = when (this) {
@@ -108,12 +99,13 @@ internal fun ComparisonWindow.label(): String = when (this) {
 
 @Composable
 internal fun SectionEyebrow(text: String) {
+    val palette = LocalGlassPalette.current
     Text(
-        text = text.uppercase(),
-        color = TextMuted,
-        fontSize = 11.sp,
+        text = text,
+        color = palette.inkMuted,
+        fontSize = 13.sp,
         fontFamily = Mono,
-        letterSpacing = 1.5.sp,
+        letterSpacing = 0.sp,
         modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 2.dp),
     )
 }
@@ -124,10 +116,11 @@ internal fun WindowToggle(
     onSelect: (ComparisonWindow) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val palette = LocalGlassPalette.current
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(BackgroundElevated)
+            .background(palette.glassFill)
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -136,13 +129,13 @@ internal fun WindowToggle(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(9.dp))
-                    .background(if (on) BackgroundSurface else Color.Transparent)
+                    .background(if (on) palette.accent.copy(alpha = 0.22f) else Color.Transparent)
                     .clickable { onSelect(window) }
                     .padding(horizontal = 16.dp, vertical = 6.dp),
             ) {
                 Text(
                     text = window.label(),
-                    color = if (on) TextPrimary else TextMuted,
+                    color = if (on) palette.accentStrong else palette.inkMuted,
                     fontSize = 12.sp,
                     fontFamily = Mono,
                     fontWeight = FontWeight.SemiBold,
@@ -158,12 +151,16 @@ internal fun CompositeHeroCard(
     window: ComparisonWindow,
     onAdjustWeights: () -> Unit,
 ) {
+    val palette = LocalGlassPalette.current
+    val tint = verdictColor(score.composite, palette)
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .glassPanel(palette, RoundedCornerShape(24.dp), strong = true),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = HeroInk),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, palette.glassStrokeStrong),
     ) {
-        val tint = verdictColor(score.composite)
         Column(Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -174,11 +171,11 @@ internal fun CompositeHeroCard(
                 )
                 Spacer(Modifier.width(7.dp))
                 Text(
-                    "CYCLE PROGRESS",
-                    color = HeroTextMuted,
+                    "Cycle progress",
+                    color = palette.inkSubtle,
                     fontSize = 12.sp,
                     fontFamily = Mono,
-                    letterSpacing = 2.sp,
+                    letterSpacing = 0.sp,
                 )
             }
             Spacer(Modifier.height(14.dp))
@@ -192,7 +189,7 @@ internal fun CompositeHeroCard(
                 Column(Modifier.weight(1f)) {
                     Text(
                         verdictWord(score.composite),
-                        color = HeroTextPrimary,
+                        color = palette.ink,
                         fontSize = 26.sp,
                         fontWeight = FontWeight.Bold,
                         lineHeight = 28.sp,
@@ -200,7 +197,7 @@ internal fun CompositeHeroCard(
                     Spacer(Modifier.height(8.dp))
                     Text(
                         verdictBlurb(score.composite, window),
-                        color = HeroTextMuted,
+                        color = palette.inkMuted,
                         fontSize = 13.sp,
                         lineHeight = 18.sp,
                     )
@@ -215,7 +212,7 @@ internal fun CompositeHeroCard(
             Spacer(Modifier.height(16.dp))
             Text(
                 "Adjust weights",
-                color = GaugeTeal,
+                color = palette.accentStrong,
                 fontSize = 13.sp,
                 fontFamily = Mono,
                 modifier = Modifier
@@ -226,7 +223,7 @@ internal fun CompositeHeroCard(
             )
             Text(
                 "split exercises only · tap a component for its formula",
-                color = HeroTextMuted,
+                color = palette.inkSubtle,
                 fontSize = 10.sp,
                 fontFamily = Mono,
                 textAlign = TextAlign.Center,
@@ -241,24 +238,28 @@ internal fun NoComparisonHeroCard(
     comparison: CycleComparison,
     window: ComparisonWindow,
 ) {
+    val palette = LocalGlassPalette.current
     val newLifts = comparison.lifts.count { it.isNew }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .glassPanel(palette, RoundedCornerShape(24.dp), strong = true),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = HeroInk),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, palette.glassStrokeStrong),
     ) {
         Column(Modifier.padding(20.dp)) {
             Text(
-                "CYCLE PROGRESS",
-                color = HeroTextMuted,
+                "Cycle progress",
+                color = palette.inkSubtle,
                 fontSize = 12.sp,
                 fontFamily = Mono,
-                letterSpacing = 2.sp,
+                letterSpacing = 0.sp,
             )
             Spacer(Modifier.height(14.dp))
             Text(
                 "No baseline yet",
-                color = HeroTextPrimary,
+                color = palette.ink,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
                 lineHeight = 28.sp,
@@ -268,7 +269,7 @@ internal fun NoComparisonHeroCard(
                 "Your split lifts have no logged history in the ${window.label()} before this cycle, " +
                     "so there's nothing to score against yet. Try a longer window above, " +
                     "or log through another cycle to unlock your progress score.",
-                color = HeroTextMuted,
+                color = palette.inkMuted,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
             )
@@ -276,7 +277,7 @@ internal fun NoComparisonHeroCard(
                 Spacer(Modifier.height(16.dp))
                 Text(
                     "$newLifts ${if (newLifts == 1) "lift is" else "lifts are"} new vs your previous ${window.label()}",
-                    color = GaugeTeal,
+                    color = palette.accentStrong,
                     fontSize = 12.sp,
                     fontFamily = Mono,
                 )
@@ -287,6 +288,7 @@ internal fun NoComparisonHeroCard(
 
 @Composable
 private fun ArcGauge(value: Int, color: Color, modifier: Modifier = Modifier) {
+    val palette = LocalGlassPalette.current
     val animated by animateFloatAsState(
         targetValue = value.coerceIn(0, 100) / 100f,
         animationSpec = tween(900),
@@ -312,7 +314,7 @@ private fun ArcGauge(value: Int, color: Color, modifier: Modifier = Modifier) {
             val topLeft = Offset(inset, inset)
             // Track.
             drawArc(
-                color = HeroInkElevated,
+                color = palette.glassFillStrong,
                 startAngle = -90f,
                 sweepAngle = 360f,
                 useCenter = false,
@@ -330,7 +332,7 @@ private fun ArcGauge(value: Int, color: Color, modifier: Modifier = Modifier) {
                 val cos = kotlin.math.cos(ang).toFloat()
                 val sin = kotlin.math.sin(ang).toFloat()
                 drawLine(
-                    color = HeroInk,
+                    color = palette.glassFill,
                     start = Offset(cx + cos * rInner, cy + sin * rInner),
                     end = Offset(cx + cos * rOuter, cy + sin * rOuter),
                     strokeWidth = 2.dp.toPx(),
@@ -353,7 +355,7 @@ private fun ArcGauge(value: Int, color: Color, modifier: Modifier = Modifier) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 value.toString(),
-                color = HeroTextPrimary,
+                color = palette.ink,
                 fontSize = 48.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -362,14 +364,16 @@ private fun ArcGauge(value: Int, color: Color, modifier: Modifier = Modifier) {
                 color = color,
                 fontSize = 10.sp,
                 fontFamily = Mono,
-                letterSpacing = 1.sp,
+                letterSpacing = 0.sp,
             )
         }
     }
 }
 
 @Composable
-private fun SubScoreBar(label: String, value: Float, tint: Color = GaugeTeal) {
+private fun SubScoreBar(label: String, value: Float, tint: Color? = null) {
+    val palette = LocalGlassPalette.current
+    val barTint = tint ?: palette.accentStrong
     val animated by animateFloatAsState(
         targetValue = (value / 100f).coerceIn(0f, 1f),
         animationSpec = tween(800),
@@ -377,11 +381,11 @@ private fun SubScoreBar(label: String, value: Float, tint: Color = GaugeTeal) {
     )
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            label.uppercase(),
-            color = HeroTextMuted,
+            label,
+            color = palette.inkSubtle,
             fontSize = 11.sp,
             fontFamily = Mono,
-            letterSpacing = 1.sp,
+            letterSpacing = 0.sp,
             modifier = Modifier.width(108.dp),
         )
         Box(
@@ -389,20 +393,20 @@ private fun SubScoreBar(label: String, value: Float, tint: Color = GaugeTeal) {
                 .weight(1f)
                 .height(6.dp)
                 .clip(RoundedCornerShape(3.dp))
-                .background(HeroInkElevated),
+                .background(palette.glassFillStrong),
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth(animated)
                     .height(6.dp)
                     .clip(RoundedCornerShape(3.dp))
-                    .background(tint),
+                    .background(barTint),
             )
         }
         Spacer(Modifier.width(12.dp))
         Text(
             value.roundToInt().toString(),
-            color = HeroTextPrimary,
+            color = palette.ink,
             fontSize = 15.sp,
             fontFamily = Mono,
             fontWeight = FontWeight.Bold,
@@ -414,6 +418,7 @@ private fun SubScoreBar(label: String, value: Float, tint: Color = GaugeTeal) {
 
 @Composable
 internal fun StoryChips(core: CycleProgressCore, comparison: CycleComparison) {
+    val palette = LocalGlassPalette.current
     val ranked = comparison.lifts.filter { !it.isNew && it.vsPct != null }
         .sortedByDescending { it.vsPct }
     val biggest = ranked.firstOrNull()
@@ -425,14 +430,14 @@ internal fun StoryChips(core: CycleProgressCore, comparison: CycleComparison) {
                 "Biggest gain",
                 formatPct(biggest?.vsPct),
                 biggest?.name ?: "—",
-                movementColor(biggest?.movement ?: Movement.HELD),
+                movementColor(biggest?.movement ?: Movement.HELD, palette),
                 Modifier.weight(1f),
             )
             StoryChip(
                 "Smallest gain",
                 formatPct(smallest?.vsPct),
                 smallest?.name ?: "—",
-                movementColor(smallest?.movement ?: Movement.HELD),
+                movementColor(smallest?.movement ?: Movement.HELD, palette),
                 Modifier.weight(1f),
             )
         }
@@ -441,14 +446,14 @@ internal fun StoryChips(core: CycleProgressCore, comparison: CycleComparison) {
                 "Most frequent",
                 "${frequent?.totalSets ?: 0}",
                 "sets · ${frequent?.name ?: "—"}",
-                TextPrimary,
+                palette.ink,
                 Modifier.weight(1f),
             )
             StoryChip(
                 "Lifts improved",
                 "${comparison.improvedCount}/${comparison.comparedCount}",
                 "vs ${comparison.window.label()} ago",
-                AccentTeal,
+                palette.complete,
                 Modifier.weight(1f),
             )
         }
@@ -456,7 +461,7 @@ internal fun StoryChips(core: CycleProgressCore, comparison: CycleComparison) {
             "Sessions",
             "${core.sessions}",
             "${"%.1f".format(core.sessionsPerWeek)}/wk",
-            TextPrimary,
+            palette.ink,
             Modifier.fillMaxWidth(),
         )
     }
@@ -470,29 +475,34 @@ private fun StoryChip(
     valueColor: Color,
     modifier: Modifier = Modifier,
 ) {
+    val palette = LocalGlassPalette.current
     Card(
-        modifier = modifier,
+        modifier = modifier.glassPanel(palette, RoundedCornerShape(14.dp)),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, BorderSubtle),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, palette.glassStroke),
     ) {
         Column(Modifier.padding(14.dp)) {
-            Text(label.uppercase(), color = TextMuted, fontSize = 10.sp, fontFamily = Mono, letterSpacing = 1.sp)
+            Text(label, color = palette.inkSubtle, fontSize = 10.sp, fontFamily = Mono, letterSpacing = 0.sp)
             Spacer(Modifier.height(6.dp))
             Text(value, color = valueColor, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(2.dp))
-            Text(sub, color = TextPrimary, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(sub, color = palette.inkMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
 @Composable
 internal fun OutcomeBar(comparison: CycleComparison) {
+    val palette = LocalGlassPalette.current
     val total = comparison.comparedCount.coerceAtLeast(1)
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .glassPanel(palette, RoundedCornerShape(14.dp)),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, palette.glassStroke),
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(
@@ -501,15 +511,15 @@ internal fun OutcomeBar(comparison: CycleComparison) {
                     .height(16.dp)
                     .clip(RoundedCornerShape(8.dp)),
             ) {
-                OutcomeSeg(comparison.improvedCount, total, AccentTeal)
+                OutcomeSeg(comparison.improvedCount, total, palette.complete)
                 OutcomeSeg(comparison.heldCount, total, HoldAmber)
-                OutcomeSeg(comparison.regressedCount, total, ErrorRed)
+                OutcomeSeg(comparison.regressedCount, total, palette.danger)
             }
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutcomeLegend("Improved", comparison.improvedCount, AccentTeal)
+                OutcomeLegend("Improved", comparison.improvedCount, palette.complete)
                 OutcomeLegend("Held", comparison.heldCount, HoldAmber)
-                OutcomeLegend("Regressed", comparison.regressedCount, ErrorRed)
+                OutcomeLegend("Regressed", comparison.regressedCount, palette.danger)
             }
         }
     }
@@ -528,23 +538,28 @@ private fun RowScope.OutcomeSeg(count: Int, total: Int, color: Color) {
 
 @Composable
 private fun OutcomeLegend(label: String, count: Int, color: Color) {
+    val palette = LocalGlassPalette.current
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(color))
         Spacer(Modifier.width(5.dp))
-        Text("$label · $count", color = TextMuted, fontSize = 11.sp, fontFamily = Mono)
+        Text("$label · $count", color = palette.inkMuted, fontSize = 11.sp, fontFamily = Mono)
     }
 }
 
 @Composable
 internal fun GainLadder(comparison: CycleComparison) {
+    val palette = LocalGlassPalette.current
     val rows = comparison.lifts.filter { !it.isNew && it.vsPct != null }
         .sortedByDescending { it.vsPct }
     if (rows.isEmpty()) return
     val maxAbs = rows.maxOf { abs(it.vsPct ?: 0f) }.coerceAtLeast(1f)
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .glassPanel(palette, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, palette.glassStroke),
     ) {
         Column(Modifier.padding(vertical = 14.dp, horizontal = 14.dp)) {
             // Axis header: name gutter, then a centered "0" baseline marker.
@@ -552,7 +567,7 @@ internal fun GainLadder(comparison: CycleComparison) {
                 Spacer(Modifier.width(116.dp))
                 Spacer(Modifier.width(10.dp))
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    Text("0", color = TextInactive, fontSize = 9.sp, fontFamily = Mono)
+                    Text("0", color = palette.inkSubtle, fontSize = 9.sp, fontFamily = Mono)
                 }
                 Spacer(Modifier.width(8.dp))
                 Spacer(Modifier.width(42.dp))
@@ -568,8 +583,9 @@ internal fun GainLadder(comparison: CycleComparison) {
 
 @Composable
 private fun GainLadderRow(lift: LiftComparison, maxAbs: Float) {
+    val palette = LocalGlassPalette.current
     val pct = lift.vsPct ?: 0f
-    val color = movementColor(lift.movement)
+    val color = movementColor(lift.movement, palette)
     val positive = pct >= 0f
     val fraction = (abs(pct) / maxAbs).coerceIn(0f, 1f)
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -580,7 +596,7 @@ private fun GainLadderRow(lift: LiftComparison, maxAbs: Float) {
         ) {
             Text(
                 lift.name,
-                color = TextPrimary,
+                color = palette.ink,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -601,7 +617,7 @@ private fun GainLadderRow(lift: LiftComparison, maxAbs: Float) {
                     .align(Alignment.Center)
                     .width(1.dp)
                     .fillMaxHeight()
-                    .background(BorderSubtle),
+                    .background(palette.glassStroke),
             )
             Row(Modifier.fillMaxWidth().fillMaxHeight()) {
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.CenterEnd) {
@@ -643,22 +659,27 @@ private fun GainLadderRow(lift: LiftComparison, maxAbs: Float) {
 
 @Composable
 private fun BwTag() {
+    val palette = LocalGlassPalette.current
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(4.dp))
-            .background(BackgroundElevated)
+            .background(palette.accent.copy(alpha = 0.16f))
             .padding(horizontal = 4.dp, vertical = 1.dp),
     ) {
-        Text("BW", color = TextInactive, fontSize = 8.sp, fontFamily = Mono, fontWeight = FontWeight.Bold)
+        Text("BW", color = palette.accentStrong, fontSize = 8.sp, fontFamily = Mono, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
 internal fun RepDistribution(buckets: List<RepBucket>) {
+    val palette = LocalGlassPalette.current
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .glassPanel(palette, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, palette.glassStroke),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             buckets.forEach { bucket -> RepBucketRow(bucket) }
@@ -668,6 +689,7 @@ internal fun RepDistribution(buckets: List<RepBucket>) {
 
 @Composable
 private fun RepBucketRow(bucket: RepBucket) {
+    val palette = LocalGlassPalette.current
     val range = if (bucket.maxReps == Int.MAX_VALUE) "${bucket.minReps}+ reps" else "${bucket.minReps}–${bucket.maxReps} reps"
     val animated by animateFloatAsState(
         targetValue = (bucket.pctOfSets / 100f).coerceIn(0f, 1f),
@@ -676,28 +698,28 @@ private fun RepBucketRow(bucket: RepBucket) {
     )
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.width(108.dp)) {
-            Text(bucket.label, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text(range, color = TextMuted, fontSize = 11.sp, fontFamily = Mono)
+            Text(bucket.label, color = palette.ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(range, color = palette.inkSubtle, fontSize = 11.sp, fontFamily = Mono)
         }
         Box(
             modifier = Modifier
                 .weight(1f)
                 .height(10.dp)
                 .clip(RoundedCornerShape(5.dp))
-                .background(BackgroundElevated),
+                .background(palette.glassFillStrong),
         ) {
             Box(
                 Modifier
                     .fillMaxWidth(animated)
                     .height(10.dp)
                     .clip(RoundedCornerShape(5.dp))
-                    .background(AccentTeal),
+                    .background(palette.accentStrong),
             )
         }
         Spacer(Modifier.width(10.dp))
         Text(
             "${bucket.sets} · ${bucket.pctOfSets.roundToInt()}%",
-            color = TextMuted,
+            color = palette.inkMuted,
             fontSize = 11.sp,
             fontFamily = Mono,
             modifier = Modifier.width(70.dp),
@@ -708,6 +730,7 @@ private fun RepBucketRow(bucket: RepBucket) {
 
 @Composable
 internal fun ConsistencyHeatmap(core: CycleProgressCore) {
+    val palette = LocalGlassPalette.current
     val sessionDates = core.sessionDates.toSet()
     val start = runCatching { java.time.LocalDate.parse(core.startDate) }.getOrNull()
     val end = runCatching { java.time.LocalDate.parse(core.endDate) }.getOrNull()
@@ -721,16 +744,19 @@ internal fun ConsistencyHeatmap(core: CycleProgressCore) {
     }
     val weeks = cells.chunked(7)
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .glassPanel(palette, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, palette.glassStroke),
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 listOf("S", "M", "T", "W", "T", "F", "S").forEach { d ->
                     Text(
                         d,
-                        color = TextInactive,
+                        color = palette.inkSubtle,
                         fontSize = 9.sp,
                         fontFamily = Mono,
                         textAlign = TextAlign.Center,
@@ -750,7 +776,7 @@ internal fun ConsistencyHeatmap(core: CycleProgressCore) {
                                     .weight(1f)
                                     .aspectRatio(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (on) AccentTeal else BackgroundElevated),
+                                    .background(if (on) palette.accentStrong else palette.glassFillStrong),
                             )
                         }
                     }
@@ -759,7 +785,7 @@ internal fun ConsistencyHeatmap(core: CycleProgressCore) {
             Spacer(Modifier.height(12.dp))
             Text(
                 "${core.sessions} sessions · ${"%.1f".format(core.sessionsPerWeek)}/wk avg",
-                color = TextMuted,
+                color = palette.inkMuted,
                 fontSize = 11.sp,
                 fontFamily = Mono,
             )
@@ -767,7 +793,7 @@ internal fun ConsistencyHeatmap(core: CycleProgressCore) {
     }
 }
 
-internal enum class TrendSort(val label: String) { VELOCITY("velocity"), GAIN("gain"), AZ("A–Z") }
+internal enum class TrendSort(val label: String) { VELOCITY("velocity"), GAIN("gain"), AZ("A-Z") }
 
 @Composable
 internal fun TrendGrid(
@@ -777,18 +803,22 @@ internal fun TrendGrid(
     onSortChange: (TrendSort) -> Unit,
     onLiftClick: (LiftTrend) -> Unit,
 ) {
+    val palette = LocalGlassPalette.current
     val vsByExercise = comparison?.lifts?.associate { it.exerciseId to (it.vsPct ?: 0f) }.orEmpty()
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .glassPanel(palette, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundSurface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, palette.glassStroke),
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("SORT", color = TextMuted, fontSize = 11.sp, fontFamily = Mono, letterSpacing = 1.sp)
+                Text("Sort", color = palette.inkSubtle, fontSize = 11.sp, fontFamily = Mono, letterSpacing = 0.sp)
                 Spacer(Modifier.weight(1f))
                 Row(
-                    modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(BackgroundElevated).padding(3.dp),
+                    modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(palette.glassFill).padding(3.dp),
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     TrendSort.entries.forEach { option ->
@@ -796,13 +826,13 @@ internal fun TrendGrid(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (on) BackgroundSurface else Color.Transparent)
+                                .background(if (on) palette.accent.copy(alpha = 0.20f) else Color.Transparent)
                                 .clickable { onSortChange(option) }
                                 .padding(horizontal = 12.dp, vertical = 5.dp),
                         ) {
                             Text(
                                 option.label,
-                                color = if (on) TextPrimary else TextMuted,
+                                color = if (on) palette.accentStrong else palette.inkMuted,
                                 fontSize = 11.sp,
                                 fontFamily = Mono,
                                 fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
@@ -820,11 +850,11 @@ internal fun TrendGrid(
                     TrendSort.AZ -> lifts.sortedBy { it.name.lowercase() }
                 }
                 Text(
-                    "${splitName.uppercase()} · ${lifts.size} LIFTS",
-                    color = TextMuted,
+                    "$splitName · ${lifts.size} lifts",
+                    color = palette.inkSubtle,
                     fontSize = 11.sp,
                     fontFamily = Mono,
-                    letterSpacing = 1.sp,
+                    letterSpacing = 0.sp,
                     modifier = Modifier.padding(top = 6.dp, bottom = 8.dp),
                 )
                 sorted.chunked(2).forEach { pair ->
@@ -843,24 +873,28 @@ internal fun TrendGrid(
 
 @Composable
 private fun TrendTile(lift: LiftTrend, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val palette = LocalGlassPalette.current
     val slope = lift.slopePerWeek
     val slopeColor = when {
-        slope == null -> TextMuted
-        slope > 0.05f -> AccentTeal
-        slope < -0.05f -> ErrorRed
-        else -> TextMuted
+        slope == null -> palette.inkMuted
+        slope > 0.05f -> palette.complete
+        slope < -0.05f -> palette.danger
+        else -> palette.inkMuted
     }
-    val slopeText = if (slope == null) "—" else "${if (slope >= 0f) "+" else ""}${"%.1f".format(slope)} ${lift.unitLabel}"
+    val slopeText = if (slope == null) "N/A" else "${if (slope >= 0f) "+" else ""}${"%.1f".format(slope)} ${lift.unitLabel}"
     Card(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier
+            .glassPanel(palette, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundElevated),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, palette.glassStroke),
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     lift.name,
-                    color = TextPrimary,
+                    color = palette.ink,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -882,8 +916,8 @@ private fun TrendTile(lift: LiftTrend, modifier: Modifier = Modifier, onClick: (
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                if (lift.r2 != null) "R² ${"%.2f".format(lift.r2)}" else "R² —",
-                color = TextInactive,
+                if (lift.r2 != null) "R² ${"%.2f".format(lift.r2)}" else "R² N/A",
+                color = palette.inkSubtle,
                 fontSize = 10.sp,
                 fontFamily = Mono,
             )
