@@ -64,7 +64,6 @@ import androidx.compose.ui.unit.sp
 import java.time.LocalDate
 import java.time.YearMonth
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
-import com.ayman.ecolift.ui.theme.GlassPaletteSwitch
 import com.ayman.ecolift.ui.theme.LocalGlassPalette
 import com.ayman.ecolift.ui.theme.LogType
 import com.ayman.ecolift.ui.theme.bounceClick
@@ -693,12 +692,6 @@ fun CycleSplitScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            GlassPaletteSwitch(
-                selected = paletteChoice,
-                onSelect = onPaletteChoiceChange,
-                palette = palette,
-                modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 4.dp)
-            )
             SplitTabToggle(
                 selected = tabMode,
                 onSelect = onTabModeChange,
