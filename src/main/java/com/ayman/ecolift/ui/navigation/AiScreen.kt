@@ -15,6 +15,8 @@ fun AiScreen(
     viewModel: OrchestratorViewModel = viewModel(),
     paletteChoice: GlassPaletteChoice = GlassPaletteChoice.Sage,
     onPaletteChoiceChange: (GlassPaletteChoice) -> Unit = {},
+    userBodyweightLbs: Int? = null,
+    onUserBodyweightChange: (Int?) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -86,6 +88,8 @@ fun AiScreen(
         onSettings = { },
         paletteChoice = paletteChoice,
         onPaletteChoiceChange = onPaletteChoiceChange,
+        userBodyweightLbs = userBodyweightLbs,
+        onUserBodyweightChange = onUserBodyweightChange,
         modifier = modifier
     )
 }

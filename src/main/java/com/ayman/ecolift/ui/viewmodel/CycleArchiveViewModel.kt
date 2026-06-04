@@ -29,8 +29,20 @@ class CycleArchiveViewModel(application: Application) : AndroidViewModel(applica
     private val archiveJson = Json { ignoreUnknownKeys = true }
 
     val archives: StateFlow<List<ArchiveCardUi>> =
-        repo.observeArchivedCycles()
-            .map { rows -> rows.map { it.toCardUi() } }
+        combine(
+            repo.observeArchivedCycles(),
+            db.workoutSetDao().observeCompletedSets(),
+            repo.observeUserBodyweightLbs(),
+        ) { rows, _, _ -> rows }
+            .map { rows ->
+                rows.map { row ->
+                    try {
+                        row.toCardUi(repo.archiveSummary(row))
+                    } catch (_: Exception) {
+                        row.toCardUi()
+                    }
+                }
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _detail = MutableStateFlow<CycleSnapshot?>(null)

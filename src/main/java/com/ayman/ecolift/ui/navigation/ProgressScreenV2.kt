@@ -61,7 +61,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -79,11 +78,9 @@ import com.ayman.ecolift.ui.theme.glassPanel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.abs
 
 enum class TimeRangeV2(val label: String) { ONE_MONTH("1M"), THREE_MONTHS("3M"), SIX_MONTHS("6M"), ONE_YEAR("1Y"), ALL("All") }
 enum class ProgressMetricV2 { ESTIMATED_1RM, WEIGHT, VOLUME }
-enum class InsightTypeV2 { POSITIVE, NEUTRAL, NEGATIVE }
 enum class ProgressOrganizationModeV2 { PROGRESS, SPLIT }
 
 data class ExerciseDataPoint(
@@ -191,8 +188,6 @@ fun ProgressExerciseListItem(
 fun StatCard(
     label: String,
     value: String,
-    delta: String?,
-    deltaPositive: Boolean?,
     subLabel: String? = null,
     modifier: Modifier = Modifier
 ) {
@@ -219,25 +214,12 @@ fun StatCard(
                 style = LogType.railValue,
                 color = palette.ink
             )
-            if (delta != null) {
-                val deltaColor = when (deltaPositive) {
-                    true -> palette.complete
-                    false -> palette.danger
-                    null -> palette.inkSubtle
-                }
-                Text(
-                    text = delta,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = deltaColor,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
             if (subLabel != null) {
                 Text(
                     text = subLabel,
                     style = MaterialTheme.typography.labelSmall,
                     color = palette.inkSubtle,
-                    modifier = Modifier.padding(top = if (delta != null) 2.dp else 4.dp)
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
         }
@@ -252,17 +234,11 @@ fun ProgressDetailScreen(
     dataPoints: List<ExerciseDataPoint>,
     selectedRange: TimeRangeV2,
     selectedMetric: ProgressMetricV2,
-    insightText: String,
-    insightType: InsightTypeV2,
     currentPr: Float,
-    currentPrDeltaPercent: Float,
     prDate: LocalDate?,
     estimatedOneRm: Float,
-    estimatedOneRmDeltaPercent: Float,
     totalVolume: Float,
-    volumeDeltaPercent: Float,
     workoutCount: Int,
-    workoutCountDeltaPercent: Float,
     onBack: () -> Unit,
     onRangeChange: (TimeRangeV2) -> Unit,
     onMetricChange: (ProgressMetricV2) -> Unit,
@@ -599,43 +575,6 @@ fun ProgressDetailScreen(
                 }
             }
 
-            // Insight banner
-            item {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .glassPanel(palette, RoundedCornerShape(14.dp)),
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color.Transparent,
-                    border = BorderStroke(1.dp, palette.glassStroke),
-                    shadowElevation = 0.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    when (insightType) {
-                                        InsightTypeV2.POSITIVE -> palette.complete
-                                        InsightTypeV2.NEUTRAL -> palette.inkSubtle
-                                        InsightTypeV2.NEGATIVE -> palette.danger
-                                    }
-                                )
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = insightText,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = palette.ink
-                        )
-                    }
-                }
-            }
-
             // 2x2 stat grid
             item {
                 LazyVerticalGrid(
@@ -648,53 +587,30 @@ fun ProgressDetailScreen(
                         StatCard(
                             label = "Current PR",
                             value = "${currentPr.toInt()} lbs",
-                            delta = formatProgressDeltaPercent(currentPrDeltaPercent),
-                            deltaPositive = deltaDirection(currentPrDeltaPercent),
                             subLabel = prDate?.let { "Set ${it.format(DateTimeFormatter.ofPattern("MMM d"))}" }
                         )
                     }
                     item {
                         StatCard(
                             label = "Est. 1RM",
-                            value = "${"%.1f".format(estimatedOneRm)} lbs",
-                            delta = formatProgressDeltaPercent(estimatedOneRmDeltaPercent),
-                            deltaPositive = deltaDirection(estimatedOneRmDeltaPercent),
-                            subLabel = "vs previous period"
+                            value = "${"%.1f".format(estimatedOneRm)} lbs"
                         )
                     }
                     item {
                         StatCard(
                             label = "Total Volume (${selectedRange.label})",
-                            value = formatVolumeLbs(totalVolume),
-                            delta = formatProgressDeltaPercent(volumeDeltaPercent),
-                            deltaPositive = deltaDirection(volumeDeltaPercent)
+                            value = formatVolumeLbs(totalVolume)
                         )
                     }
                     item {
                         StatCard(
                             label = "Workouts (${selectedRange.label})",
-                            value = "$workoutCount",
-                            delta = formatProgressDeltaPercent(workoutCountDeltaPercent),
-                            deltaPositive = deltaDirection(workoutCountDeltaPercent)
+                            value = "$workoutCount"
                         )
                     }
                 }
             }
         }
-    }
-}
-
-internal fun formatProgressDeltaPercent(delta: Float): String? {
-    if (abs(delta) < 0.05f) return null
-    val sign = if (delta > 0f) "+" else ""
-    return String.format(Locale.US, "%s%.1f%%", sign, delta)
-}
-
-private fun deltaDirection(delta: Float): Boolean? {
-    return when {
-        delta > 0.05f -> true
-        delta < -0.05f -> false
-        else -> null
     }
 }
 
@@ -1024,17 +940,11 @@ fun ProgressDetailScreenPreview() {
             dataPoints = dataPoints,
             selectedRange = TimeRangeV2.ONE_MONTH,
             selectedMetric = ProgressMetricV2.ESTIMATED_1RM,
-            insightText = "Trending upwards! Your estimated 1RM has increased by 15 lbs this month.",
-            insightType = InsightTypeV2.POSITIVE,
             currentPr = 185f,
-            currentPrDeltaPercent = 2.5f,
             prDate = LocalDate.now(),
             estimatedOneRm = 246f,
-            estimatedOneRmDeltaPercent = 5f,
             totalVolume = 10000f,
-            volumeDeltaPercent = 8f,
             workoutCount = 6,
-            workoutCountDeltaPercent = 20f,
             onBack = {},
             onRangeChange = {},
             onMetricChange = {}

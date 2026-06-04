@@ -1,5 +1,7 @@
 package com.ayman.ecolift.update
 
+import com.ayman.ecolift.data.APP_DATABASE_VERSION
+
 const val DATABASE_NAME = "ecolift.db"
 const val SENTINEL_EXERCISE_ID = 90101L
 const val SENTINEL_WORKOUT_ID = 90102L
@@ -12,5 +14,5 @@ const val SENTINEL_WEIGHT_TENTHS = 1870
 const val SENTINEL_REPS = 7
 const val SENTINEL_REST_SECONDS = 95
 const val SENTINEL_CREATED_AT = 1_764_052_800_000L
-const val CURRENT_ROOM_SCHEMA_VERSION = 13L
+val CURRENT_ROOM_SCHEMA_VERSION: Long = APP_DATABASE_VERSION.toLong()
 const val TENTHS_WEIGHT_SCHEMA_VERSION = 13L

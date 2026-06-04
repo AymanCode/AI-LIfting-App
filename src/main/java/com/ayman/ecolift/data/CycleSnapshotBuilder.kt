@@ -17,7 +17,9 @@ object CycleSnapshotBuilder {
         workoutDays: List<WorkoutDay>,
         sets: List<WorkoutSet>,
         exerciseNames: Map<Long, ExerciseMeta>,
+        userBodyweightLbs: Int? = null,
     ): CycleSnapshot {
+        val normalizedBodyweight = normalizedUserBodyweightLbs(userBodyweightLbs)
         val inWindow = sets
             .asSequence()
             .filter { it.completed && it.date in startDate..endDate }
@@ -54,6 +56,7 @@ object CycleSnapshotBuilder {
                 bucketSets = setsByBucket[BucketKey(slot.id, SplitBucketKind.Real)].orEmpty(),
                 savedOrder = savedOrder[slot.id].orEmpty(),
                 exerciseNames = exerciseNames,
+                userBodyweightLbs = normalizedBodyweight,
             )
         }
 
@@ -69,6 +72,7 @@ object CycleSnapshotBuilder {
                 bucketSets = setsByBucket.getValue(key),
                 savedOrder = emptyMap(),
                 exerciseNames = exerciseNames,
+                userBodyweightLbs = normalizedBodyweight,
             )
         }
 
@@ -82,6 +86,7 @@ object CycleSnapshotBuilder {
                 bucketSets = unassigned,
                 savedOrder = emptyMap(),
                 exerciseNames = exerciseNames,
+                userBodyweightLbs = normalizedBodyweight,
             )
         }
 
@@ -112,6 +117,7 @@ object CycleSnapshotBuilder {
         bucketSets: List<WorkoutSet>,
         savedOrder: Map<Long, Int>,
         exerciseNames: Map<Long, ExerciseMeta>,
+        userBodyweightLbs: Int?,
     ): SplitSnapshot {
         val days = bucketSets.map { it.date }.distinct().sorted()
         val byExercise = bucketSets.groupBy { it.exerciseId }
@@ -129,7 +135,7 @@ object CycleSnapshotBuilder {
             lastUsedDate = days.lastOrNull(),
             usageCount = days.size,
             exercises = orderedIds.map { id ->
-                buildExercise(id, byExercise.getValue(id), exerciseNames[id])
+                buildExercise(id, byExercise.getValue(id), exerciseNames[id], userBodyweightLbs)
             },
         )
     }
@@ -138,10 +144,11 @@ object CycleSnapshotBuilder {
         exerciseId: Long,
         sets: List<WorkoutSet>,
         meta: ExerciseMeta?,
+        userBodyweightLbs: Int?,
     ): ExerciseSnapshot {
         val sessions = sets.groupBy { it.date }
             .toSortedMap()
-            .map { (date, daySets) -> sessionPoint(date, daySets) }
+            .map { (date, daySets) -> sessionPoint(date, daySets, meta?.isBodyweight ?: false, userBodyweightLbs) }
         val start = sessions.firstOrNull()
         val end = sessions.lastOrNull()
         return ExerciseSnapshot(
@@ -158,7 +165,12 @@ object CycleSnapshotBuilder {
         )
     }
 
-    private fun sessionPoint(date: String, daySets: List<WorkoutSet>): SessionPoint {
+    private fun sessionPoint(
+        date: String,
+        daySets: List<WorkoutSet>,
+        exerciseIsBodyweight: Boolean,
+        userBodyweightLbs: Int?,
+    ): SessionPoint {
         var topWeight: Float? = null
         var bestE1rm: Float? = null
         var volume = 0.0
@@ -167,8 +179,15 @@ object CycleSnapshotBuilder {
         daySets.forEach { set ->
             val reps = set.reps ?: 0
             totalReps += reps
-            if (!set.isBodyweight && set.weightLbs != null) {
-                val weight = WeightLbs.toLbs(set.weightLbs)
+            val isBodyweight = exerciseIsBodyweight || set.isBodyweight
+            val addedWeight = WeightLbs.toLbs(set.weightLbs)
+            val effectiveWeight = if (isBodyweight) {
+                userBodyweightLbs?.let { it + addedWeight } ?: addedWeight.takeIf { it > 0 }
+            } else {
+                addedWeight
+            }
+            if (effectiveWeight != null && effectiveWeight > 0) {
+                val weight = effectiveWeight
                 val weightFloat = weight.toFloat()
                 topWeight = maxOf(topWeight ?: weightFloat, weightFloat)
                 bestE1rm = maxOf(bestE1rm ?: 0f, (weight * (1.0 + reps / 30.0)).toFloat())

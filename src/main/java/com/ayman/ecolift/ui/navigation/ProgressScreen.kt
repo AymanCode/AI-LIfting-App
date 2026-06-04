@@ -11,7 +11,6 @@ import com.ayman.ecolift.ui.viewmodel.ProgressOrganizationMode
 import com.ayman.ecolift.ui.viewmodel.ProgressViewModel
 import com.ayman.ecolift.ui.viewmodel.TimeframeFilter
 import java.time.LocalDate
-import kotlin.math.abs
 
 @Composable
 fun ProgressScreen(
@@ -55,19 +54,6 @@ fun ProgressScreen(
         }
 
         val stats = uiState.stats
-        val estDelta = stats?.est1RmDelta ?: 0f
-        val volumeDelta = stats?.volumeDelta ?: 0f
-        val insightType = when {
-            estDelta > 0.05f || volumeDelta > 0.05f -> InsightTypeV2.POSITIVE
-            estDelta < -0.05f || volumeDelta < -0.05f -> InsightTypeV2.NEGATIVE
-            else -> InsightTypeV2.NEUTRAL
-        }
-        val insightText = when {
-            abs(estDelta) > 0.05f -> "Estimated 1RM ${if (estDelta > 0) "up" else "down"} ${formatProgressDeltaPercent(estDelta)} for ${range.label}."
-            abs(volumeDelta) > 0.05f -> "Training volume ${if (volumeDelta > 0) "up" else "down"} ${formatProgressDeltaPercent(volumeDelta)} for ${range.label}."
-            stats?.isPlateau == true -> "Performance is holding steady across this range."
-            else -> "Log more sessions in this range to establish a trend."
-        }
 
         ProgressDetailScreen(
             exerciseName = uiState.selectedExerciseName,
@@ -75,17 +61,11 @@ fun ProgressScreen(
             dataPoints = dataPoints,
             selectedRange = range,
             selectedMetric = metric,
-            insightText = insightText,
-            insightType = insightType,
             currentPr = stats?.currentPrLbs ?: 0f,
-            currentPrDeltaPercent = stats?.currentPrDelta ?: 0f,
             prDate = null,
             estimatedOneRm = stats?.est1Rm?.toFloatOrNull() ?: 0f,
-            estimatedOneRmDeltaPercent = stats?.est1RmDelta ?: 0f,
             totalVolume = stats?.totalVolumeLbs?.toFloat() ?: 0f,
-            volumeDeltaPercent = stats?.volumeDelta ?: 0f,
             workoutCount = stats?.workoutCount ?: 0,
-            workoutCountDeltaPercent = stats?.workoutCountDelta ?: 0f,
             onBack = { viewModel.selectExercise(null) },
             onRangeChange = { r ->
                 viewModel.setTimeframe(

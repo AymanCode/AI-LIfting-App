@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.outlined.Settings
@@ -55,6 +56,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -589,9 +591,14 @@ fun IronMindInputBar(
 private fun IronMindSettingsSheet(
     selectedPalette: GlassPaletteChoice,
     onPaletteChoiceChange: (GlassPaletteChoice) -> Unit,
+    userBodyweightLbs: Int?,
+    onUserBodyweightChange: (Int?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val palette = LocalGlassPalette.current
+    var bodyweightText by remember(userBodyweightLbs) {
+        mutableStateOf(userBodyweightLbs?.toString().orEmpty())
+    }
 
     Column(
         modifier = modifier
@@ -624,6 +631,63 @@ private fun IronMindSettingsSheet(
                     onSelect = onPaletteChoiceChange,
                     palette = palette
                 )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Bodyweight",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = palette.inkSubtle
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = palette.glassFillStrong.copy(alpha = 0.62f),
+                        border = BorderStroke(1.dp, palette.glassStroke),
+                        shadowElevation = 0.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            BasicTextField(
+                                value = bodyweightText,
+                                onValueChange = { rawValue ->
+                                    val parsed = rawValue.filter { it.isDigit() }.take(4).toIntOrNull()
+                                    val normalizedBodyweight = parsed?.takeIf { it > 0 }
+                                    bodyweightText = normalizedBodyweight?.toString().orEmpty()
+                                    onUserBodyweightChange(normalizedBodyweight)
+                                },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                cursorBrush = SolidColor(palette.accentStrong),
+                                textStyle = MaterialTheme.typography.titleMedium.copy(
+                                    color = palette.ink,
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(vertical = 10.dp),
+                                decorationBox = { innerTextField ->
+                                    if (bodyweightText.isEmpty()) {
+                                        Text(
+                                            text = "--",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = palette.inkSubtle
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            )
+                            Text(
+                                text = "lb",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = palette.inkMuted
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -644,6 +708,8 @@ fun IronMindScreen(
     onRecoveryAction: (RecoveryPayload, RecoveryAction) -> Unit = { _, _ -> },
     paletteChoice: GlassPaletteChoice = GlassPaletteChoice.Sage,
     onPaletteChoiceChange: (GlassPaletteChoice) -> Unit = {},
+    userBodyweightLbs: Int? = null,
+    onUserBodyweightChange: (Int?) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val palette = LocalGlassPalette.current
@@ -715,7 +781,12 @@ fun IronMindScreen(
         ) {
             IronMindSettingsSheet(
                 selectedPalette = paletteChoice,
-                onPaletteChoiceChange = onPaletteChoiceChange,
+                onPaletteChoiceChange = { choice ->
+                    onPaletteChoiceChange(choice)
+                    isSettingsVisible = false
+                },
+                userBodyweightLbs = userBodyweightLbs,
+                onUserBodyweightChange = onUserBodyweightChange,
                 modifier = Modifier.padding(bottom = 10.dp)
             )
         }

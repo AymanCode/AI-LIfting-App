@@ -58,7 +58,6 @@ data class BackupResult(
 
 object DataBackupManager {
     private const val DB_NAME = "ecolift.db"
-    private const val APP_DB_VERSION = 15
     private const val AUTO_BACKUP_RETENTION = 8
     private const val PREFLIGHT_RETENTION = 3
     private const val AUTO_BACKUP_MIN_INTERVAL_MS = 12L * 60L * 60L * 1000L
@@ -176,39 +175,40 @@ object DataBackupManager {
         return "ecolift-backup-$now.json"
     }
 
-    private suspend fun buildSnapshot(db: AppDatabase, source: String): UserDataBackup {
-        val exercises = db.exerciseDao().getAll()
-        val workoutDays = db.workoutDayDao().getAll()
-        val workoutSets = db.workoutSetDao().getAll()
-        val pendingReviews = db.pendingReviewDao().getAll()
-        val cycleSlots = db.cycleSlotDao().getAll()
-        val splitExercises = db.splitExerciseDao().getAll()
-        val tempSessionSwaps = db.tempSessionSwapDao().getAll()
-        val auditEntries = db.auditDao().getAll()
-        val agentTurns = db.agentTurnLogDao().getAll()
-        val archivedCycles = db.archivedCycleDao().getAll()
-        val userSettings = db.userSettingsDao().get()
-        val cycle = db.cycleDao().getCycle()
-        return UserDataBackup(
-            metadata = BackupMetadata(
-                createdAtEpochMs = System.currentTimeMillis(),
-                source = source,
-                appDbVersion = APP_DB_VERSION,
-            ),
-            cycle = cycle,
-            exercises = exercises,
-            workoutDays = workoutDays,
-            workoutSets = workoutSets,
-            pendingReviews = pendingReviews,
-            cycleSlots = cycleSlots,
-            splitExercises = splitExercises,
-            tempSessionSwaps = tempSessionSwaps,
-            auditEntries = auditEntries,
-            agentTurns = agentTurns,
-            archivedCycles = archivedCycles,
-            userSettings = userSettings,
-        )
-    }
+    private suspend fun buildSnapshot(db: AppDatabase, source: String): UserDataBackup =
+        db.withTransaction {
+            val exercises = db.exerciseDao().getAll()
+            val workoutDays = db.workoutDayDao().getAll()
+            val workoutSets = db.workoutSetDao().getAll()
+            val pendingReviews = db.pendingReviewDao().getAll()
+            val cycleSlots = db.cycleSlotDao().getAll()
+            val splitExercises = db.splitExerciseDao().getAll()
+            val tempSessionSwaps = db.tempSessionSwapDao().getAll()
+            val auditEntries = db.auditDao().getAll()
+            val agentTurns = db.agentTurnLogDao().getAll()
+            val archivedCycles = db.archivedCycleDao().getAll()
+            val userSettings = db.userSettingsDao().get()
+            val cycle = db.cycleDao().getCycle()
+            UserDataBackup(
+                metadata = BackupMetadata(
+                    createdAtEpochMs = System.currentTimeMillis(),
+                    source = source,
+                    appDbVersion = APP_DATABASE_VERSION,
+                ),
+                cycle = cycle,
+                exercises = exercises,
+                workoutDays = workoutDays,
+                workoutSets = workoutSets,
+                pendingReviews = pendingReviews,
+                cycleSlots = cycleSlots,
+                splitExercises = splitExercises,
+                tempSessionSwaps = tempSessionSwaps,
+                auditEntries = auditEntries,
+                agentTurns = agentTurns,
+                archivedCycles = archivedCycles,
+                userSettings = userSettings,
+            )
+        }
 
     private suspend fun restoreSnapshot(db: AppDatabase, snapshot: UserDataBackup) {
         db.withTransaction {

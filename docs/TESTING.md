@@ -63,7 +63,7 @@ Optional live settings:
 - `AI_RESCUE_EVAL_CASE_DELAY_MS` defaults to `0`; use `5000` to space case starts by five seconds.
 - `AI_RESCUE_EVAL_MIN_TARGET_AGREEMENT` defaults to `0.65`.
 
-Provider keys are local-only. Do not commit `local.properties`, do not publish debug APKs built with a provider key, and use a backend proxy for any production cloud model integration. Release builds blank the Groq key field.
+Provider keys are local-only. Do not commit `local.properties`, do not publish debug APKs built with a provider key, and use a backend proxy for any production cloud model integration. Release builds always blank the Groq key field.
 
 Run the DuckDB analytics test:
 
@@ -117,3 +117,4 @@ The workflow uploads unit test reports and the debug APK as artifacts. Instrumen
 5. Run the live AI rescue eval only when intentionally spending API quota.
 6. Confirm Room schema changes are intentional and exported under `schemas/`.
 7. Check `git status --short` for local files, model files, caches, or IDE settings.
+8. Keep release signing files and passwords outside Git; pass them through local Gradle properties or environment variables only when building a signed release APK.

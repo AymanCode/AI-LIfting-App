@@ -5,6 +5,7 @@ import com.ayman.ecolift.data.ExerciseSnapshot
 import com.ayman.ecolift.data.SessionPoint
 import com.ayman.ecolift.data.SplitBucketKind
 import com.ayman.ecolift.data.WeightLbs
+import com.ayman.ecolift.data.normalizedUserBodyweightLbs
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
@@ -56,6 +57,7 @@ object CycleProgressCalculator {
         userBodyweightLbs: Int?,
         realSlotCount: Int = snapshot.splits.count { it.bucketKind == SplitBucketKind.Real },
     ): CoreResult {
+        val normalizedBodyweight = normalizedUserBodyweightLbs(userBodyweightLbs)
         val sessionDateSet = snapshot.splits
             .flatMap { split -> split.exercises.flatMap { exercise -> exercise.sessions.map { it.date } } }
             .toSet()
@@ -84,7 +86,7 @@ object CycleProgressCalculator {
                     val series = sessionSeries(
                         sets = liftSets,
                         isBodyweight = exercise.isBodyweight,
-                        userBodyweightLbs = userBodyweightLbs,
+                        userBodyweightLbs = normalizedBodyweight,
                         forcedMetric = null,
                     ) ?: snapshotSeries(exercise)
                     val metric = series?.metric ?: if (exercise.isBodyweight) LiftMetric.REPS else LiftMetric.E1RM
@@ -129,6 +131,7 @@ object CycleProgressCalculator {
         window: ComparisonWindow,
         userBodyweightLbs: Int?,
     ): CycleComparison {
+        val normalizedBodyweight = normalizedUserBodyweightLbs(userBodyweightLbs)
         val core = coreResult.core
         val start = parseDate(core.startDate) ?: return emptyComparison(window)
         val windowStart = start.minusMonths(window.months.toLong()).toString()
@@ -141,7 +144,7 @@ object CycleProgressCalculator {
             val priorSeries = sessionSeries(
                 sets = priorSets,
                 isBodyweight = lift.isBodyweight,
-                userBodyweightLbs = userBodyweightLbs,
+                userBodyweightLbs = normalizedBodyweight,
                 forcedMetric = lift.metric,
             )?.points.orEmpty()
             val priorRegression = if (priorSeries.size >= 3) linreg(priorSeries) else null
@@ -315,8 +318,9 @@ object CycleProgressCalculator {
         val addedStored = set.weightLbs?.takeIf { it > 0 }
         if (addedStored != null) {
             val addedLbs = WeightLbs.toLbs(addedStored)
-            return if (userBodyweightLbs != null) {
-                val load = userBodyweightLbs + addedLbs
+            val normalizedBodyweight = normalizedUserBodyweightLbs(userBodyweightLbs)
+            return if (normalizedBodyweight != null) {
+                val load = normalizedBodyweight + addedLbs
                 ResolvedValue(
                     date = set.date,
                     metric = LiftMetric.E1RM,

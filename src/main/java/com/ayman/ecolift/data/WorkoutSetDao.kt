@@ -27,6 +27,12 @@ interface WorkoutSetDao {
     @Query("SELECT DISTINCT date FROM workout_set ORDER BY date DESC")
     fun observeAllDistinctDates(): Flow<List<String>>
 
+    @Query("SELECT DISTINCT date FROM workout_set WHERE completed = 1 ORDER BY date DESC")
+    fun observeCompletedDistinctDates(): Flow<List<String>>
+
+    @Query("SELECT * FROM workout_set WHERE completed = 1 ORDER BY date ASC, setNumber ASC, id ASC")
+    fun observeCompletedSets(): Flow<List<WorkoutSet>>
+
     @Query("SELECT * FROM workout_set")
     suspend fun getAll(): List<WorkoutSet>
 
@@ -83,7 +89,7 @@ interface WorkoutSetDao {
             COUNT(DISTINCT s.date) as sessionCount,
             MAX(s.date) as lastSessionDate
         FROM exercise e
-        JOIN workout_set s ON e.id = s.exerciseId
+        JOIN workout_set s ON e.id = s.exerciseId AND s.completed = 1
         GROUP BY e.id
         """
     )
@@ -93,7 +99,7 @@ interface WorkoutSetDao {
         """
         SELECT date, CAST(ROUND(SUM(COALESCE(weightLbs, 0) * COALESCE(reps, 0)) / 10.0) AS INTEGER) as volume
         FROM workout_set
-        WHERE exerciseId = :exerciseId
+        WHERE exerciseId = :exerciseId AND completed = 1
         GROUP BY date
         ORDER BY date DESC
         LIMIT :limit
@@ -105,7 +111,7 @@ interface WorkoutSetDao {
         """
         SELECT exerciseId, CAST(ROUND(SUM(COALESCE(weightLbs, 0) * COALESCE(reps, 0)) / 10.0) AS INTEGER) as volume
         FROM workout_set
-        WHERE date >= :sinceDate
+        WHERE date >= :sinceDate AND completed = 1
         GROUP BY exerciseId
         """
     )
@@ -126,6 +132,12 @@ interface WorkoutSetDao {
     @Query("SELECT MIN(date) FROM workout_set")
     suspend fun getEarliestWorkoutDate(): String?
 
+    @Query("SELECT MAX(date) FROM workout_set WHERE completed = 1")
+    suspend fun getLatestCompletedWorkoutDate(): String?
+
+    @Query("SELECT MIN(date) FROM workout_set WHERE completed = 1")
+    suspend fun getEarliestCompletedWorkoutDate(): String?
+
     @Query(
         """
         SELECT * FROM workout_set
@@ -134,6 +146,15 @@ interface WorkoutSetDao {
         """
     )
     suspend fun getSetsInRange(startDate: String, endDate: String): List<WorkoutSet>
+
+    @Query(
+        """
+        SELECT * FROM workout_set
+        WHERE completed = 1 AND date BETWEEN :startDate AND :endDate
+        ORDER BY date ASC, setNumber ASC, id ASC
+        """
+    )
+    suspend fun getCompletedSetsInRange(startDate: String, endDate: String): List<WorkoutSet>
 
     @Query("""
         SELECT e.name FROM workout_set s
@@ -157,8 +178,17 @@ interface WorkoutSetDao {
 
     @Query(
         """
+        SELECT * FROM workout_set
+        WHERE completed = 1 AND date IN (:dates)
+        ORDER BY date DESC, exerciseId ASC, setNumber ASC
+        """
+    )
+    suspend fun getCompletedForDates(dates: List<String>): List<WorkoutSet>
+
+    @Query(
+        """
         SELECT * FROM workout_set 
-        WHERE exerciseId = :exerciseId AND date < :beforeDate
+        WHERE exerciseId = :exerciseId AND date < :beforeDate AND completed = 1
         ORDER BY date DESC
         LIMIT 100
         """
@@ -168,7 +198,7 @@ interface WorkoutSetDao {
     @Query(
         """
         SELECT MAX(weightLbs) FROM workout_set
-        WHERE exerciseId = :exerciseId AND date < :beforeDate
+        WHERE exerciseId = :exerciseId AND date < :beforeDate AND completed = 1
     """
     )
     suspend fun getMaxWeightBeforeDate(exerciseId: Long, beforeDate: String): Int?
@@ -176,7 +206,7 @@ interface WorkoutSetDao {
     @Query(
         """
         SELECT * FROM workout_set
-        WHERE exerciseId = :exerciseId AND date >= :sinceDate
+        WHERE exerciseId = :exerciseId AND date >= :sinceDate AND completed = 1
         ORDER BY date ASC
         """
     )
@@ -185,7 +215,7 @@ interface WorkoutSetDao {
     @Query(
         """
         SELECT * FROM workout_set
-        WHERE exerciseId = :exerciseId AND date >= :sinceDate
+        WHERE exerciseId = :exerciseId AND date >= :sinceDate AND completed = 1
         ORDER BY date ASC, setNumber ASC
         """
     )
@@ -195,6 +225,7 @@ interface WorkoutSetDao {
         """
         SELECT exerciseId, MAX(weightLbs) as maxWeight
         FROM workout_set
+        WHERE completed = 1
         GROUP BY exerciseId
         """
     )
@@ -204,7 +235,7 @@ interface WorkoutSetDao {
         """
         SELECT exerciseId, MAX(weightLbs) as maxWeight
         FROM workout_set
-        WHERE exerciseId IN (:exerciseIds)
+        WHERE exerciseId IN (:exerciseIds) AND completed = 1
         GROUP BY exerciseId
         """
     )

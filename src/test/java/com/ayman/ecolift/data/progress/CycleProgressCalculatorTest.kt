@@ -191,11 +191,19 @@ class CycleProgressCalculatorTest {
             userBodyweightLbs = 180,
             realSlotCount = 1,
         ).core.lifts.single()
+        val addedWithInvalidBodyweight = CycleProgressCalculator.buildCore(
+            snapshot = snapshot(exercises = listOf(exercise(1L, "Weighted Pull-up", true, listOf("2026-04-01")))),
+            sets = listOf(set(1L, "2026-04-01", 1, weight = 25, reps = 8, isBodyweight = true)),
+            userBodyweightLbs = 0,
+            realSlotCount = 1,
+        ).core.lifts.single()
 
         assertEquals(LiftMetric.REPS, pure.metric)
         assertEquals(12f, pure.points.single().value, 0.001f)
         assertEquals(LiftMetric.ADDED_WEIGHT, addedWithoutBodyweight.metric)
         assertEquals(25f, addedWithoutBodyweight.points.single().value, 0.001f)
+        assertEquals(LiftMetric.ADDED_WEIGHT, addedWithInvalidBodyweight.metric)
+        assertEquals(25f, addedWithInvalidBodyweight.points.single().value, 0.001f)
         assertEquals(LiftMetric.E1RM, addedWithBodyweight.metric)
         assertEquals(205f * (1f + 8f / 30f), addedWithBodyweight.points.single().value, 0.001f)
     }

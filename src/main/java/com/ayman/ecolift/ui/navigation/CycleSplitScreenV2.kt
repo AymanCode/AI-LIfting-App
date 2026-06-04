@@ -875,7 +875,7 @@ private fun ArchiveListCard(card: ArchiveCardUi, onClick: () -> Unit) {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "${card.splitCount} splits · ${card.sessionCount} sessions · ${"%,d".format(card.totalVolumeLbs)} lb",
+                text = "${card.splitCount} splits · ${card.sessionCount} sessions · ${"%,d".format(card.totalVolumeLbs)} lb volume",
                 style = MaterialTheme.typography.bodySmall,
                 color = palette.inkMuted
             )

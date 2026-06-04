@@ -98,6 +98,9 @@ class SetRepository(private val db: AppDatabase) {
     suspend fun getSetsForDates(dates: List<String>) =
         if (dates.isEmpty()) emptyList() else db.workoutSetDao().getForDates(dates)
 
+    suspend fun getCompletedSetsForDates(dates: List<String>) =
+        if (dates.isEmpty()) emptyList() else db.workoutSetDao().getCompletedForDates(dates)
+
     suspend fun getById(id: Long): WorkoutSet? = db.workoutSetDao().getById(id)
 
     fun observeExerciseProgressSummaries(): Flow<List<ExerciseProgressSummary>> = db.workoutSetDao().observeExerciseProgressSummaries()

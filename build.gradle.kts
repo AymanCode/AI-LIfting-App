@@ -6,6 +6,16 @@ fun buildConfigSetting(name: String, defaultValue: String = ""): String =
 fun quotedBuildConfig(value: String): String =
     "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
+val releaseStoreFilePath = buildConfigSetting("RELEASE_STORE_FILE")
+val releaseStorePassword = buildConfigSetting("RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = buildConfigSetting("RELEASE_KEY_ALIAS")
+val releaseKeyPassword = buildConfigSetting("RELEASE_KEY_PASSWORD")
+val hasReleaseSigningConfig =
+    releaseStoreFilePath.isNotBlank() &&
+        releaseStorePassword.isNotBlank() &&
+        releaseKeyAlias.isNotBlank() &&
+        releaseKeyPassword.isNotBlank()
+
 plugins {
     id("com.android.application") version "9.1.0"
     kotlin("android") version "2.2.10"
@@ -25,6 +35,14 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        if (hasReleaseSigningConfig) {
+            create("release") {
+                storeFile = file(releaseStoreFilePath)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
     }
 
     defaultConfig {
@@ -35,7 +53,6 @@ android {
         versionName = "1.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
-        buildConfigField("String", "GROQ_API_KEY", quotedBuildConfig(buildConfigSetting("GROQ_API_KEY")))
         buildConfigField(
             "String",
             "GROQ_API_BASE_URL",
@@ -54,13 +71,11 @@ android {
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("workspaceDebug")
+            buildConfigField("String", "GROQ_API_KEY", quotedBuildConfig(buildConfigSetting("GROQ_API_KEY")))
         }
         release {
-            // Signed with the workspace debug keystore so the optimized (non-debuggable)
-            // build is installable for local performance testing. ART applies AOT +
-            // baseline-profile optimizations here that the debug build cannot — this is
-            // the build to judge scroll smoothness on.
-            signingConfig = signingConfigs.getByName("workspaceDebug")
+            signingConfigs.findByName("release")?.let { signingConfig = it }
+            buildConfigField("String", "GROQ_API_KEY", quotedBuildConfig(""))
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

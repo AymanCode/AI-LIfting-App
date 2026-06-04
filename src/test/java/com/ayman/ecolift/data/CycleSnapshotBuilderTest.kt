@@ -99,6 +99,48 @@ class CycleSnapshotBuilderTest {
         assertEquals(0L, exercise.sessions.single().volumeLbs)
     }
 
+    @Test
+    fun `bodyweight sets use saved bodyweight when available`() {
+        val snapshot = CycleSnapshotBuilder.build(
+            startDate = "2026-01-01",
+            endDate = "2026-01-31",
+            slots = listOf(push),
+            splitExercises = emptyList(),
+            workoutDays = listOf(day("2026-01-10", slotId = 10L)),
+            sets = listOf(
+                set(2L, "2026-01-10", 1, weightLbs = null, reps = 10, isBodyweight = true),
+            ),
+            exerciseNames = mapOf(2L to ExerciseMeta("Pull-up", isBodyweight = true)),
+            userBodyweightLbs = 180,
+        )
+
+        val session = snapshot.splits.single().exercises.single().sessions.single()
+        assertEquals(180f, session.topWeight!!, 0.001f)
+        assertEquals(1800L, session.volumeLbs)
+        assertTrue(session.bestE1rm!! > 239f)
+    }
+
+    @Test
+    fun `nonpositive saved bodyweight is treated as unset`() {
+        val snapshot = CycleSnapshotBuilder.build(
+            startDate = "2026-01-01",
+            endDate = "2026-01-31",
+            slots = listOf(push),
+            splitExercises = emptyList(),
+            workoutDays = listOf(day("2026-01-10", slotId = 10L)),
+            sets = listOf(
+                set(2L, "2026-01-10", 1, weightLbs = null, reps = 10, isBodyweight = true),
+            ),
+            exerciseNames = mapOf(2L to ExerciseMeta("Pull-up", isBodyweight = true)),
+            userBodyweightLbs = 0,
+        )
+
+        val session = snapshot.splits.single().exercises.single().sessions.single()
+        assertNull(session.topWeight)
+        assertEquals(0L, session.volumeLbs)
+        assertEquals(10, session.totalReps)
+    }
+
     private fun set(
         exerciseId: Long,
         date: String,
