@@ -20,3 +20,6 @@ fun looksLikeBodyweightExerciseName(name: String): Boolean {
 
 fun normalizedBodyweightLoad(weightLbs: Int?): Int? =
     weightLbs?.takeIf { it > 0 }
+
+fun normalizedUserBodyweightLbs(bodyweightLbs: Int?): Int? =
+    bodyweightLbs?.takeIf { it > 0 }

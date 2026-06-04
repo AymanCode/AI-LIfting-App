@@ -9,6 +9,8 @@ import com.ayman.ecolift.agent.model.AgentTurnLogDao
 import com.ayman.ecolift.agent.model.AuditEntity
 import com.ayman.ecolift.agent.patches.AuditDao
 
+const val APP_DATABASE_VERSION = 16
+
 @Database(
     entities = [
         Exercise::class,
@@ -24,7 +26,7 @@ import com.ayman.ecolift.agent.patches.AuditDao
         ArchivedCycle::class,
         UserSettings::class,
     ],
-    version = 16,
+    version = APP_DATABASE_VERSION,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {

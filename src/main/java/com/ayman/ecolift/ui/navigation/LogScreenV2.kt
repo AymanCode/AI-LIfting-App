@@ -60,7 +60,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -2235,34 +2234,61 @@ fun SearchBarWithDropdown(
 @Composable
 fun EmptyLogState(
     modifier: Modifier = Modifier,
+    totalSets: Int = 0,
+    totalVolumeLbs: Int = 0,
     palette: LogGlassPalette = DefaultLogGlassPalette
 ) {
-    Column(
+    val shape = RoundedCornerShape(16.dp)
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .glassPanel(palette, RoundedCornerShape(18.dp), strong = true)
-            .padding(vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .sizeIn(minHeight = 76.dp)
+            .clip(shape)
+            .background(
+                Brush.horizontalGradient(
+                    listOf(
+                        palette.glassFill.copy(alpha = 0.46f),
+                        palette.pageBottom.copy(alpha = 0.18f),
+                    )
+                ),
+                shape
+            )
+            .border(1.dp, palette.glassStrokeStrong.copy(alpha = 0.24f), shape)
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Icon(
-            Icons.Outlined.FitnessCenter,
-            contentDescription = null,
-            tint = palette.accentStrong.copy(alpha = 0.72f),
-            modifier = Modifier.size(42.dp)
-        )
-        Spacer(modifier = Modifier.height(14.dp))
-        Text(
-            text = "No exercises yet",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = palette.ink
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "Search above to start today's log",
-            style = MaterialTheme.typography.bodySmall,
-            color = palette.inkSubtle
-        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(
+                text = "No logs today",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = palette.ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "Type above to add an exercise or load a set.",
+                style = MaterialTheme.typography.bodySmall,
+                color = palette.inkSubtle,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        if (totalSets > 0 || totalVolumeLbs > 0) {
+            Text(
+                text = "$totalSets sets",
+                modifier = Modifier.padding(start = 12.dp),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = palette.accentStrong,
+                maxLines = 1
+            )
+        }
     }
 }
 
@@ -2857,7 +2883,13 @@ fun LogScreen(
                 )
             }
             if (exercises.isEmpty() && !isSearchActive) {
-                item { EmptyLogState(palette = palette) }
+                item {
+                    EmptyLogState(
+                        totalSets = totalSets,
+                        totalVolumeLbs = totalVolumeLbs,
+                        palette = palette
+                    )
+                }
             }
         }
 

@@ -126,6 +126,7 @@ fun AppNavigation() {
     val navController = rememberNavController()
     val glassSettingsViewModel: GlassSettingsViewModel = viewModel()
     val paletteChoice by glassSettingsViewModel.paletteChoice.collectAsStateWithLifecycle()
+    val userBodyweightLbs by glassSettingsViewModel.userBodyweightLbs.collectAsStateWithLifecycle()
     val palette = paletteChoice.palette()
     
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -225,6 +226,8 @@ fun AppNavigation() {
                     AiScreen(
                         paletteChoice = paletteChoice,
                         onPaletteChoiceChange = glassSettingsViewModel::setPaletteChoice,
+                        userBodyweightLbs = userBodyweightLbs,
+                        onUserBodyweightChange = glassSettingsViewModel::setUserBodyweightLbs,
                     )
                 }
                 composable("split") {

@@ -32,14 +32,19 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     private val workoutRepository = WorkoutRepository(database)
 
     private val selectedExerciseId = MutableStateFlow<Long?>(null)
-    private val timeframe = MutableStateFlow(TimeframeFilter.THREE_MONTHS)
+    private val timeframe = MutableStateFlow(TimeframeFilter.ONE_MONTH)
     private val selectedMetric = MutableStateFlow(ProgressMetric.ESTIMATED_1RM)
     private val organizationMode = MutableStateFlow(ProgressOrganizationMode.PROGRESS)
     private val searchQuery = MutableStateFlow("")
     private val selectedSplitIndex = MutableStateFlow(0)
     
-    private val userBodyWeight = 180 
     private val historyStartDate = LocalDate.of(2000, 1, 1).toString()
+    private val userBodyweightLbs: StateFlow<Int?> = workoutRepository.observeUserBodyweightLbs()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = null,
+        )
 
     private val _exerciseList = MutableStateFlow<List<ProgressExerciseUi>>(emptyList())
 
@@ -49,13 +54,17 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         workoutRepository.observeAllWorkoutDays(),
     ) { slots, rows, days ->
         val slotIds = slots.map { it.id }.toSet()
+        val assignedSlotDays = days.filter { it.cycleSlotId != null && it.cycleSlotId in slotIds }
+        val completedSetsByDate = setRepository
+            .getCompletedSetsForDates(assignedSlotDays.map { it.date }.distinct())
+            .groupBy { it.date }
         val latestDates = days
-            .filter { it.cycleSlotId != null && it.cycleSlotId in slotIds }
+            .filter { it.cycleSlotId != null && it.cycleSlotId in slotIds && completedSetsByDate.containsKey(it.date) }
             .groupBy { it.cycleSlotId!! }
             .values
             .mapNotNull { splitDays -> splitDays.maxByOrNull(WorkoutDay::date)?.date }
             .distinct()
-        val setsByDate = setRepository.getSetsForDates(latestDates).groupBy { it.date }
+        val setsByDate = latestDates.associateWith { completedSetsByDate[it].orEmpty() }
         buildProgressSplitSources(
             slots = slots,
             savedRows = rows,
@@ -68,10 +77,11 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             combine(
                 exerciseRepository.exercises,
-                setRepository.observeExerciseProgressSummaries()
-            ) { _, summaries ->
+                setRepository.observeExerciseProgressSummaries(),
+                userBodyweightLbs,
+            ) { _, summaries, userBodyweight ->
                 val lastSessionSetsByDate = setRepository
-                    .getSetsForDates(summaries.map { it.lastSessionDate }.distinct())
+                    .getCompletedSetsForDates(summaries.map { it.lastSessionDate }.distinct())
                     .groupBy { it.date }
 
                 summaries.map { summary ->
@@ -79,7 +89,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                     val trend = buildProgressChartPoints(
                         filteredSets = historySets,
                         isBodyweight = summary.isBodyweight,
-                        userBodyWeight = userBodyWeight,
+                        userBodyWeight = userBodyweight,
                     ).takeLast(10).map { it.volume }
 
                     val latestVol = trend.lastOrNull()?.toFloat() ?: 0f
@@ -89,7 +99,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                     val lastSets = lastSessionSetsByDate[summary.lastSessionDate].orEmpty()
                         .filter { it.exerciseId == summary.exerciseId }
                     val lastSet = lastSets.maxByOrNull {
-                        effectiveLoadStored(it, summary.isBodyweight, userBodyWeight)
+                        effectiveLoadStored(it, summary.isBodyweight, userBodyweight)
                     }
 
                     ProgressExerciseUi(
@@ -113,10 +123,10 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     private val detailState = combine(
         selectedExerciseId,
         timeframe,
-        selectedMetric
-    ) { id, filter, metric ->
-        Triple(id, filter, metric)
-    }.flatMapLatest { (id: Long?, filter: TimeframeFilter, metric: ProgressMetric) ->
+        userBodyweightLbs,
+    ) { id, filter, userBodyweight ->
+        Triple(id, filter, userBodyweight)
+    }.flatMapLatest { (id: Long?, filter: TimeframeFilter, userBodyweight: Int?) ->
         if (id == null) {
             MutableStateFlow<DetailData?>(null)
         } else {
@@ -140,7 +150,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                 val chartPoints = buildProgressChartPoints(
                     filteredSets = filteredSets,
                     isBodyweight = isBodyweight,
-                    userBodyWeight = userBodyWeight
+                    userBodyWeight = userBodyweight
                 )
 
                 DetailData(
@@ -150,10 +160,8 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                     stats = buildProgressStats(
                         allTimeSets = allTimeSets,
                         timeframe = filter,
-                        chartPoints = chartPoints,
-                        selectedMetric = metric,
                         isBodyweight = isBodyweight,
-                        userBodyWeight = userBodyWeight,
+                        userBodyWeight = userBodyweight,
                         now = now
                     )
                 )
@@ -318,7 +326,7 @@ internal fun normalizeProgressSplitIndex(index: Int, pageCount: Int): Int {
 internal fun buildProgressChartPoints(
     filteredSets: List<WorkoutSet>,
     isBodyweight: Boolean,
-    userBodyWeight: Int,
+    userBodyWeight: Int?,
 ): List<ProgressPointUi> {
     return filteredSets
         .groupBy { it.date }
@@ -345,10 +353,8 @@ internal fun buildProgressChartPoints(
 internal fun buildProgressStats(
     allTimeSets: List<WorkoutSet>,
     timeframe: TimeframeFilter,
-    chartPoints: List<ProgressPointUi>,
-    selectedMetric: ProgressMetric,
     isBodyweight: Boolean,
-    userBodyWeight: Int,
+    userBodyWeight: Int?,
     now: LocalDate,
 ): ProgressStatsUi {
     // For testing with future dates, anchor the reference to the latest data if it's beyond 'now'
@@ -363,93 +369,37 @@ internal fun buildProgressStats(
         TimeframeFilter.ALL_TIME -> LocalDate.of(2000, 1, 1)
     }
 
-    val prevPeriodStart = when (timeframe) {
-        TimeframeFilter.ONE_MONTH -> referenceDate.minusMonths(2)
-        TimeframeFilter.THREE_MONTHS -> referenceDate.minusMonths(6)
-        TimeframeFilter.SIX_MONTHS -> referenceDate.minusMonths(12)
-        TimeframeFilter.ONE_YEAR -> referenceDate.minusYears(2)
-        TimeframeFilter.ALL_TIME -> LocalDate.of(2000, 1, 1)
-    }
-
     val currentSets = allTimeSets.filter { !LocalDate.parse(it.date).isBefore(currentPeriodStart) }
-    val prevSets = allTimeSets.filter {
-        val date = LocalDate.parse(it.date)
-        !date.isBefore(prevPeriodStart) && date.isBefore(currentPeriodStart)
-    }
 
-    // Sessions in current period for intra-period comparison
+    // Latest session in the window drives the current estimated 1RM.
     val sessionsInPeriod = currentSets.groupBy { it.date }.toSortedMap().values.toList()
     val latestSession = sessionsInPeriod.lastOrNull().orEmpty()
-    val firstSession = sessionsInPeriod.firstOrNull().orEmpty()
 
     val currentPr = allTimeSets.maxOfOrNull {
         effectiveLoadStored(it, isBodyweight, userBodyWeight)
     } ?: 0
-    val prevPrBase = allTimeSets
-        .filter { LocalDate.parse(it.date).isBefore(currentPeriodStart) }
-        .maxOfOrNull { effectiveLoadStored(it, isBodyweight, userBodyWeight) }
-    // If no previous history, compare to the first session in current period
-    val prevPr = prevPrBase
-        ?: firstSession.maxOfOrNull { effectiveLoadStored(it, isBodyweight, userBodyWeight) }
-        ?: currentPr
 
     val current1RM = latestEstimatedOneRepMax(latestSession, isBodyweight, userBodyWeight)
         ?: latestEstimatedOneRepMax(allTimeSets, isBodyweight, userBodyWeight)
         ?: 0f
 
-    val prevPeriod1RM = latestEstimatedOneRepMax(prevSets, isBodyweight, userBodyWeight)
-    val firstSession1RM = latestEstimatedOneRepMax(firstSession, isBodyweight, userBodyWeight)
-    // Compare latest 1RM in period to either the previous period's latest OR the first session in current period
-    val prev1RM = prevPeriod1RM ?: firstSession1RM ?: current1RM
-
     val currentVolume = calculateSessionVolume(currentSets, isBodyweight, userBodyWeight)
-    val prevVolume = calculateSessionVolume(prevSets, isBodyweight, userBodyWeight)
-
     val currentWorkoutCount = currentSets.map { it.date }.distinct().size
-    val prevWorkoutCount = prevSets.map { it.date }.distinct().size
-
-    val isPlateau = if (chartPoints.size >= 3) {
-        val first = chartPoints.first()
-        val last = chartPoints.last()
-        val y1 = when (selectedMetric) {
-            ProgressMetric.ESTIMATED_1RM -> first.estimated1RM
-            ProgressMetric.WEIGHT -> first.maxWeight.toFloat()
-            ProgressMetric.VOLUME -> first.volume.toFloat()
-        }
-        val y2 = when (selectedMetric) {
-            ProgressMetric.ESTIMATED_1RM -> last.estimated1RM
-            ProgressMetric.WEIGHT -> last.maxWeight.toFloat()
-            ProgressMetric.VOLUME -> last.volume.toFloat()
-        }
-
-        val d1 = LocalDate.parse(first.date).toEpochDay()
-        val d2 = LocalDate.parse(last.date).toEpochDay()
-        val days = (d2 - d1).toFloat().coerceAtLeast(1f)
-        val slope = (y2 - y1) / days
-
-        val relativeSlope = if (y1 > 0) Math.abs(slope / y1) else 0f
-        relativeSlope < 0.0001f
-    } else false
 
     return ProgressStatsUi(
         currentPr = WeightLbs.formatStored(currentPr),
         currentPrLbs = WeightLbs.toLbs(currentPr).toFloat(),
-        currentPrDelta = percentageDelta(currentPr.toFloat(), prevPr.toFloat()),
         est1Rm = String.format(Locale.US, "%.1f", current1RM),
-        est1RmDelta = percentageDelta(current1RM, prev1RM),
         totalVolume = formatVolume(currentVolume),
         totalVolumeLbs = currentVolume,
-        volumeDelta = percentageDelta(currentVolume.toFloat(), prevVolume.toFloat()),
         workoutCount = currentWorkoutCount,
-        workoutCountDelta = percentageDelta(currentWorkoutCount.toFloat(), prevWorkoutCount.toFloat()),
-        isPlateau = isPlateau
     )
 }
 
 private fun latestEstimatedOneRepMax(
     sets: List<WorkoutSet>,
     isBodyweight: Boolean,
-    userBodyWeight: Int,
+    userBodyWeight: Int?,
 ): Float? {
     if (sets.isEmpty()) return null
     val latestSession = sets
@@ -469,21 +419,21 @@ private fun latestEstimatedOneRepMax(
     )
 }
 
-private fun calc1RM(weight: Int, reps: Int, isBodyweight: Boolean, userBodyWeight: Int): Float {
+private fun calc1RM(weight: Int, reps: Int, isBodyweight: Boolean, userBodyWeight: Int?): Float {
     val baseWeight = WeightLbs.toLbs(weight)
-    val adjustedWeight = if (isBodyweight) baseWeight + userBodyWeight else baseWeight
+    val adjustedWeight = if (isBodyweight) baseWeight + (userBodyWeight ?: 0) else baseWeight
     return (adjustedWeight * (1 + reps / 30f)).toFloat()
 }
 
 private fun calculateSessionVolume(
     sets: List<WorkoutSet>,
     isBodyweight: Boolean,
-    userBodyWeight: Int,
+    userBodyWeight: Int?,
 ): Int {
     return sets.sumOf {
         val weight = WeightLbs.toLbs(it.weightLbs)
         val reps = it.reps ?: 0
-        val effectiveWeight = if (isBodyweight || it.isBodyweight) weight + userBodyWeight else weight
+        val effectiveWeight = if (isBodyweight || it.isBodyweight) weight + (userBodyWeight ?: 0) else weight
         (effectiveWeight * reps).toInt()
     }
 }
@@ -491,11 +441,11 @@ private fun calculateSessionVolume(
 private fun effectiveLoadStored(
     set: WorkoutSet,
     isBodyweightExercise: Boolean,
-    userBodyWeight: Int,
+    userBodyWeight: Int?,
 ): Int {
     val addedLoad = set.weightLbs ?: 0
     return if (isBodyweightExercise || set.isBodyweight) {
-        addedLoad + (userBodyWeight * 10)
+        addedLoad + ((userBodyWeight ?: 0) * 10)
     } else {
         addedLoad
     }
@@ -513,21 +463,6 @@ private fun formatProgressSetLabel(set: WorkoutSet, isBodyweightExercise: Boolea
         return "$load x $reps"
     }
     return "${WeightLbs.formatStored(set.weightLbs)} x $reps"
-}
-
-private fun calculateVolumeDelta(
-    current: List<WorkoutSet>,
-    prev: List<WorkoutSet>,
-    isBodyweight: Boolean,
-    userBodyWeight: Int,
-): Float {
-    val currentVolume = calculateSessionVolume(current, isBodyweight, userBodyWeight)
-    val previousVolume = calculateSessionVolume(prev, isBodyweight, userBodyWeight)
-    return percentageDelta(currentVolume.toFloat(), previousVolume.toFloat())
-}
-
-private fun percentageDelta(current: Float, previous: Float): Float {
-    return if (previous > 0f) (current - previous) / previous * 100f else 0f
 }
 
 private fun formatVolume(volume: Int): String {

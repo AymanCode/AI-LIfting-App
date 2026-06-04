@@ -20,12 +20,9 @@ class ProgressCalculationsTest {
             workoutSet(date = "2026-04-15", weight = 215, reps = 3),
         )
 
-        val chartPoints = buildProgressChartPoints(allTimeSets, false, 180)
         val stats = buildProgressStats(
             allTimeSets = allTimeSets,
             timeframe = TimeframeFilter.ONE_MONTH,
-            chartPoints = chartPoints,
-            selectedMetric = ProgressMetric.VOLUME,
             isBodyweight = false,
             userBodyWeight = 180,
             now = LocalDate.of(2026, 4, 17)
@@ -40,7 +37,7 @@ class ProgressCalculationsTest {
     }
 
     @Test
-    fun `buildProgressStats calculates real period deltas from workout history`() {
+    fun `buildProgressStats computes current-period values from workout history`() {
         val allTimeSets = listOf(
             workoutSet(date = "2026-02-10", weight = 100, reps = 10),
             workoutSet(date = "2026-03-10", weight = 200, reps = 5),
@@ -48,27 +45,17 @@ class ProgressCalculationsTest {
             workoutSet(date = "2026-04-20", weight = 220, reps = 5),
         )
 
-        val chartPoints = buildProgressChartPoints(
-            filteredSets = allTimeSets.filter { it.date >= "2026-04-01" },
-            isBodyweight = false,
-            userBodyWeight = 180
-        )
         val stats = buildProgressStats(
             allTimeSets = allTimeSets,
             timeframe = TimeframeFilter.ONE_MONTH,
-            chartPoints = chartPoints,
-            selectedMetric = ProgressMetric.VOLUME,
             isBodyweight = false,
             userBodyWeight = 180,
             now = LocalDate.of(2026, 4, 25)
         )
 
         assertEquals(220f, stats.currentPrLbs, 0.01f)
-        assertEquals(10f, stats.currentPrDelta, 0.01f)
         assertEquals(2200, stats.totalVolumeLbs)
-        assertEquals(120f, stats.volumeDelta, 0.01f)
         assertEquals(2, stats.workoutCount)
-        assertEquals(100f, stats.workoutCountDelta, 0.01f)
     }
 
     @Test
@@ -104,8 +91,6 @@ class ProgressCalculationsTest {
         val stats = buildProgressStats(
             allTimeSets = sets,
             timeframe = TimeframeFilter.ONE_MONTH,
-            chartPoints = points,
-            selectedMetric = ProgressMetric.WEIGHT,
             isBodyweight = true,
             userBodyWeight = 180,
             now = LocalDate.of(2026, 4, 17),
@@ -118,6 +103,33 @@ class ProgressCalculationsTest {
         assertEquals(205f, stats.currentPrLbs, 0.01f)
         assertEquals(3440, stats.totalVolumeLbs)
         assertTrue(points.single().estimated1RM > 259f)
+    }
+
+    @Test
+    fun `bodyweight progress without saved bodyweight uses added load only`() {
+        val sets = listOf(
+            workoutSet(date = "2026-04-10", weight = null, reps = 10, setNumber = 1, isBodyweight = true),
+            workoutSet(date = "2026-04-10", weight = 25, reps = 8, setNumber = 2, isBodyweight = true),
+        )
+
+        val points = buildProgressChartPoints(
+            filteredSets = sets,
+            isBodyweight = true,
+            userBodyWeight = null,
+        )
+        val stats = buildProgressStats(
+            allTimeSets = sets,
+            timeframe = TimeframeFilter.ONE_MONTH,
+            isBodyweight = true,
+            userBodyWeight = null,
+            now = LocalDate.of(2026, 4, 17),
+        )
+
+        assertEquals(WeightLbs.fromWholePounds(25), points.single().maxWeight)
+        assertEquals(200, points.single().volume)
+        assertEquals("25", stats.currentPr)
+        assertEquals(25f, stats.currentPrLbs, 0.01f)
+        assertEquals(200, stats.totalVolumeLbs)
     }
 
     @Test

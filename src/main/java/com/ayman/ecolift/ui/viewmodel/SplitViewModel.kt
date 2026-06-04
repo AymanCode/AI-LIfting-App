@@ -43,10 +43,10 @@ class SplitViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Recent workout days user can save into a split. Newest first. */
     val availableSessions: StateFlow<List<AvailableSessionUi>> =
-        setDao.observeAllDistinctDates()
+        setDao.observeCompletedDistinctDates()
             .mapLatest { dates ->
                 dates.take(30).mapNotNull { date ->
-                    val sets = setDao.getForDate(date)
+                    val sets = setDao.getCompletedForDates(listOf(date))
                     if (sets.isEmpty()) return@mapNotNull null
                     val ids = sets.map { it.exerciseId }.distinct()
                     val names = exerciseDao.getByIds(ids).associateBy { it.id }
@@ -65,7 +65,7 @@ class SplitViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Every day with at least one logged set. Drives the calendar's worked-day marks. */
     val workedDays: StateFlow<Set<LocalDate>> =
-        setDao.observeAllDistinctDates()
+        setDao.observeCompletedDistinctDates()
             .map { dates ->
                 dates.mapNotNullTo(mutableSetOf()) { runCatching { LocalDate.parse(it) }.getOrNull() }
             }
@@ -149,7 +149,14 @@ class SplitViewModel(application: Application) : AndroidViewModel(application) {
     ): Split {
         val slotDays = allDays.filter { it.cycleSlotId == slot.id }
             .sortedByDescending { it.date }
-        val mostRecentDate = slotDays.firstOrNull()?.date
+        val completedSetsByDate = setDao
+            .getCompletedForDates(slotDays.map { it.date }.distinct())
+            .groupBy { it.date }
+        val completedSlotDates = slotDays
+            .map { it.date }
+            .filter { completedSetsByDate.containsKey(it) }
+            .distinct()
+        val mostRecentDate = completedSlotDates.firstOrNull()
         val lastEpochDay = mostRecentDate?.let {
             runCatching { LocalDate.parse(it).toEpochDay() }.getOrNull()
         }
@@ -165,7 +172,7 @@ class SplitViewModel(application: Application) : AndroidViewModel(application) {
                 SplitExerciseRef(id, ex.name, history)
             }
         } else if (mostRecentDate != null) {
-            val sets = setDao.getForDate(mostRecentDate)
+            val sets = completedSetsByDate[mostRecentDate].orEmpty()
             val orderedIds = sets.map { it.exerciseId }.distinct()
             val byId = exerciseDao.getByIds(orderedIds).associateBy { it.id }
             orderedIds.mapNotNull { id ->
@@ -176,12 +183,12 @@ class SplitViewModel(application: Application) : AndroidViewModel(application) {
         } else emptyList()
 
         val estimatedDurationMin = if (mostRecentDate == null) 0
-        else (setDao.getForDate(mostRecentDate).size * 3).coerceAtLeast(15)
+        else (completedSetsByDate[mostRecentDate].orEmpty().size * 3).coerceAtLeast(15)
 
-        val recentDates = slotDays.take(6).map { it.date }
-        val setsOnDates = if (recentDates.isEmpty()) emptyList()
-        else setDao.getForDates(recentDates)
-        val volumeByDate = setsOnDates.groupBy { it.date }
+        val recentDates = completedSlotDates.take(6)
+        val volumeByDate = recentDates
+            .flatMap { completedSetsByDate[it].orEmpty() }
+            .groupBy { it.date }
             .mapValues { (_, dateSets) ->
                 dateSets.sumOf {
                     val weight = WeightLbs.toLbs(it.weightLbs)

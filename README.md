@@ -113,7 +113,11 @@ Do not commit local settings or model files:
 - `.env`
 - model files such as `.task`, `.bin`, `.gguf`, or `.litertlm`
 
-Most app functionality is local. Provider keys are only for local development and opt-in live assistant evals. `AI_RESCUE_EVAL_API_KEY` or `GROQ_API_KEY` can provide a key from the shell environment, and release builds blank the Groq key field. A production version should route cloud model calls through a backend proxy rather than shipping a provider key in the client.
+Most app functionality is local. Provider keys are only for local development and opt-in live assistant evals. `AI_RESCUE_EVAL_API_KEY` or `GROQ_API_KEY` can provide a key from the shell environment for debug builds, and release builds always blank the Groq key field. A production version should route cloud model calls through a backend proxy rather than shipping a provider key in the client.
+
+Release APKs are unsigned unless all release signing inputs are supplied from local Gradle properties or environment variables: `RELEASE_STORE_FILE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, and `RELEASE_KEY_PASSWORD`. Do not commit release signing files or passwords.
+
+Debug builds use the checked-in `.android/debug.keystore` only as a public debug/CI signer so update-compatibility tests have a stable certificate. Never reuse it for production or Play Store releases.
 
 ## Testing
 

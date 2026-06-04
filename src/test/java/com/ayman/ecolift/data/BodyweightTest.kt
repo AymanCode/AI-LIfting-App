@@ -21,4 +21,12 @@ class BodyweightTest {
         assertNull(normalizedBodyweightLoad(0))
         assertTrue(normalizedBodyweightLoad(250) == 250)
     }
+
+    @Test
+    fun `user bodyweight normalization rejects unset and nonpositive values`() {
+        assertNull(normalizedUserBodyweightLbs(null))
+        assertNull(normalizedUserBodyweightLbs(0))
+        assertNull(normalizedUserBodyweightLbs(-185))
+        assertTrue(normalizedUserBodyweightLbs(185) == 185)
+    }
 }

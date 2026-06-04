@@ -1,6 +1,7 @@
 package com.ayman.ecolift.ui.viewmodel
 
 import com.ayman.ecolift.data.ArchivedCycle
+import com.ayman.ecolift.data.ArchiveSummary
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -45,6 +46,15 @@ fun ArchivedCycle.toCardUi(): ArchiveCardUi = ArchiveCardUi(
     splitCount = splitCount,
     sessionCount = totalSessions,
     totalVolumeLbs = totalVolumeLbs,
+)
+
+fun ArchivedCycle.toCardUi(summary: ArchiveSummary): ArchiveCardUi = ArchiveCardUi(
+    id = id,
+    name = name,
+    dateRangeLabel = formatArchiveDateRange(startDate, endDate),
+    splitCount = summary.splitCount,
+    sessionCount = summary.totalSessions,
+    totalVolumeLbs = summary.totalVolumeLbs,
 )
 
 fun formatSignedLbs(delta: Float): String = when {

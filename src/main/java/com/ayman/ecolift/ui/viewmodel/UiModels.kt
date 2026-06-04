@@ -115,7 +115,7 @@ data class ProgressUiState(
     val selectedExerciseName: String = "",
     val isBodyweight: Boolean = false,
     val chartPoints: List<ProgressPointUi> = emptyList(),
-    val timeframe: TimeframeFilter = TimeframeFilter.THREE_MONTHS,
+    val timeframe: TimeframeFilter = TimeframeFilter.ONE_MONTH,
     val selectedMetric: ProgressMetric = ProgressMetric.ESTIMATED_1RM,
     val stats: ProgressStatsUi? = null
 )
@@ -124,15 +124,10 @@ data class ProgressUiState(
 data class ProgressStatsUi(
     val currentPr: String,
     val currentPrLbs: Float = 0f,
-    val currentPrDelta: Float,
     val est1Rm: String,
-    val est1RmDelta: Float,
     val totalVolume: String,
     val totalVolumeLbs: Int = 0,
-    val volumeDelta: Float,
     val workoutCount: Int,
-    val workoutCountDelta: Float,
-    val isPlateau: Boolean = false
 )
 
 // Split tab models

@@ -1,11 +1,5 @@
 package com.ayman.ecolift.ui.theme
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -145,26 +139,6 @@ fun GlassAmbientBackground(
     palette: GlassPalette,
     modifier: Modifier = Modifier,
 ) {
-    val motion = rememberInfiniteTransition(label = "glass_ambient")
-    val driftA by motion.animateFloat(
-        initialValue = -0.18f,
-        targetValue = 0.18f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 9400, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "ambient_a",
-    )
-    val driftB by motion.animateFloat(
-        initialValue = 0.16f,
-        targetValue = -0.14f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 11200, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "ambient_b",
-    )
-
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -176,22 +150,28 @@ fun GlassAmbientBackground(
                         end = Offset(size.width, size.height),
                     ),
                 )
-                drawCircle(
-                    color = palette.auraBlue.copy(alpha = 0.36f),
-                    radius = size.minDimension * 0.52f,
-                    center = Offset(size.width * (0.18f + driftA), size.height * 0.12f),
+                drawRect(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            palette.pageBottom.copy(alpha = 0.56f),
+                            Color.Transparent,
+                            palette.pageBottom.copy(alpha = 0.28f),
+                        ),
+                        start = Offset.Zero,
+                        end = Offset(size.width, 0f),
+                    ),
                 )
-                drawCircle(
-                    color = palette.auraGreen.copy(alpha = 0.40f),
-                    radius = size.minDimension * 0.58f,
-                    center = Offset(size.width * (0.88f + driftB), size.height * 0.38f),
+                drawRect(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            palette.auraGreen.copy(alpha = 0.08f),
+                            Color.Transparent,
+                        ),
+                        start = Offset(size.width * 0.08f, 0f),
+                        end = Offset(size.width * 0.92f, size.height),
+                    ),
                 )
-                drawCircle(
-                    color = palette.auraCyan.copy(alpha = 0.30f),
-                    radius = size.minDimension * 0.46f,
-                    center = Offset(size.width * (0.40f - driftB), size.height * 0.86f),
-                )
-                drawRect(palette.pageBottom.copy(alpha = 0.10f))
             },
     )
 }
