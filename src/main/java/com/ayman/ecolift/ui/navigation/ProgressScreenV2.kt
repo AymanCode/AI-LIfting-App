@@ -73,7 +73,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
-import com.ayman.ecolift.ui.theme.GlassPaletteSwitch
 import com.ayman.ecolift.ui.theme.LocalGlassPalette
 import com.ayman.ecolift.ui.theme.LogType
 import com.ayman.ecolift.ui.theme.glassPanel
@@ -320,14 +319,6 @@ fun ProgressDetailScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item {
-                GlassPaletteSwitch(
-                    selected = paletteChoice,
-                    onSelect = onPaletteChoiceChange,
-                    palette = palette
-                )
-            }
-
             // Time range chips
             item {
                 LazyRow(
@@ -745,13 +736,6 @@ fun ProgressScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            GlassPaletteSwitch(
-                selected = paletteChoice,
-                onSelect = onPaletteChoiceChange,
-                palette = palette,
-                modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 4.dp)
-            )
-
             ProgressOrganizationControl(
                 selectedMode = organizationMode,
                 onModeChange = onOrganizationModeChange,

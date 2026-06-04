@@ -138,7 +138,6 @@ import com.ayman.ecolift.ui.theme.AnimatedCounter
 import com.ayman.ecolift.ui.theme.AnimatedVolumeCounter
 import com.ayman.ecolift.ui.theme.DefaultLogGlassPalette
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
-import com.ayman.ecolift.ui.theme.GlassPaletteSwitch
 import com.ayman.ecolift.ui.theme.LogGlassPalette
 import com.ayman.ecolift.ui.theme.LogMaterialTypography
 import com.ayman.ecolift.ui.theme.LogType
@@ -202,6 +201,9 @@ private data class SetActionTarget(
 )
 
 private enum class RowSwipeIntent { Delete, Copy }
+
+private fun exerciseCollapseKey(date: String, exerciseId: Long): String =
+    "$date:$exerciseId"
 
 private fun LazyListState.isAtTop(): Boolean =
     firstVisibleItemIndex == 0 && firstVisibleItemScrollOffset == 0
@@ -2488,7 +2490,12 @@ fun LogScreen(
     palette: LogGlassPalette = paletteChoice.palette(),
     modifier: Modifier = Modifier
 ) {
-    var finishedExerciseIds by remember { mutableStateOf(emptySet<Long>()) }
+    var collapsedExerciseKeys by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var manuallyExpandedCompletedExerciseKeys by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    val collapsedExerciseKeySet = remember(collapsedExerciseKeys) { collapsedExerciseKeys.toSet() }
+    val manuallyExpandedCompletedExerciseKeySet = remember(manuallyExpandedCompletedExerciseKeys) {
+        manuallyExpandedCompletedExerciseKeys.toSet()
+    }
     val pendingDeletedSetIdsState = remember { mutableStateOf(emptySet<Long>()) }
     var pendingDeletedSetIds by pendingDeletedSetIdsState
     var plateSheetWeight by rememberSaveable { mutableStateOf<String?>(null) }
@@ -2510,7 +2517,20 @@ fun LogScreen(
     val selectedCalendarDate = remember(currentDate) {
         runCatching { LocalDate.parse(currentDate) }.getOrDefault(LocalDate.now())
     }
+    val isHistoricalDate = remember(selectedCalendarDate) {
+        selectedCalendarDate.isBefore(LocalDate.now())
+    }
     val latestOnDeleteSet = rememberUpdatedState(onDeleteSet)
+
+    fun rememberExerciseCollapsed(key: String) {
+        collapsedExerciseKeys = (collapsedExerciseKeys + key).distinct()
+        manuallyExpandedCompletedExerciseKeys = manuallyExpandedCompletedExerciseKeys - key
+    }
+
+    fun rememberExerciseExpanded(key: String) {
+        collapsedExerciseKeys = collapsedExerciseKeys - key
+        manuallyExpandedCompletedExerciseKeys = (manuallyExpandedCompletedExerciseKeys + key).distinct()
+    }
 
     fun flushPendingDeletes() {
         val ids = pendingDeletedSetIdsState.value
@@ -2521,7 +2541,6 @@ fun LogScreen(
     
     LaunchedEffect(currentDate) {
         flushPendingDeletes()
-        finishedExerciseIds = emptySet()
         activeNumberInput = null
         activeSetActions = null
         chromeReveal.locked = false
@@ -2749,13 +2768,6 @@ fun LogScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
             item {
-                GlassPaletteSwitch(
-                    selected = paletteChoice,
-                    onSelect = onPaletteChoiceChange,
-                    palette = palette
-                )
-            }
-            item {
                 SearchBarWithDropdown(
                     query = searchQuery,
                     results = searchResults,
@@ -2785,8 +2797,16 @@ fun LogScreen(
             ) { item ->
                 val i = item.originalIndex
                 val exercise = item.exercise
-                val isCollapsed = exercise.exerciseId in finishedExerciseIds
+                val exerciseKey = exerciseCollapseKey(currentDate, exercise.exerciseId)
                 val visibleSets = exercise.sets.filterNot { it.id in pendingDeletedSetIds }
+                val isFullyCompleted = visibleSets.isNotEmpty() && visibleSets.all { it.isCompleted }
+                val isAutoCollapsedPastExercise =
+                    isHistoricalDate &&
+                        isFullyCompleted &&
+                        exerciseKey !in manuallyExpandedCompletedExerciseKeySet
+                val isCollapsed =
+                    isFullyCompleted &&
+                        (exerciseKey in collapsedExerciseKeySet || isAutoCollapsedPastExercise)
                 ExerciseLogCard(
                     exerciseName = exercise.exerciseName,
                     muscleGroups = exercise.muscleGroups,
@@ -2797,11 +2817,11 @@ fun LogScreen(
                     onAddSet = { onAddSet(i) },
                     onAddSetFrom = { setId -> onAddSetFrom(exercise.exerciseId, setId) },
                     onToggleCollapsed = {
-                        if (!isCollapsed) onFinishExercise(i)
-                        finishedExerciseIds = if (isCollapsed) {
-                            finishedExerciseIds - exercise.exerciseId
+                        if (isCollapsed) {
+                            rememberExerciseExpanded(exerciseKey)
                         } else {
-                            finishedExerciseIds + exercise.exerciseId
+                            onFinishExercise(i)
+                            rememberExerciseCollapsed(exerciseKey)
                         }
                     },
                     onSwipeFinishAndCollapse = {
@@ -2811,7 +2831,7 @@ fun LogScreen(
                                 .forEach { set -> onCompleteSet(set.id) }
                             if (!isCollapsed) {
                                 onFinishExercise(i)
-                                finishedExerciseIds = finishedExerciseIds + exercise.exerciseId
+                                rememberExerciseCollapsed(exerciseKey)
                             }
                         }
                     },
