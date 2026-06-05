@@ -177,6 +177,45 @@ object Migrations {
         }
     }
 
+    val MIGRATION_16_17 = object : Migration(16, 17) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `cardio_sessions` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `local_uuid` TEXT NOT NULL,
+                    `date` TEXT NOT NULL,
+                    `activity_type` TEXT NOT NULL,
+                    `activity_label` TEXT,
+                    `duration_sec` INTEGER,
+                    `distance_m` REAL,
+                    `calories` INTEGER,
+                    `avg_heart_rate` INTEGER,
+                    `max_heart_rate` INTEGER,
+                    `avg_speed` REAL,
+                    `source` TEXT NOT NULL,
+                    `hc_uid` TEXT,
+                    `hc_data_origin_package` TEXT,
+                    `hc_last_modified_time` INTEGER,
+                    `start_time` INTEGER,
+                    `end_time` INTEGER,
+                    `zone_offset_seconds` INTEGER,
+                    `machine_type` TEXT,
+                    `ocr_confidence` REAL,
+                    `ocr_engine_version` TEXT,
+                    `notes` TEXT NOT NULL,
+                    `created_at` INTEGER NOT NULL,
+                    `updated_at` INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_cardio_sessions_local_uuid` ON `cardio_sessions` (`local_uuid`)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_cardio_sessions_hc_uid` ON `cardio_sessions` (`hc_uid`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_cardio_sessions_date` ON `cardio_sessions` (`date`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_cardio_sessions_start_time` ON `cardio_sessions` (`start_time`)")
+        }
+    }
+
     val ALL_MIGRATIONS = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
@@ -193,6 +232,7 @@ object Migrations {
         MIGRATION_13_14,
         MIGRATION_14_15,
         MIGRATION_15_16,
+        MIGRATION_16_17,
     )
 
     private fun migrateLegacyWorkoutSchemaToV3Shape(db: SupportSQLiteDatabase) {

@@ -25,7 +25,9 @@ class AppNavigationRoutesTest {
     fun `bottom nav treats detail routes as their parent tab`() {
         assertTrue(isRouteSelected(currentRoute = "log/42", tabRoute = "log"))
         assertTrue(isRouteSelected(currentRoute = "progress/99", tabRoute = "progress"))
+        assertTrue(isRouteSelected(currentRoute = "cardio", tabRoute = "cardio"))
         assertTrue(isRouteSelected(currentRoute = "cycleArchive/7", tabRoute = "split"))
         assertFalse(isRouteSelected(currentRoute = "progress/99", tabRoute = "log"))
+        assertFalse(isRouteSelected(currentRoute = "cardio", tabRoute = "ai"))
     }
 }
