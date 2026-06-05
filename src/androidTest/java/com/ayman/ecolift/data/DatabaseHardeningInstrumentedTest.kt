@@ -52,6 +52,7 @@ class DatabaseHardeningInstrumentedTest {
         context.deleteDatabase(PREPACKAGED_ASSET_DB)
         context.deleteDatabase(REPOSITORY_MUTATION_DB)
         context.deleteDatabase(FLUID_SET_LIFECYCLE_DB)
+        context.deleteDatabase(CARDIO_MIGRATION_DB)
     }
 
     @Test
@@ -174,6 +175,57 @@ class DatabaseHardeningInstrumentedTest {
     }
 
     @Test
+    fun migration16To17AddsCardioSessionsWithoutDroppingData() {
+        migrationHelper.createDatabase(CARDIO_MIGRATION_DB, 16).apply {
+            seedCoreWorkoutRows(weightLbs = 2250)
+            execSQL("INSERT INTO user_settings (id, user_bodyweight_lbs, glass_palette_choice) VALUES (1, 185, 'sage')")
+            close()
+        }
+
+        val migrated = migrationHelper.runMigrationsAndValidate(
+            CARDIO_MIGRATION_DB,
+            APP_DATABASE_VERSION,
+            true,
+            *Migrations.ALL_MIGRATIONS,
+        )
+
+        assertEquals(2250, migrated.longFor("SELECT weightLbs FROM workout_set WHERE id = 1"))
+        assertEquals("sage", migrated.stringFor("SELECT glass_palette_choice FROM user_settings WHERE id = 1"))
+        assertNotNull(migrated.stringFor("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'cardio_sessions'"))
+        assertNotNull(migrated.stringFor("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'index_cardio_sessions_hc_uid'"))
+        migrated.execSQL(
+            """
+            INSERT INTO cardio_sessions (
+                local_uuid,
+                date,
+                activity_type,
+                duration_sec,
+                distance_m,
+                calories,
+                source,
+                notes,
+                created_at,
+                updated_at
+            ) VALUES (
+                'cardio-migration-1',
+                '2026-05-16',
+                'RUN',
+                1800,
+                3218.688,
+                310,
+                'manual',
+                '',
+                1,
+                1
+            )
+            """.trimIndent()
+        )
+        assertEquals(1, migrated.longFor("SELECT COUNT(*) FROM cardio_sessions"))
+        migrated.assertCurrentRoomSchema()
+        migrated.close()
+    }
+
+    @Test
     fun legacyVersion1WorkoutRowsMigrateToCurrentWithoutDroppingData() = runTest {
         context.deleteDatabase(LEGACY_SOURCE_DB)
         SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(LEGACY_SOURCE_DB), null).use { db ->
@@ -252,11 +304,14 @@ class DatabaseHardeningInstrumentedTest {
         assertEquals(source.splitExerciseDao().getAll().size, target.splitExerciseDao().getAll().size)
         assertEquals(source.auditDao().getAll().size, target.auditDao().getAll().size)
         assertEquals(source.agentTurnLogDao().getAll().size, target.agentTurnLogDao().getAll().size)
+        assertEquals(source.cardioSessionDao().getAll().size, target.cardioSessionDao().getAll().size)
         assertEquals("Bench Press", target.exerciseDao().getById(1L)?.name)
         assertTrue(DataBackupManager.listAutomaticBackups(context).size > backupsBefore)
         assertEquals(source.archivedCycleDao().getAll().size, target.archivedCycleDao().getAll().size)
         assertEquals("Spring Block", target.archivedCycleDao().getById(700L)?.name)
         assertEquals(185, target.userSettingsDao().get()?.userBodyweightLbs)
+        assertEquals(310, target.cardioSessionDao().getById(800L)?.calories)
+        assertTrue(exportedSnapshot.cardioSessions.isNotEmpty())
     }
 
     @Test
@@ -527,6 +582,37 @@ class DatabaseHardeningInstrumentedTest {
                 )
             )
         )
+        db.cardioSessionDao().insertAll(
+            listOf(
+                CardioSession(
+                    id = 800L,
+                    localUuid = "cardio-manual-1",
+                    date = "2026-05-16",
+                    activityType = CardioActivityType.RUN.name,
+                    durationSec = 1800,
+                    distanceM = 3218.688,
+                    calories = 310,
+                    avgHeartRate = 142,
+                    source = CardioSessionSource.MANUAL,
+                    createdAt = 4L,
+                    updatedAt = 4L,
+                ),
+                CardioSession(
+                    id = 801L,
+                    localUuid = "cardio-health-connect-1",
+                    date = "2026-05-16",
+                    activityType = CardioActivityType.BIKE.name,
+                    durationSec = 1200,
+                    calories = 180,
+                    source = CardioSessionSource.HEALTH_CONNECT,
+                    hcUid = "hc-cardio-1",
+                    hcDataOriginPackage = "com.example.health",
+                    hcLastModifiedTime = 5L,
+                    createdAt = 5L,
+                    updatedAt = 5L,
+                ),
+            )
+        )
         db.userSettingsDao().upsert(UserSettings(userBodyweightLbs = 185))
     }
 
@@ -560,7 +646,10 @@ class DatabaseHardeningInstrumentedTest {
         assertNotNull(stringFor("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'agent_turn_log'"))
         assertNotNull(stringFor("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'archived_cycle'"))
         assertNotNull(stringFor("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'user_settings'"))
+        assertNotNull(stringFor("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'cardio_sessions'"))
         assertNotNull(stringFor("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'index_split_exercise_splitId_exerciseId'"))
+        assertNotNull(stringFor("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'index_cardio_sessions_local_uuid'"))
+        assertNotNull(stringFor("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'index_cardio_sessions_hc_uid'"))
         assertTrue(columnExists("user_settings", "glass_palette_choice"))
     }
 
@@ -574,5 +663,6 @@ class DatabaseHardeningInstrumentedTest {
         const val PREPACKAGED_ASSET_DB = "prepackaged-asset.db"
         const val REPOSITORY_MUTATION_DB = "repository-mutation.db"
         const val FLUID_SET_LIFECYCLE_DB = "fluid-set-lifecycle.db"
+        const val CARDIO_MIGRATION_DB = "migration-16-cardio.db"
     }
 }

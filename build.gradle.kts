@@ -26,7 +26,7 @@ plugins {
 
 android {
     namespace = "com.ayman.ecolift"
-    compileSdk = 35
+    compileSdk = 36
 
     signingConfigs {
         create("workspaceDebug") {
@@ -49,8 +49,8 @@ android {
         applicationId = "com.ayman.ecolift"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "1.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField(
@@ -126,6 +126,8 @@ dependencies {
     implementation("androidx.room:room-runtime:2.7.1")
     implementation("androidx.room:room-ktx:2.7.1")
     ksp("androidx.room:room-compiler:2.7.1")
+    implementation("androidx.health.connect:connect-client:1.1.0")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.google.ai.edge.aicore:aicore:0.0.1-exp02")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     testImplementation("junit:junit:4.13.2")

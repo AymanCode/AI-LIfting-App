@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -141,6 +142,7 @@ fun AppNavigation() {
         AppDestination("log", Icons.Filled.DateRange, "Log"),
         AppDestination("progress", Icons.AutoMirrored.Filled.ShowChart, "Progress"),
         AppDestination("ai", Icons.Filled.AutoAwesome, "IronMind"),
+        AppDestination("cardio", Icons.Filled.Favorite, "Cardio"),
         AppDestination("split", Icons.Filled.Refresh, "Split"),
     )
 
@@ -229,6 +231,9 @@ fun AppNavigation() {
                         userBodyweightLbs = userBodyweightLbs,
                         onUserBodyweightChange = glassSettingsViewModel::setUserBodyweightLbs,
                     )
+                }
+                composable("cardio") {
+                    CardioScreen()
                 }
                 composable("split") {
                     SplitScreen(

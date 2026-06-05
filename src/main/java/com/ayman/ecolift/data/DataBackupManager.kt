@@ -43,6 +43,7 @@ data class UserDataBackup(
     val agentTurns: List<AgentTurnLog> = emptyList(),
     val archivedCycles: List<ArchivedCycle> = emptyList(),
     val userSettings: UserSettings? = null,
+    val cardioSessions: List<CardioSession> = emptyList(),
 )
 
 data class LocalBackupInfo(
@@ -188,6 +189,7 @@ object DataBackupManager {
             val agentTurns = db.agentTurnLogDao().getAll()
             val archivedCycles = db.archivedCycleDao().getAll()
             val userSettings = db.userSettingsDao().get()
+            val cardioSessions = db.cardioSessionDao().getAll()
             val cycle = db.cycleDao().getCycle()
             UserDataBackup(
                 metadata = BackupMetadata(
@@ -207,6 +209,7 @@ object DataBackupManager {
                 agentTurns = agentTurns,
                 archivedCycles = archivedCycles,
                 userSettings = userSettings,
+                cardioSessions = cardioSessions,
             )
         }
 
@@ -226,6 +229,7 @@ object DataBackupManager {
             if (snapshot.agentTurns.isNotEmpty()) db.agentTurnLogDao().insertAll(snapshot.agentTurns)
             if (snapshot.archivedCycles.isNotEmpty()) db.archivedCycleDao().insertAll(snapshot.archivedCycles)
             snapshot.userSettings?.let { db.userSettingsDao().upsert(it) }
+            if (snapshot.cardioSessions.isNotEmpty()) db.cardioSessionDao().insertAll(snapshot.cardioSessions)
         }
     }
 
@@ -243,6 +247,7 @@ object DataBackupManager {
         writableDb.execSQL("DELETE FROM `agent_turn_log`")
         writableDb.execSQL("DELETE FROM `archived_cycle`")
         writableDb.execSQL("DELETE FROM `user_settings`")
+        writableDb.execSQL("DELETE FROM `cardio_sessions`")
         writableDb.execSQL("DELETE FROM sqlite_sequence")
     }
 
@@ -286,6 +291,7 @@ object DataBackupManager {
             auditEntries.size +
             agentTurns.size +
             archivedCycles.size +
+            cardioSessions.size +
             (if (userSettings != null) 1 else 0) +
             (if (cycle != null) 1 else 0)
         return BackupResult(
