@@ -1,6 +1,5 @@
 package com.ayman.ecolift.ui.navigation
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -43,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ayman.ecolift.data.progress.ComparisonWindow
+import com.ayman.ecolift.data.progress.CycleProgressCore
 import com.ayman.ecolift.data.progress.LiftTrend
 import com.ayman.ecolift.data.progress.ScoreWeights
 import com.ayman.ecolift.ui.theme.LocalGlassPalette
@@ -132,43 +133,14 @@ fun CycleArchiveDetailScreen(
                     .fillMaxSize()
                     .padding(innerPadding),
                 contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(22.dp),
             ) {
-                item(key = "range") {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .glassPanel(palette, RoundedCornerShape(18.dp), strong = true)
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                    ) {
-                        Text(
-                            formatArchiveDateRange(coreSnapshot.startDate, coreSnapshot.endDate),
-                            color = palette.ink,
-                            style = LogType.completedSummary,
-                        )
-                        Text(
-                            "${coreSnapshot.spanDays} days · ${coreSnapshot.lifts.size} lifts",
-                            color = palette.inkMuted,
-                            fontSize = 12.sp,
-                        )
-                    }
-                }
-                item(key = "window") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .glassPanel(palette, RoundedCornerShape(16.dp))
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "Compared to previous",
-                            color = palette.inkMuted,
-                            fontSize = 11.sp,
-                            modifier = Modifier.weight(1f),
-                        )
-                        WindowToggle(selected = window, onSelect = viewModel::setWindow)
-                    }
+                item(key = "report-header") {
+                    ArchiveReportHeader(
+                        core = coreSnapshot,
+                        window = window,
+                        onWindowChange = viewModel::setWindow,
+                    )
                 }
                 if (comparisonSnapshot != null && scoreSnapshot != null && comparisonSnapshot.comparedCount > 0) {
                     item(key = "hero") {
@@ -178,17 +150,8 @@ fun CycleArchiveDetailScreen(
                             onAdjustWeights = { showWeights = true },
                         )
                     }
-                    item(key = "chips-eyebrow") {
-                        SectionEyebrow("The cycle vs your previous ${window.label()}")
-                    }
                     item(key = "chips") { StoryChips(coreSnapshot, comparisonSnapshot) }
-                    item(key = "outcome-eyebrow") {
-                        SectionEyebrow("Movement vs your previous ${window.label()}")
-                    }
                     item(key = "outcome") { OutcomeBar(comparisonSnapshot) }
-                    item(key = "ladder-eyebrow") {
-                        SectionEyebrow("Every lift · ranked vs your previous ${window.label()}")
-                    }
                     item(key = "ladder") { GainLadder(comparisonSnapshot) }
                 } else if (comparisonSnapshot != null) {
                     item(key = "no-comparison") {
@@ -198,11 +161,8 @@ fun CycleArchiveDetailScreen(
                         )
                     }
                 }
-                item(key = "rep-eyebrow") { SectionEyebrow("Rep-range distribution · this cycle") }
                 item(key = "rep") { RepDistribution(coreSnapshot.repBuckets) }
-                item(key = "heat-eyebrow") { SectionEyebrow("Consistency · sessions over the span") }
                 item(key = "heat") { ConsistencyHeatmap(coreSnapshot) }
-                item(key = "trend-eyebrow") { SectionEyebrow("All lifts · trend grid") }
                 item(key = "trend") {
                     TrendGrid(
                         core = coreSnapshot,
@@ -263,6 +223,77 @@ fun CycleArchiveDetailScreen(
                     Text("Cancel", color = palette.inkSubtle)
                 }
             },
+        )
+    }
+}
+
+@Composable
+private fun ArchiveReportHeader(
+    core: CycleProgressCore,
+    window: ComparisonWindow,
+    onWindowChange: (ComparisonWindow) -> Unit,
+) {
+    val palette = LocalGlassPalette.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 2.dp, end = 2.dp, top = 4.dp),
+    ) {
+        Text(
+            text = formatArchiveDateRange(core.startDate, core.endDate),
+            color = palette.ink,
+            style = LogType.completedSummary,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            ArchiveHeaderStat("Days", core.spanDays.toString(), Modifier.weight(1f))
+            ArchiveHeaderStat("Lifts", core.lifts.size.toString(), Modifier.weight(1f))
+            ArchiveHeaderStat("Sessions", core.sessions.toString(), Modifier.weight(1f))
+            ArchiveHeaderStat("Sets", core.totalSets.toString(), Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "Compare against",
+                    color = palette.ink,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "Previous training history",
+                    color = palette.inkSubtle,
+                    fontSize = 11.sp,
+                )
+            }
+            WindowToggle(selected = window, onSelect = onWindowChange)
+        }
+    }
+}
+
+@Composable
+private fun ArchiveHeaderStat(label: String, value: String, modifier: Modifier = Modifier) {
+    val palette = LocalGlassPalette.current
+    Column(modifier = modifier) {
+        Text(
+            text = value,
+            color = palette.ink,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = label,
+            color = palette.inkSubtle,
+            fontSize = 11.sp,
         )
     }
 }
@@ -376,7 +407,15 @@ private fun LiftDetailSheet(
             )
             Spacer(Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                DetailStat("Velocity", if (slope == null) "N/A" else "${if (slope >= 0f) "+" else ""}${"%.1f".format(slope)} ${lift.unitLabel}", slopeColor)
+                DetailStat(
+                    "Velocity",
+                    if (slope == null) {
+                        "N/A"
+                    } else {
+                        "${if (slope >= 0f) "+" else ""}${"%.1f".format(slope)} ${lift.unitLabel}"
+                    },
+                    slopeColor,
+                )
                 DetailStat("Fit (R²)", if (lift.r2 != null) "%.2f".format(lift.r2) else "N/A", palette.ink)
                 DetailStat("vs window", formatPct(vsPct), if ((vsPct ?: 0f) >= 0f) palette.complete else palette.danger)
             }

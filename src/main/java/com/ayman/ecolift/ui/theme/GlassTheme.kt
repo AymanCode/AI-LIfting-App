@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -176,43 +177,134 @@ fun GlassAmbientBackground(
     )
 }
 
+/**
+ * The four material tiers of the glass system. Higher tiers read brighter and more present, and a
+ * warm outer glow is reserved for the top two so a single glance tells you what is live:
+ *
+ * - [Passive] — completed / inactive surfaces. Quiet: low-opacity fill, soft border, no glow.
+ * - [Standard] — default surfaces (normal cards, search, date controls, bottom nav bar). Readable,
+ *   polished translucency, no glow.
+ * - [Active] — the focused panel (the in-progress exercise card). Stronger fill and border, a clearer
+ *   top highlight, and a soft warm outer glow for depth.
+ * - [Interaction] — touched / selected / mid-gesture surfaces. The brightest tier: accent-tinted
+ *   border and the strongest glow, because the user is acting on it right now.
+ */
+enum class GlassLevel { Passive, Standard, Active, Interaction }
+
+private fun resolveGlassLevel(strong: Boolean, completed: Boolean, interactive: Boolean): GlassLevel =
+    when {
+        completed -> GlassLevel.Passive
+        interactive -> GlassLevel.Interaction
+        strong -> GlassLevel.Active
+        else -> GlassLevel.Standard
+    }
+
+/**
+ * Back-compatible entry point. Existing call sites pass [strong] / [completed]; [interactive] opts a
+ * surface into the brightest tier. The booleans map to a [GlassLevel] via [resolveGlassLevel]
+ * (completed wins over strong so a finished card always reads quiet).
+ */
 fun Modifier.glassPanel(
     palette: GlassPalette,
     shape: Shape,
     strong: Boolean = false,
     completed: Boolean = false,
+    interactive: Boolean = false,
+): Modifier = glassPanel(palette, shape, resolveGlassLevel(strong, completed, interactive))
+
+/**
+ * The material itself. Each tier owns a distinct fill, border weight/colour, top specular highlight
+ * and glow so no two tiers read alike — this is what keeps the UI from looking like one reused card.
+ */
+fun Modifier.glassPanel(
+    palette: GlassPalette,
+    shape: Shape,
+    level: GlassLevel,
 ): Modifier {
-    val fill = when {
-        completed -> Brush.linearGradient(
+    // Every tier stays translucent so the living background reads THROUGH the glass — the card
+    // transparency is deliberate. Hierarchy is carried by border, highlight and glow, never by
+    // making a higher tier more opaque. All tiers share the same translucent base (glassFill);
+    // only Passive drops lower to read quieter, and warmth is added as a tint, not as opacity.
+    val fill = when (level) {
+        GlassLevel.Passive -> Brush.linearGradient(
             listOf(
-                palette.complete.copy(alpha = 0.26f),
-                palette.glassFillStrong,
-                palette.auraCyan.copy(alpha = 0.20f),
+                palette.complete.copy(alpha = 0.10f),
+                palette.glassFill.copy(alpha = 0.46f),
+                palette.glassFillStrong.copy(alpha = 0.26f),
             ),
         )
-        strong -> Brush.linearGradient(
-            listOf(
-                palette.glassFillStrong,
-                palette.glassFill.copy(alpha = 0.72f),
-                palette.auraGreen.copy(alpha = 0.16f),
-            ),
-        )
-        else -> Brush.linearGradient(
+        GlassLevel.Standard -> Brush.linearGradient(
             listOf(
                 palette.glassFill,
                 palette.glassFillStrong.copy(alpha = 0.42f),
-                palette.auraBlue.copy(alpha = 0.12f),
+                palette.auraBlue.copy(alpha = 0.10f),
+            ),
+        )
+        GlassLevel.Active -> Brush.linearGradient(
+            listOf(
+                palette.glassFill,
+                palette.glassFillStrong.copy(alpha = 0.46f),
+                palette.accent.copy(alpha = 0.12f),
+            ),
+        )
+        GlassLevel.Interaction -> Brush.linearGradient(
+            listOf(
+                palette.glassFill,
+                palette.accent.copy(alpha = 0.16f),
+                palette.glassFillStrong.copy(alpha = 0.40f),
             ),
         )
     }
-    return this
-        .clip(shape)
-        .background(fill, shape)
-        .border(
-            width = 1.dp,
-            color = if (completed || strong) palette.glassStrokeStrong else palette.glassStroke,
+    val strokeColor = when (level) {
+        GlassLevel.Passive -> palette.glassStroke.copy(alpha = 0.50f)
+        GlassLevel.Standard -> palette.glassStroke
+        GlassLevel.Active -> palette.glassStrokeStrong
+        GlassLevel.Interaction -> palette.accentStrong.copy(alpha = 0.60f)
+    }
+    val strokeWidth = when (level) {
+        GlassLevel.Interaction -> 1.4.dp
+        GlassLevel.Active -> 1.1.dp
+        else -> 1.dp
+    }
+    // The thin band of light along the top edge that sells "glass". Brighter on the live tiers,
+    // off entirely on the quiet one.
+    val highlightAlpha = when (level) {
+        GlassLevel.Passive -> 0f
+        GlassLevel.Standard -> 0.05f
+        GlassLevel.Active -> 0.08f
+        GlassLevel.Interaction -> 0.10f
+    }
+
+    var m: Modifier = this
+    // Outer glow + depth, warm from the palette accent, reserved for the live tiers.
+    when (level) {
+        GlassLevel.Active -> m = m.shadow(
+            elevation = 10.dp,
             shape = shape,
+            clip = false,
+            ambientColor = palette.accent.copy(alpha = 0.22f),
+            spotColor = palette.accent.copy(alpha = 0.22f),
         )
+        GlassLevel.Interaction -> m = m.shadow(
+            elevation = 14.dp,
+            shape = shape,
+            clip = false,
+            ambientColor = palette.accentStrong.copy(alpha = 0.30f),
+            spotColor = palette.accentStrong.copy(alpha = 0.30f),
+        )
+        else -> {}
+    }
+    m = m.clip(shape).background(fill, shape)
+    if (highlightAlpha > 0f) {
+        m = m.background(
+            Brush.verticalGradient(
+                0f to Color.White.copy(alpha = highlightAlpha),
+                0.42f to Color.Transparent,
+            ),
+            shape,
+        )
+    }
+    return m.border(width = strokeWidth, color = strokeColor, shape = shape)
 }
 
 @Composable

@@ -113,7 +113,6 @@ fun CardioScreen(
                     .glassPanel(palette, RoundedCornerShape(18.dp), strong = true),
                 color = Color.Transparent,
                 shape = RoundedCornerShape(18.dp),
-                border = BorderStroke(1.dp, palette.glassStrokeStrong),
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),

@@ -30,4 +30,20 @@ class AppNavigationRoutesTest {
         assertFalse(isRouteSelected(currentRoute = "progress/99", tabRoute = "log"))
         assertFalse(isRouteSelected(currentRoute = "cardio", tabRoute = "ai"))
     }
+
+    @Test
+    fun `bottom nav never suppresses log taps`() {
+        assertFalse(shouldIgnoreBottomTabTap(currentRoute = "progress", targetRoute = "log"))
+        assertFalse(shouldIgnoreBottomTabTap(currentRoute = "ai", targetRoute = "log"))
+        assertFalse(shouldIgnoreBottomTabTap(currentRoute = "log/42", targetRoute = "log"))
+        assertFalse(shouldIgnoreBottomTabTap(currentRoute = "log", targetRoute = "log"))
+    }
+
+    @Test
+    fun `bottom nav still suppresses selected non log taps`() {
+        assertTrue(shouldIgnoreBottomTabTap(currentRoute = "progress", targetRoute = "progress"))
+        assertTrue(shouldIgnoreBottomTabTap(currentRoute = "progress/99", targetRoute = "progress"))
+        assertTrue(shouldIgnoreBottomTabTap(currentRoute = "cycleArchive/7", targetRoute = "split"))
+        assertFalse(shouldIgnoreBottomTabTap(currentRoute = "progress", targetRoute = "ai"))
+    }
 }

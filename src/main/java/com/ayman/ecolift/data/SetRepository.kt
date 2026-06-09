@@ -129,13 +129,17 @@ internal fun buildLastSessionSetCopies(
     exerciseId: Long,
     historyBeforeDate: List<WorkoutSet>,
 ): List<WorkoutSet> {
-    val lastDate = historyBeforeDate
-        .filter { it.exerciseId == exerciseId && it.date < date }
+    // The "reference" for a re-added exercise is the last session the user actually checked off.
+    // Sessions logged but left unchecked (parked, abandoned, or later un-checked) must not seed the
+    // new sets — keeping this in sync with the hint label, which is already completed-only.
+    val completedHistory = historyBeforeDate
+        .filter { it.exerciseId == exerciseId && it.date < date && it.completed }
+    val lastDate = completedHistory
         .maxOfOrNull(WorkoutSet::date)
         ?: return emptyList()
 
-    return historyBeforeDate
-        .filter { it.exerciseId == exerciseId && it.date == lastDate }
+    return completedHistory
+        .filter { it.date == lastDate }
         .sortedBy(WorkoutSet::setNumber)
         .mapIndexed { index, template ->
             WorkoutSet(

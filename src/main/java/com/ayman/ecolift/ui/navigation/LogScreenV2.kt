@@ -9,6 +9,8 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -17,6 +19,12 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -99,7 +107,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
@@ -151,6 +158,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -200,6 +208,15 @@ private data class SetActionTarget(
 )
 
 private enum class RowSwipeIntent { Delete, Copy }
+
+/** How long the "Set removed / Undo" snackbar lingers before the delete commits. */
+private const val SET_DELETE_UNDO_MILLIS = 2_000L
+
+/**
+ * How long the "Removed {exercise} / Undo" snackbar lingers before the removal commits. A hair longer
+ * than a single set since the whole card is gone, but still brief — if you meant it, it shouldn't nag.
+ */
+private const val EXERCISE_REMOVE_UNDO_MILLIS = 2_500L
 
 private fun exerciseCollapseKey(date: String, exerciseId: Long): String =
     "$date:$exerciseId"
@@ -261,9 +278,12 @@ fun LogTopBar(
         title = {
             Column(
                 modifier = Modifier
-                    .glassPanel(palette, RoundedCornerShape(16.dp), strong = true)
+                    // Status header, not a button: a quiet translucent label — flat, hairline edge, no glow.
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(palette.glassFill.copy(alpha = 0.38f), RoundedCornerShape(13.dp))
+                    .border(1.dp, palette.glassStroke.copy(alpha = 0.40f), RoundedCornerShape(13.dp))
                     .clickable(onClick = onDateClick)
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                    .padding(horizontal = 18.dp, vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -439,23 +459,8 @@ fun LogSetRow(
         label = "set_vertical_swipe"
     )
     val swipeThresholdPx = with(LocalDensity.current) { 54.dp.toPx() }
-    val rowShape = RoundedCornerShape(14.dp)
-    val rowFill = if (set.isCompleted) {
-        Brush.linearGradient(
-            listOf(
-                palette.complete.copy(alpha = 0.30f),
-                palette.glassFillStrong,
-                palette.auraCyan.copy(alpha = 0.18f)
-            )
-        )
-    } else {
-        Brush.linearGradient(
-            listOf(
-                palette.glassFill.copy(alpha = 0.86f),
-                palette.glassFillStrong.copy(alpha = 0.42f)
-            )
-        )
-    }
+    // The set row is no longer its own boxed container — the exercise card is the ONLY container.
+    // The toggle, value lines and summary read as elements inside the card, parted by space not borders.
 
     Box(
         modifier = modifier
@@ -543,46 +548,63 @@ fun LogSetRow(
                     onOpenActions()
                 }
             )
-            .glassPanel(palette, rowShape, completed = set.isCompleted)
-            .background(rowFill, rowShape)
-            .padding(horizontal = 10.dp, vertical = 9.dp)
+            .padding(horizontal = 4.dp, vertical = 6.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Surface(
-                onClick = {
-                    heavyHaptic()
-                    onCompleteSet()
-                },
-                modifier = Modifier.size(42.dp),
-                shape = RoundedCornerShape(12.dp),
-                color = if (set.isCompleted) palette.complete else palette.glassFillStrong,
-                border = BorderStroke(1.dp, if (set.isCompleted) palette.complete else palette.glassStroke),
-                contentColor = if (set.isCompleted) Color.White else palette.ink
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (set.isCompleted) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(16.dp)
-                                .clip(RoundedCornerShape(5.dp))
-                                .border(
-                                    width = 2.dp,
-                                    color = palette.inkMuted.copy(alpha = 0.72f),
-                                    shape = RoundedCornerShape(5.dp)
-                                )
-                        )
+            val checkScale by animateFloatAsState(
+                targetValue = if (set.isCompleted) 1f else 0.92f,
+                animationSpec = spring(stiffness = 500f, dampingRatio = 0.5f),
+                label = "checkScale"
+            )
+            val checkCorner by animateDpAsState(
+                targetValue = if (set.isCompleted) 12.dp else 6.dp,
+                animationSpec = tween(200),
+                label = "checkCorner"
+            )
+            
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .graphicsLayer {
+                        scaleX = checkScale
+                        scaleY = checkScale
                     }
+                    .clip(RoundedCornerShape(checkCorner))
+                    .clickable {
+                        heavyHaptic()
+                        onCompleteSet()
+                    }
+                    .background(
+                        if (set.isCompleted) {
+                            Brush.linearGradient(
+                                listOf(palette.complete, palette.complete.copy(alpha = 0.8f))
+                            )
+                        } else {
+                            SolidColor(palette.glassFill.copy(alpha = 0.35f))
+                        }
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = if (set.isCompleted) Color.Transparent else palette.inkSubtle.copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(checkCorner)
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = set.isCompleted,
+                    enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.5f),
+                    exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.5f)
+                ) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp),
+                    )
                 }
             }
 
@@ -666,45 +688,36 @@ private fun CompletedSetSummary(
     palette: LogGlassPalette,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(12.dp)
-    Surface(
+    // De-boxed: a completed set reads as inline text within the card — no bordered pill.
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(50.dp),
-        shape = shape,
-        color = palette.glassFillStrong.copy(alpha = 0.78f),
-        border = BorderStroke(1.dp, palette.glassStrokeStrong),
-        shadowElevation = 0.dp
+            .height(44.dp)
+            .padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = completedLoadLabel(set),
-                modifier = Modifier.weight(1f),
-                style = LogType.completedSummary,
-                color = palette.ink,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = "x",
-                style = LogType.completedSummary,
-                fontWeight = FontWeight.Medium,
-                color = palette.inkSubtle
-            )
-            Text(
-                text = "${set.reps.ifBlank { "-" }} reps",
-                style = LogType.completedSummary,
-                color = palette.ink,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+        Text(
+            text = completedLoadLabel(set),
+            modifier = Modifier.weight(1f),
+            style = LogType.completedSummary,
+            color = palette.ink,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = "x",
+            style = LogType.completedSummary,
+            fontWeight = FontWeight.Medium,
+            color = palette.inkSubtle
+        )
+        Text(
+            text = "${set.reps.ifBlank { "-" }} reps",
+            style = LogType.completedSummary,
+            color = palette.ink,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -734,125 +747,159 @@ private fun GlassDragValue(
     val tickPx = with(density) { 26.dp.toPx() }
     var dragCarry by remember { mutableStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    
     val numericValue = displayValue.toFloatOrNull() ?: 0f
-    val targetFill = when (step) {
-        5 -> (0.22f + numericValue / 360f).coerceIn(0.16f, 0.88f)
-        else -> (0.18f + numericValue / 28f).coerceIn(0.16f, 0.88f)
-    }
-    val railFill by animateFloatAsState(
-        targetValue = if (isDragging) (targetFill + 0.10f).coerceAtMost(0.96f) else targetFill,
-        animationSpec = tween(140),
-        label = "drag_rail_fill"
-    )
-    val railShape = RoundedCornerShape(12.dp)
-    val railGradient = Brush.horizontalGradient(
+
+    val railGradient = androidx.compose.ui.graphics.Brush.horizontalGradient(
         listOf(
-            palette.accent.copy(alpha = if (isDragging) 0.68f else 0.46f),
-            palette.auraBlue.copy(alpha = if (isDragging) 0.64f else 0.42f)
+            palette.accent.copy(alpha = if (isDragging) 0.95f else 0.75f),
+            palette.accentStrong.copy(alpha = if (isDragging) 0.90f else 0.70f)
         )
     )
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(40.dp)
-            .clip(railShape)
-            .background(
-                Brush.horizontalGradient(
-                    listOf(
-                        palette.glassFillStrong.copy(alpha = if (isDragging) 0.92f else 0.74f),
-                        palette.glassFill.copy(alpha = if (isDragging) 0.76f else 0.54f)
-                    )
-                ),
-                railShape
-            )
-            .border(
-                width = 1.dp,
-                color = if (isDragging) palette.accentStrong.copy(alpha = 0.52f) else palette.glassStroke,
-                shape = railShape
-            )
-            .combinedClickable(
-                onClick = onActivate,
-                onLongClick = { onLongPress?.invoke() }
-            )
-            .pointerInput(step) {
-                detectHorizontalDragGestures(
-                    onDragStart = {
-                        dragCarry = 0f
+    val valueColor = when {
+        isPlaceholder -> palette.inkSubtle
+        isBodyweight && displayValue.isBlank() -> palette.accentStrong
+        isShowingSuggestion -> palette.ink.copy(alpha = 0.52f)
+        isDragging -> palette.accentStrong
+        else -> palette.ink
+    }
+
+    val draggableState = rememberDraggableState { delta ->
+        dragCarry += delta
+        val ticks = (dragCarry / tickPx).roundToInt()
+        if (ticks != 0) {
+            onStep(-ticks * step)
+            dragCarry -= ticks * tickPx
+        }
+    }
+
+    Box(modifier = modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(4.dp))
+                .combinedClickable(
+                    onClick = onActivate,
+                    onLongClick = { onLongPress?.invoke() }
+                )
+                .draggable(
+                    state = draggableState,
+                    orientation = Orientation.Horizontal,
+                    onDragStarted = { 
                         isDragging = true
-                    },
-                    onDragCancel = {
                         dragCarry = 0f
-                        isDragging = false
                     },
-                    onDragEnd = {
-                        dragCarry = 0f
+                    onDragStopped = { velocity ->
                         isDragging = false
-                    },
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        dragCarry += dragAmount
-                        val ticks = (dragCarry / tickPx).roundToInt()
-                        if (ticks != 0) {
-                            onStep(ticks * step)
-                            dragCarry -= ticks * tickPx
+                        coroutineScope.launch {
+                            val targetOffset = (velocity / 3f).coerceIn(-1500f, 1500f)
+                            val durationMillis = (kotlin.math.abs(targetOffset) * 1.5f).toInt().coerceIn(300, 1000)
+                            if (durationMillis > 50) {
+                                var lastValue = 0f
+                                Animatable(0f).animateTo(
+                                    targetValue = targetOffset,
+                                    animationSpec = tween(durationMillis, easing = FastOutSlowInEasing)
+                                ) {
+                                    val delta = this.value - lastValue
+                                    lastValue = this.value
+                                    dragCarry += delta
+                                    val ticks = (dragCarry / tickPx).roundToInt()
+                                    if (ticks != 0) {
+                                        onStep(-ticks * step)
+                                        dragCarry -= ticks * tickPx
+                                    }
+                                }
+                            }
                         }
                     }
                 )
-            }
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(railFill)
-                .background(railGradient)
-                .align(Alignment.CenterStart)
-        )
-
-        Row(
-            modifier = Modifier
-                .matchParentSize()
-                .padding(start = 12.dp, end = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 2.dp)
         ) {
-            Text(
-                text = label.uppercase(Locale.US),
-                modifier = Modifier.width(46.dp),
-                style = LogType.railLabel,
-                color = palette.inkMuted.copy(alpha = 0.90f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = fieldText,
-                modifier = Modifier.weight(1f),
-                style = LogType.railValue,
-                color = when {
-                    isPlaceholder -> palette.inkSubtle
-                    isBodyweight && displayValue.isBlank() -> palette.accentStrong
-                    isShowingSuggestion -> palette.ink.copy(alpha = 0.52f)
-                    isDragging -> palette.accentStrong
-                    else -> palette.ink
-                },
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.End
-            )
-
-            Box(
+            Column(
                 modifier = Modifier
-                    .width(26.dp)
-                    .height(16.dp),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                verticalArrangement = Arrangement.Center
             ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = label,
+                        style = LogType.railLabel,
+                        color = palette.inkSubtle.copy(alpha = 0.85f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = fieldText,
+                        style = LogType.railValue,
+                        color = valueColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.End
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                // Solid vibrant track with treadmill ticks
                 Box(
                     modifier = Modifier
-                        .width(18.dp)
-                        .height(2.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(palette.inkSubtle.copy(alpha = if (isDragging) 0.70f else 0.46f))
-                )
+                        .fillMaxWidth()
+                        .height(24.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(railGradient)
+                ) {
+                    Canvas(modifier = Modifier.matchParentSize()) {
+                        val width = size.width
+                        val height = size.height
+                        
+                        val pixelsPerUnit = tickPx / step.toFloat()
+                        // Add dragCarry for smooth continuous scrolling
+                        val absoluteOffsetPx = (-numericValue * pixelsPerUnit) + dragCarry
+                        
+                        val tickSpacing = tickPx
+                        // Ensure shift is strictly positive for correct rendering
+                        val shift = ((absoluteOffsetPx % tickSpacing) + tickSpacing) % tickSpacing
+                        
+                        var x = shift - tickSpacing
+                        
+                        while (x < width + tickSpacing) {
+                            // Ticks are fully visible, maybe fading out very slightly at edges
+                            val distanceFromCenter = kotlin.math.abs(x - width / 2f)
+                            val edgeFade = (1f - (distanceFromCenter / (width / 2f))).coerceIn(0f, 1f)
+                            val curvedFade = edgeFade * edgeFade
+                            // We make them quite visible since they sit on a vibrant background
+                            val alpha = curvedFade * (if (isDragging) 0.55f else 0.40f)
+                            
+                            if (alpha > 0.01f) {
+                                drawLine(
+                                    color = androidx.compose.ui.graphics.Color.White,
+                                    alpha = alpha,
+                                    start = androidx.compose.ui.geometry.Offset(x, height * 0.25f),
+                                    end = androidx.compose.ui.geometry.Offset(x, height * 0.75f),
+                                    strokeWidth = 2.dp.toPx(),
+                                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                )
+                            }
+                            x += tickSpacing
+                        }
+                    }
+                    
+                    // Center marker indicator to show it's a dial
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .size(width = 3.dp, height = 24.dp)
+                            .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f))
+                    )
+                }
             }
         }
     }
@@ -866,10 +913,13 @@ fun ExerciseLogCard(
     isNewPB: Boolean,
     sets: List<LoggedSet>,
     isCollapsed: Boolean,
+    isParked: Boolean,
     onAddSet: () -> Unit,
     onAddSetFrom: (Long) -> Unit,
-    onToggleCollapsed: () -> Unit,
+    onMinimize: () -> Unit,
+    onExpand: () -> Unit,
     onSwipeFinishAndCollapse: () -> Unit,
+    onRemoveExercise: () -> Unit,
     onCompleteSet: (Long) -> Unit,
     onDeleteSet: (LoggedSet) -> Unit,
     onWeightStep: (Long, Int) -> Unit,
@@ -884,6 +934,14 @@ fun ExerciseLogCard(
     onInteraction: () -> Unit = {}
 ) {
     val heavyHaptic = rememberHeavyHaptic()
+    // The swipe gesture below lives in a pointerInput keyed on size/collapse/fully-completed,
+    // so it does NOT restart when an individual set is ticked complete. Without this, onDragEnd
+    // would invoke a STALE onSwipeFinishAndCollapse captured from an earlier composition — one
+    // whose snapshot still thinks the just-completed set is incomplete, so the swipe would
+    // toggle that set back OFF. rememberUpdatedState keeps the long-lived coroutine pointed at
+    // the latest lambda (same pattern used for onDeleteSet in LogScreen).
+    val latestSwipeFinish = rememberUpdatedState(onSwipeFinishAndCollapse)
+    val latestRemove = rememberUpdatedState(onRemoveExercise)
     var dragOffset by remember { mutableStateOf(0f) }
     val animatedOffset by animateFloatAsState(
         targetValue = dragOffset,
@@ -896,77 +954,96 @@ fun ExerciseLogCard(
         animationSpec = spring(stiffness = 650f, dampingRatio = 0.82f),
         label = "exercise_card_corner_radius"
     )
-    val completionGlow by animateFloatAsState(
-        targetValue = if (isFullyCompleted || isCollapsed) 1f else 0f,
-        animationSpec = tween(durationMillis = 280),
-        label = "exercise_complete_glow"
-    )
     val cardShape = RoundedCornerShape(cardCornerRadius)
     val cardSwipeStartLimitPx = with(LocalDensity.current) { 154.dp.toPx() }
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .graphicsLayer {
-                translationX = animatedOffset
-                alpha = 1f - (abs(animatedOffset) / 900f).coerceIn(0f, 0.18f)
-            }
-            .pointerInput(isCollapsed, isFullyCompleted, sets.size, cardSwipeStartLimitPx) {
-                if (isCollapsed || sets.isEmpty()) return@pointerInput
-                var isCardSwipeActive = false
-                detectHorizontalDragGestures(
-                    onDragStart = { startOffset ->
-                        isCardSwipeActive = isFullyCompleted || startOffset.y <= cardSwipeStartLimitPx
-                        dragOffset = 0f
-                    },
-                    onDragEnd = {
-                        if (isCardSwipeActive && abs(dragOffset) > 96f) {
-                            heavyHaptic()
-                            onSwipeFinishAndCollapse()
+    Box(modifier = modifier.fillMaxWidth()) {
+        // Behind the card: the directional swipe hint. Drag right past the threshold to finish (green),
+        // left to remove (red). Only visible while dragging; set rows below swipe vertically, so the
+        // card's horizontal swipe never clashes with them.
+        SwipeActionBackground(
+            offsetX = animatedOffset,
+            cardShape = cardShape,
+            palette = palette,
+            modifier = Modifier.matchParentSize()
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    translationX = animatedOffset
+                    alpha = 1f - (abs(animatedOffset) / 900f).coerceIn(0f, 0.18f)
+                }
+                .pointerInput(isCollapsed, isParked, isFullyCompleted, sets.size, cardSwipeStartLimitPx) {
+                    if (isCollapsed || isParked || sets.isEmpty()) return@pointerInput
+                    var isCardSwipeActive = false
+                    detectHorizontalDragGestures(
+                        onDragStart = { startOffset ->
+                            isCardSwipeActive = isFullyCompleted || startOffset.y <= cardSwipeStartLimitPx
+                            dragOffset = 0f
+                        },
+                        onDragEnd = {
+                            // Right past the finish threshold -> finish & fold. Left past the slightly
+                            // larger remove threshold -> remove the card. The asymmetry makes the
+                            // destructive direction a touch harder to trigger by accident.
+                            if (isCardSwipeActive) {
+                                when {
+                                    dragOffset > 96f -> {
+                                        heavyHaptic()
+                                        latestSwipeFinish.value()
+                                    }
+                                    dragOffset < -120f -> {
+                                        heavyHaptic()
+                                        latestRemove.value()
+                                    }
+                                }
+                            }
+                            dragOffset = 0f
+                            isCardSwipeActive = false
+                        },
+                        onDragCancel = {
+                            dragOffset = 0f
+                            isCardSwipeActive = false
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            if (isCardSwipeActive) {
+                                change.consume()
+                                dragOffset = (dragOffset + dragAmount).coerceIn(-140f, 140f)
+                            }
                         }
-                        dragOffset = 0f
-                        isCardSwipeActive = false
-                    },
-                    onDragCancel = {
-                        dragOffset = 0f
-                        isCardSwipeActive = false
-                    },
-                    onHorizontalDrag = { change, dragAmount ->
-                        if (isCardSwipeActive) {
-                            change.consume()
-                            dragOffset = (dragOffset + dragAmount).coerceIn(-140f, 140f)
-                        }
-                    }
-                )
-            }
-            .drawBehind {
-                if (completionGlow > 0f) {
-                    drawCircle(
-                        color = palette.complete.copy(alpha = 0.18f * completionGlow),
-                        radius = size.minDimension * 0.72f,
-                        center = Offset(size.width * 0.78f, size.height * 0.20f)
                     )
                 }
-            }
-            .glassPanel(palette, cardShape, strong = isFullyCompleted || isCollapsed, completed = isFullyCompleted || isCollapsed)
-            .padding(vertical = if (isCollapsed) 0.dp else 4.dp)
-    ) {
+                // Active (in-progress) card reads as the brightest panel; once finished/collapsed it
+                // drops to the quiet Passive tier. `completed` wins over `strong` in the resolver.
+                .glassPanel(palette, cardShape, strong = true, completed = isFullyCompleted || isCollapsed)
+                .padding(vertical = if (isCollapsed) 0.dp else 4.dp)
+        ) {
         AnimatedContent(
-            targetState = isCollapsed,
+            targetState = isCollapsed || isParked,
             transitionSpec = {
                 (fadeIn(animationSpec = tween(durationMillis = 140)) togetherWith
                     fadeOut(animationSpec = tween(durationMillis = 90)))
             },
             label = "exercise_finish_collapse"
-        ) { collapsed ->
-            if (collapsed) {
-                FinishedExerciseRow(
-                    exerciseName = exerciseName,
-                    isNewPB = isNewPB,
-                    sets = sets,
-                    onExpand = onToggleCollapsed,
-                    palette = palette
-                )
+        ) { folded ->
+            if (folded) {
+                if (isParked) {
+                    ParkedExerciseRow(
+                        exerciseName = exerciseName,
+                        isNewPB = isNewPB,
+                        setCount = sets.size,
+                        onExpand = onExpand,
+                        palette = palette
+                    )
+                } else {
+                    FinishedExerciseRow(
+                        exerciseName = exerciseName,
+                        isNewPB = isNewPB,
+                        sets = sets,
+                        onExpand = onExpand,
+                        palette = palette
+                    )
+                }
                 return@AnimatedContent
             }
 
@@ -974,6 +1051,25 @@ fun ExerciseLogCard(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Top-center grab handle: tap to fold this card — park it if you're mid-exercise, or
+                // collapse it if every set is done — without losing your place. It's a clickable child,
+                // so it eats the tap while horizontal drags starting on it still fall through to the
+                // swipe: no dead zone, and no double-tap delay on the title.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .clip(RoundedCornerShape(50))
+                        .clickable { heavyHaptic(); onMinimize() }
+                        .padding(horizontal = 24.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 30.dp, height = 4.dp)
+                            .clip(CircleShape)
+                            .background(palette.inkSubtle.copy(alpha = 0.4f))
+                    )
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth(),
@@ -987,15 +1083,9 @@ fun ExerciseLogCard(
                             .padding(vertical = 1.dp)
                     ) {
                         Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    if (isFullyCompleted) {
-                                        heavyHaptic()
-                                        onToggleCollapsed()
-                                    }
-                                }
-                                .padding(vertical = 1.dp),
+                            // The card now folds via the top handle, so the title is just the title —
+                            // no hidden tap-to-collapse here.
+                            modifier = Modifier.padding(vertical = 1.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
@@ -1029,9 +1119,10 @@ fun ExerciseLogCard(
                 
                     Surface(
                         onClick = { onInteraction(); onAddSet() },
-                        shape = RoundedCornerShape(14.dp),
-                        color = palette.glassFillStrong,
-                        border = BorderStroke(1.dp, palette.glassStrokeStrong),
+                        shape = RoundedCornerShape(12.dp),
+                        // Primary action: a warm amber wash so it reads as "do this", not a neutral chip.
+                        color = palette.accent.copy(alpha = 0.18f),
+                        border = BorderStroke(1.dp, palette.accentStrong.copy(alpha = 0.5f)),
                         contentColor = palette.accentStrong,
                         modifier = Modifier.height(38.dp)
                     ) {
@@ -1082,7 +1173,8 @@ fun ExerciseLogCard(
             }
         }
     }
-}
+        }
+    }
 }
 
 @Composable
@@ -1299,6 +1391,111 @@ private fun FinishedExerciseRow(
         }
         Text(
             text = "Edit",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = palette.accentStrong
+        )
+    }
+}
+
+// The colored hint revealed behind a card as it's swiped: a green "Finish" when dragging right, a red
+// "Remove" when dragging left. Alpha and the icon ramp up with drag distance so the gesture explains
+// itself before you commit. Rendered only while a drag is in progress (offset != 0).
+@Composable
+private fun SwipeActionBackground(
+    offsetX: Float,
+    cardShape: RoundedCornerShape,
+    palette: LogGlassPalette,
+    modifier: Modifier = Modifier
+) {
+    if (offsetX == 0f) return
+    val swipingRight = offsetX > 0f
+    val threshold = if (swipingRight) 96f else 120f
+    val progress = (abs(offsetX) / threshold).coerceIn(0f, 1f)
+    val color = if (swipingRight) palette.complete else palette.danger
+    val tint = color.copy(alpha = progress)
+    Box(
+        modifier = modifier
+            .clip(cardShape)
+            .background(color.copy(alpha = 0.18f * progress)),
+        contentAlignment = if (swipingRight) Alignment.CenterStart else Alignment.CenterEnd
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 22.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (swipingRight) {
+                Icon(Icons.Default.Check, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+                Text("Finish", color = tint, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+            } else {
+                Text("Remove", color = tint, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Icon(Icons.Default.Close, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+}
+
+// The folded form of an exercise the user MINIMIZED without finishing — visually distinct from the
+// completed (green check) row so a glance tells "tucked away to do later" apart from "actually done".
+// Tapping anywhere re-opens it with its sets still editable and unchecked.
+@Composable
+private fun ParkedExerciseRow(
+    exerciseName: String,
+    isNewPB: Boolean,
+    setCount: Int,
+    onExpand: () -> Unit,
+    palette: LogGlassPalette = DefaultLogGlassPalette,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .glassPanel(palette, RoundedCornerShape(14.dp), strong = false, completed = false)
+            .clickable(onClick = onExpand)
+            .padding(horizontal = 12.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Neutral marker (a muted chevron), NOT the green completion check.
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(palette.inkSubtle.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Filled.KeyboardArrowDown,
+                contentDescription = null,
+                tint = palette.inkMuted,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = exerciseName,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = palette.ink,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (isNewPB) {
+                    Spacer(Modifier.width(8.dp))
+                    PrBadge(palette = palette)
+                }
+            }
+            Text(
+                text = "$setCount set${if (setCount == 1) "" else "s"} queued · tap to open",
+                style = MaterialTheme.typography.labelSmall,
+                color = palette.inkSubtle
+            )
+        }
+        Text(
+            text = "Open",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
             color = palette.accentStrong
@@ -1599,7 +1796,7 @@ private fun NumberKeyboardDisplayField(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = label.uppercase(),
+                text = label,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = palette.inkSubtle,
@@ -2153,7 +2350,7 @@ fun SearchBarWithDropdown(
                 },
             placeholder = {
                 Text(
-                    "Search or add exercise...",
+                    "Add exercise",
                     style = MaterialTheme.typography.bodyMedium,
                     color = palette.inkSubtle
                 )
@@ -2234,62 +2431,19 @@ fun SearchBarWithDropdown(
 @Composable
 fun EmptyLogState(
     modifier: Modifier = Modifier,
-    totalSets: Int = 0,
-    totalVolumeLbs: Int = 0,
     palette: LogGlassPalette = DefaultLogGlassPalette
 ) {
-    val shape = RoundedCornerShape(16.dp)
-    Row(
+    Text(
+        text = "Type an exercise on the bar above to add an exercise for this day.",
         modifier = modifier
             .fillMaxWidth()
-            .sizeIn(minHeight = 76.dp)
-            .clip(shape)
-            .background(
-                Brush.horizontalGradient(
-                    listOf(
-                        palette.glassFill.copy(alpha = 0.46f),
-                        palette.pageBottom.copy(alpha = 0.18f),
-                    )
-                ),
-                shape
-            )
-            .border(1.dp, palette.glassStrokeStrong.copy(alpha = 0.24f), shape)
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            Text(
-                text = "No logs today",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = palette.ink,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = "Type above to add an exercise or load a set.",
-                style = MaterialTheme.typography.bodySmall,
-                color = palette.inkSubtle,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        if (totalSets > 0 || totalVolumeLbs > 0) {
-            Text(
-                text = "$totalSets sets",
-                modifier = Modifier.padding(start = 12.dp),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = palette.accentStrong,
-                maxLines = 1
-            )
-        }
-    }
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+        style = MaterialTheme.typography.bodySmall,
+        color = palette.inkSubtle,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.Start
+    )
 }
 
 @Composable
@@ -2518,7 +2672,11 @@ fun LogScreen(
 ) {
     var collapsedExerciseKeys by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var manuallyExpandedCompletedExerciseKeys by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    // Exercises the user MINIMIZED (parked) without finishing. Independent of completion — this is the
+    // "tuck it away to declutter" state, distinct from collapsedExerciseKeys which only applies once done.
+    var parkedExerciseKeys by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val collapsedExerciseKeySet = remember(collapsedExerciseKeys) { collapsedExerciseKeys.toSet() }
+    val parkedExerciseKeySet = remember(parkedExerciseKeys) { parkedExerciseKeys.toSet() }
     val manuallyExpandedCompletedExerciseKeySet = remember(manuallyExpandedCompletedExerciseKeys) {
         manuallyExpandedCompletedExerciseKeys.toSet()
     }
@@ -2558,6 +2716,14 @@ fun LogScreen(
         manuallyExpandedCompletedExerciseKeys = (manuallyExpandedCompletedExerciseKeys + key).distinct()
     }
 
+    fun rememberExerciseParked(key: String) {
+        parkedExerciseKeys = (parkedExerciseKeys + key).distinct()
+    }
+
+    fun rememberExerciseUnparked(key: String) {
+        parkedExerciseKeys = parkedExerciseKeys - key
+    }
+
     fun flushPendingDeletes() {
         val ids = pendingDeletedSetIdsState.value
         if (ids.isEmpty()) return
@@ -2595,6 +2761,12 @@ fun LogScreen(
 
     val orderedExercises = exercises
         .mapIndexed { index, exercise -> IndexedExercise(index, exercise) }
+        // An exercise card exists only as long as it has at least one set. When the last set is
+        // swiped away it sits in pendingDeletedSetIds during the undo window — drop the whole card
+        // immediately instead of leaving an empty "add a set" shell. Undo restores the set, which
+        // re-includes the exercise and brings the card back. (mapIndexed runs first so originalIndex
+        // still points into the unfiltered uiState.exercises that the callbacks index into.)
+        .filter { item -> item.exercise.sets.any { it.id !in pendingDeletedSetIds } }
     val activeTarget = activeNumberInput
     val activeSet = activeTarget?.let { target ->
         exercises.asSequence()
@@ -2759,16 +2931,48 @@ fun LogScreen(
         activeNumberInput = null
         pendingDeletedSetIds = pendingDeletedSetIds + set.id
         scope.launch {
-            val result = snackbarHostState.showSnackbar(
-                message = "Set ${set.setNumber} removed",
-                actionLabel = "Undo",
-                duration = SnackbarDuration.Short
-            )
+            // Keep the undo window deliberately brief — long enough to catch a misfire, short
+            // enough that it doesn't linger after a real delete. Indefinite + our own timeout
+            // lets us pick a duration shorter than SnackbarDuration.Short (~4s).
+            val result = withTimeoutOrNull(SET_DELETE_UNDO_MILLIS) {
+                snackbarHostState.showSnackbar(
+                    message = "Set ${set.setNumber} removed",
+                    actionLabel = "Undo",
+                    duration = SnackbarDuration.Indefinite
+                )
+            }
             val isStillPending = set.id in pendingDeletedSetIdsState.value
             if (!isStillPending) return@launch
             pendingDeletedSetIdsState.value = pendingDeletedSetIdsState.value - set.id
             if (result != SnackbarResult.ActionPerformed) {
                 onDeleteSet(set.id)
+            }
+        }
+    }
+
+    // Swipe-left to remove the whole card: stage every set into the same pending-delete window that
+    // single-set deletes use, so the existing "card disappears when it has no sets" filter drops it,
+    // and one brief Undo restores them all. Removed (deleted) sets leave history entirely, so they
+    // never seed a future session — which is exactly the "don't reference a removed card" behaviour.
+    fun requestDeleteExercise(exerciseName: String, sets: List<LoggedSet>) {
+        val ids = sets.map { it.id }.filter { it !in pendingDeletedSetIds }
+        if (ids.isEmpty()) return
+        activeSetActions = null
+        activeNumberInput = null
+        pendingDeletedSetIds = pendingDeletedSetIds + ids
+        scope.launch {
+            val result = withTimeoutOrNull(EXERCISE_REMOVE_UNDO_MILLIS) {
+                snackbarHostState.showSnackbar(
+                    message = "Removed $exerciseName",
+                    actionLabel = "Undo",
+                    duration = SnackbarDuration.Indefinite
+                )
+            }
+            val stillPending = ids.any { it in pendingDeletedSetIdsState.value }
+            if (!stillPending) return@launch
+            pendingDeletedSetIdsState.value = pendingDeletedSetIdsState.value - ids.toSet()
+            if (result != SnackbarResult.ActionPerformed) {
+                ids.forEach { onDeleteSet(it) }
             }
         }
     }
@@ -2833,6 +3037,7 @@ fun LogScreen(
                 val isCollapsed =
                     isFullyCompleted &&
                         (exerciseKey in collapsedExerciseKeySet || isAutoCollapsedPastExercise)
+                val isParked = !isFullyCompleted && exerciseKey in parkedExerciseKeySet
                 ExerciseLogCard(
                     exerciseName = exercise.exerciseName,
                     muscleGroups = exercise.muscleGroups,
@@ -2840,14 +3045,22 @@ fun LogScreen(
                     isNewPB = exercise.isNewPB,
                     sets = visibleSets,
                     isCollapsed = isCollapsed,
+                    isParked = isParked,
                     onAddSet = { onAddSet(i) },
                     onAddSetFrom = { setId -> onAddSetFrom(exercise.exerciseId, setId) },
-                    onToggleCollapsed = {
-                        if (isCollapsed) {
-                            rememberExerciseExpanded(exerciseKey)
-                        } else {
+                    onMinimize = {
+                        if (isFullyCompleted) {
                             onFinishExercise(i)
                             rememberExerciseCollapsed(exerciseKey)
+                        } else {
+                            rememberExerciseParked(exerciseKey)
+                        }
+                    },
+                    onExpand = {
+                        if (isParked) {
+                            rememberExerciseUnparked(exerciseKey)
+                        } else {
+                            rememberExerciseExpanded(exerciseKey)
                         }
                     },
                     onSwipeFinishAndCollapse = {
@@ -2861,6 +3074,7 @@ fun LogScreen(
                             }
                         }
                     },
+                    onRemoveExercise = { requestDeleteExercise(exercise.exerciseName, visibleSets) },
                     onCompleteSet = { setId -> onCompleteSet(setId) },
                     onDeleteSet = { set -> requestDeleteSet(set) },
                     onWeightStep = { setId, delta -> onWeightStep(setId, delta) },
@@ -2882,11 +3096,9 @@ fun LogScreen(
                     onInteraction = {}
                 )
             }
-            if (exercises.isEmpty() && !isSearchActive) {
+            if (orderedExercises.isEmpty() && !isSearchActive) {
                 item {
                     EmptyLogState(
-                        totalSets = totalSets,
-                        totalVolumeLbs = totalVolumeLbs,
                         palette = palette
                     )
                 }

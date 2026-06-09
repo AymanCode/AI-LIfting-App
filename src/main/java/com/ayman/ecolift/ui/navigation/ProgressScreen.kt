@@ -62,7 +62,7 @@ fun ProgressScreen(
             selectedRange = range,
             selectedMetric = metric,
             currentPr = stats?.currentPrLbs ?: 0f,
-            prDate = null,
+            prDate = stats?.currentPrDate,
             estimatedOneRm = stats?.est1Rm?.toFloatOrNull() ?: 0f,
             totalVolume = stats?.totalVolumeLbs?.toFloat() ?: 0f,
             workoutCount = stats?.workoutCount ?: 0,

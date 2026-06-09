@@ -366,7 +366,7 @@ private fun Header() {
                 color = TextPrimary
             )
             Text(
-                text = "WORKOUT ROTATION SETTINGS",
+                text = "Workout rotation settings",
                 style = MaterialTheme.typography.labelLarge
             )
         }
@@ -1383,6 +1383,8 @@ private fun ExerciseProgressRow(ref: SplitExerciseRef, onClick: () -> Unit) {
 @Composable
 private fun AddSplitDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     val palette = LocalGlassPalette.current
+    val dialogFill = palette.glassFillStrong.copy(alpha = 0.94f)
+    val fieldFill = palette.glassFillStrong.copy(alpha = 0.88f)
     var name by remember { mutableStateOf("") }
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -1391,7 +1393,7 @@ private fun AddSplitDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
                 .padding(16.dp)
                 .glassPanel(palette, RoundedCornerShape(18.dp), strong = true),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            colors = CardDefaults.cardColors(containerColor = dialogFill),
             border = BorderStroke(1.dp, palette.glassStrokeStrong),
         ) {
             Column(
@@ -1418,8 +1420,8 @@ private fun AddSplitDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = palette.accentStrong,
                         unfocusedBorderColor = palette.glassStroke,
-                        focusedContainerColor = palette.glassFillStrong,
-                        unfocusedContainerColor = palette.glassFill,
+                        focusedContainerColor = fieldFill,
+                        unfocusedContainerColor = fieldFill,
                         cursorColor = palette.accentStrong,
                         focusedTextColor = palette.ink,
                         unfocusedTextColor = palette.ink,
