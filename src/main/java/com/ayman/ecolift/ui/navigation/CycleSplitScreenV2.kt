@@ -94,7 +94,6 @@ fun GymCalendarCard(
             .glassPanel(palette, shape, strong = true),
         shape = shape,
         color = Color.Transparent,
-        border = BorderStroke(1.dp, palette.glassStrokeStrong),
         shadowElevation = 0.dp
     ) {
         Column(
@@ -255,7 +254,6 @@ fun SplitCycleToggleCard(
             .glassPanel(palette, shape),
         shape = shape,
         color = Color.Transparent,
-        border = BorderStroke(1.dp, palette.glassStroke),
         shadowElevation = 0.dp
     ) {
         Row(
@@ -316,7 +314,6 @@ fun TodaySplitHeroCard(
             .glassPanel(palette, shape, strong = true),
         shape = shape,
         color = Color.Transparent,
-        border = BorderStroke(1.dp, palette.glassStrokeStrong),
         shadowElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -418,12 +415,11 @@ fun RotationCycleRow(
             .glassPanel(palette, shape),
         shape = shape,
         color = Color.Transparent,
-        border = BorderStroke(1.dp, palette.glassStroke),
         shadowElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "ROTATION",
+                text = "Rotation",
                 style = MaterialTheme.typography.labelSmall,
                 color = palette.inkSubtle,
                 modifier = Modifier.padding(bottom = 10.dp)
@@ -495,7 +491,6 @@ fun SplitListItem(
             .glassPanel(palette, shape),
         shape = shape,
         color = Color.Transparent,
-        border = BorderStroke(1.dp, palette.glassStroke),
         shadowElevation = 0.dp
     ) {
         Row(
@@ -584,7 +579,7 @@ fun MySplitsSection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "MY SPLITS",
+                text = "My splits",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
                 color = palette.inkSubtle
@@ -812,7 +807,6 @@ private fun SplitTabToggle(
         modifier = modifier.glassPanel(palette, RoundedCornerShape(14.dp), strong = true),
         shape = RoundedCornerShape(12.dp),
         color = Color.Transparent,
-        border = BorderStroke(1.dp, palette.glassStrokeStrong),
         shadowElevation = 0.dp
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {

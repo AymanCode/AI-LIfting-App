@@ -46,6 +46,40 @@ class SetRepositoryTest {
         assertEquals(emptyList<WorkoutSet>(), copies)
     }
 
+    @Test
+    fun `buildLastSessionSetCopies seeds from the latest completed session, skipping later uncompleted ones`() {
+        val copies = buildLastSessionSetCopies(
+            date = "2026-05-20",
+            exerciseId = 7L,
+            historyBeforeDate = listOf(
+                // Older session, fully checked off -> this is the real reference.
+                workoutSet(id = 1L, date = "2026-05-10", setNumber = 1, weight = 135, reps = 5, completed = true),
+                workoutSet(id = 2L, date = "2026-05-10", setNumber = 2, weight = 145, reps = 3, completed = true),
+                // Newer session that was logged but never checked (parked / abandoned) -> must be ignored.
+                workoutSet(id = 3L, date = "2026-05-18", setNumber = 1, weight = 95, reps = 12, completed = false),
+            ),
+        )
+
+        assertEquals(2, copies.size)
+        assertEquals(listOf(1, 2), copies.map { it.setNumber })
+        assertEquals(listOf(135, 145).map(WeightLbs::fromWholePounds), copies.map { it.weightLbs })
+        assertEquals(listOf(5, 3), copies.map { it.reps })
+    }
+
+    @Test
+    fun `buildLastSessionSetCopies returns empty when no previous session was completed`() {
+        val copies = buildLastSessionSetCopies(
+            date = "2026-05-20",
+            exerciseId = 7L,
+            historyBeforeDate = listOf(
+                workoutSet(id = 1L, date = "2026-05-10", setNumber = 1, weight = 135, reps = 5, completed = false),
+                workoutSet(id = 2L, date = "2026-05-18", setNumber = 1, weight = 95, reps = 12, completed = false),
+            ),
+        )
+
+        assertEquals(emptyList<WorkoutSet>(), copies)
+    }
+
     private fun workoutSet(
         id: Long,
         exerciseId: Long = 7L,

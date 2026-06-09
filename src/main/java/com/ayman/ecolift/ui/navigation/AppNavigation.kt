@@ -7,9 +7,10 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
@@ -46,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -61,7 +64,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
-import com.ayman.ecolift.ui.theme.GlassAmbientBackground
+import com.ayman.ecolift.ui.background.GlassBubbleBackground
 import com.ayman.ecolift.ui.theme.GlassPalette
 import com.ayman.ecolift.ui.theme.GlassTheme
 import com.ayman.ecolift.ui.theme.glassPanel
@@ -122,6 +125,9 @@ internal fun isRouteSelected(currentRoute: String?, tabRoute: String): Boolean {
     return currentRoute == tabRoute || currentRoute?.startsWith("$tabRoute/") == true
 }
 
+internal fun shouldIgnoreBottomTabTap(currentRoute: String?, targetRoute: String): Boolean =
+    targetRoute != "log" && isRouteSelected(currentRoute, targetRoute)
+
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
@@ -147,13 +153,33 @@ fun AppNavigation() {
     )
 
     fun navigateToTab(route: String) {
-        if (isRouteSelected(currentRoute, route)) {
+        val activeRoute = navController.currentDestination?.route
+        if (shouldIgnoreBottomTabTap(activeRoute, route)) {
             return
         }
 
+        chromeReveal.snap(1f)
+        chromeReveal.locked = false
+
         if (route == "log") {
-            chromeReveal.snap(1f)
-            chromeReveal.locked = false
+            if (isRouteSelected(activeRoute, "log")) {
+                if (activeRoute != "log") {
+                    navController.popBackStack("log", inclusive = false, saveState = true)
+                }
+                return
+            }
+
+            val returnedToLog = navController.popBackStack("log", inclusive = false, saveState = true)
+            if (!returnedToLog) {
+                navController.navigate(route) {
+                    launchSingleTop = true
+                    restoreState = true
+                    popUpTo(navController.graph.findStartDestination().id) {
+                        saveState = true
+                    }
+                }
+            }
+            return
         }
 
         navController.navigate(route) {
@@ -177,7 +203,13 @@ fun AppNavigation() {
 
     GlassTheme(palette = palette) {
         Box(modifier = Modifier.fillMaxSize()) {
-            GlassAmbientBackground(palette = palette)
+            GlassBubbleBackground(
+                palette = palette,
+                selectedTabIndex = destinations
+                    .indexOfFirst { isRouteSelected(currentRoute, it.route) }
+                    .coerceAtLeast(0),
+                tabCount = destinations.size,
+            )
 
             NavHost(
                 navController = navController,
@@ -291,7 +323,7 @@ fun AppNavigation() {
                     onNavigate = ::navigateToTab,
                     palette = palette,
                     modifier = Modifier.graphicsLayer {
-                        val r = chromeReveal.reveal
+                        val r = if (isLogRoute) chromeReveal.reveal else 1f
                         alpha = r
                         translationY = (1f - r) * size.height
                     }
@@ -309,6 +341,9 @@ private fun AppBottomBar(
     palette: GlassPalette,
     modifier: Modifier = Modifier
 ) {
+    val trayShape = RoundedCornerShape(20.dp)
+    val tabShape = RoundedCornerShape(16.dp)
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -318,46 +353,44 @@ private fun AppBottomBar(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .glassPanel(palette, RoundedCornerShape(18.dp), strong = true),
-            shape = RoundedCornerShape(18.dp),
+                // Low Slab: the whole tray is the glass object; the active tab only gets an underlight.
+                .glassPanel(palette, trayShape),
+            shape = trayShape,
             color = Color.Transparent,
-            border = BorderStroke(1.dp, palette.glassStrokeStrong),
+            border = BorderStroke(1.dp, Color.Transparent),
             shadowElevation = 0.dp
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(58.dp)
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .height(64.dp)
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 destinations.forEach { destination ->
                     val selected = isRouteSelected(currentRoute, destination.route)
-                    Surface(
+                    val interactionSource = remember { MutableInteractionSource() }
+
+                    Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(46.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable { onNavigate(destination.route) },
-                        shape = RoundedCornerShape(14.dp),
-                        color = if (selected) palette.accentStrong.copy(alpha = 0.18f) else Color.Transparent,
-                        border = if (selected) {
-                            BorderStroke(1.dp, palette.glassStrokeStrong)
-                        } else {
-                            BorderStroke(1.dp, Color.Transparent)
-                        },
-                        contentColor = if (selected) palette.ink else palette.inkMuted
+                            .height(54.dp)
+                            .clip(tabShape)
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = null,
+                            ) { onNavigate(destination.route) },
+                        contentAlignment = Alignment.Center,
                     ) {
                         Column(
-                            modifier = Modifier.fillMaxSize(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
                             Icon(
                                 imageVector = destination.icon,
                                 contentDescription = destination.label,
-                                modifier = Modifier.size(17.dp),
+                                modifier = Modifier.size(18.dp),
                                 tint = if (selected) palette.accentStrong else palette.inkMuted
                             )
                             Text(
@@ -366,6 +399,33 @@ private fun AppBottomBar(
                                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                                 color = if (selected) palette.accentStrong else palette.inkMuted,
                                 modifier = Modifier.padding(top = 3.dp)
+                            )
+                        }
+                        if (selected) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .width(72.dp)
+                                    .height(16.dp)
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                Color.Transparent,
+                                                palette.accent.copy(alpha = 0.34f),
+                                                palette.accentStrong.copy(alpha = 0.44f),
+                                            ),
+                                        ),
+                                        RoundedCornerShape(100.dp),
+                                    )
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 4.dp)
+                                    .width(54.dp)
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(100.dp))
+                                    .background(palette.accentStrong)
                             )
                         }
                     }

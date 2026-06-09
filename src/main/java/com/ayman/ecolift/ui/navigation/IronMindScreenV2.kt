@@ -491,7 +491,6 @@ fun QuickActionsRow(
             .glassPanel(palette, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp), strong = true),
         color = Color.Transparent,
         shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
-        border = BorderStroke(1.dp, palette.glassStrokeStrong),
         shadowElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
@@ -538,7 +537,6 @@ fun IronMindInputBar(
             .fillMaxWidth()
             .glassPanel(palette, RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp), strong = true),
         color = Color.Transparent,
-        border = BorderStroke(1.dp, palette.glassStrokeStrong),
         shadowElevation = 0.dp
     ) {
         Row(

@@ -1,6 +1,5 @@
 package com.ayman.ecolift.ui.navigation
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -13,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,9 +22,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -32,6 +31,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TrendingDown
@@ -43,6 +44,7 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -61,14 +63,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
@@ -111,20 +118,27 @@ fun ProgressExerciseListItem(
     lastSetLabel: String,
     trendPercent: Float,
     onClick: () -> Unit,
+    shape: Shape = RoundedCornerShape(14.dp),
+    showDivider: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val palette = LocalGlassPalette.current
-    val shape = RoundedCornerShape(14.dp)
-    Surface(
+    // A row inside one grouped surface (see ProgressExerciseList) — no per-row card or border.
+    // A shared translucent fill plus a hairline divider carry the grouping (#4/#6).
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .glassPanel(palette, shape)
-            .clickable(onClick = onClick),
-        shape = shape,
-        color = Color.Transparent,
-        border = BorderStroke(1.dp, palette.glassStroke),
-        shadowElevation = 0.dp
+            .clip(shape)
+            .background(palette.glassFill)
+            .clickable(onClick = onClick)
     ) {
+        if (showDivider) {
+            HorizontalDivider(
+                thickness = Dp.Hairline,
+                color = palette.glassStroke.copy(alpha = 0.5f),
+                modifier = Modifier.padding(horizontal = 14.dp)
+            )
+        }
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -137,7 +151,7 @@ fun ProgressExerciseListItem(
                     maxLines = 1
                 )
                 Text(
-                    text = muscleGroups.uppercase(),
+                    text = muscleGroups,
                     style = MaterialTheme.typography.labelSmall,
                     color = palette.inkSubtle,
                     letterSpacing = 0.sp
@@ -185,44 +199,45 @@ fun ProgressExerciseListItem(
 }
 
 @Composable
-fun StatCard(
+private fun SpecRow(
+    icon: ImageVector,
     label: String,
     value: String,
-    subLabel: String? = null,
-    modifier: Modifier = Modifier
+    emphasized: Boolean = false,
 ) {
     val palette = LocalGlassPalette.current
-    val shape = RoundedCornerShape(14.dp)
-    Surface(
-        modifier = modifier
+    // Label-left / value-right row with a hairline rule on top — a stat sheet, not a boxed card.
+    HorizontalDivider(
+        thickness = Dp.Hairline,
+        color = palette.glassStroke.copy(alpha = 0.5f)
+    )
+    Row(
+        modifier = Modifier
             .fillMaxWidth()
-            .glassPanel(palette, shape),
-        shape = shape,
-        color = Color.Transparent,
-        border = BorderStroke(1.dp, palette.glassStroke),
-        shadowElevation = 0.dp
+            .padding(vertical = 15.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text(
-                text = label.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = palette.inkSubtle
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = palette.accentStrong,
+                modifier = Modifier.size(17.dp)
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = value,
-                style = LogType.railValue,
-                color = palette.ink
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = palette.inkMuted
             )
-            if (subLabel != null) {
-                Text(
-                    text = subLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = palette.inkSubtle,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
         }
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (emphasized) palette.accentStrong else palette.ink
+        )
     }
 }
 
@@ -332,7 +347,6 @@ fun ProgressDetailScreen(
                         .glassPanel(palette, RoundedCornerShape(14.dp), strong = true),
                     shape = RoundedCornerShape(12.dp),
                     color = Color.Transparent,
-                    border = BorderStroke(1.dp, palette.glassStrokeStrong),
                     shadowElevation = 0.dp
                 ) {
                     Row(modifier = Modifier.fillMaxWidth()) {
@@ -370,7 +384,6 @@ fun ProgressDetailScreen(
                         .glassPanel(palette, RoundedCornerShape(14.dp), strong = true),
                     shape = RoundedCornerShape(14.dp),
                     color = Color.Transparent,
-                    border = BorderStroke(1.dp, palette.glassStrokeStrong),
                     shadowElevation = 0.dp
                 ) {
                     if (dataPoints.size < 2) {
@@ -436,138 +449,145 @@ fun ProgressDetailScreen(
                             val maxY = if (rawMinY == rawMaxY) rawMaxY + 1f else rawMaxY * 1.05f
                             val yRange = (maxY - minY).coerceAtLeast(1f)
                             
-                            Canvas(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .pointerInput(dataPoints, selectedMetric) {
-                                        detectTapGestures { offset ->
-                                            val xStep = size.width / (dataPoints.size - 1).coerceAtLeast(1)
-                                            val index = (offset.x / xStep).toInt().coerceIn(0, dataPoints.size - 1)
-                                            val xPos = index * xStep
-                                            val valRatio = (values[index] - minY) / yRange
-                                            val yPos = size.height - (valRatio * size.height)
-                                            tooltipData = Pair(Offset(xPos.toFloat(), yPos.toFloat()), dataPoints[index])
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                // Plot band: Y-axis labels (left gutter) + plot area
+                                Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                                    // Y-axis labels, aligned to the three gridlines
+                                    Column(
+                                        modifier = Modifier.fillMaxHeight().padding(end = 8.dp),
+                                        verticalArrangement = Arrangement.SpaceBetween,
+                                        horizontalAlignment = Alignment.End
+                                    ) {
+                                        Text("%.0f".format(maxY), style = MaterialTheme.typography.labelSmall, color = palette.inkSubtle)
+                                        Text("%.0f".format(minY + (maxY - minY) / 2), style = MaterialTheme.typography.labelSmall, color = palette.inkSubtle)
+                                        Text("%.0f".format(minY), style = MaterialTheme.typography.labelSmall, color = palette.inkSubtle)
+                                    }
+
+                                    // Plot area
+                                    Box(modifier = Modifier.fillMaxHeight().weight(1f)) {
+                                        Canvas(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .pointerInput(dataPoints, selectedMetric) {
+                                                    detectTapGestures { offset ->
+                                                        val xStep = size.width / (dataPoints.size - 1).coerceAtLeast(1)
+                                                        val index = (offset.x / xStep).toInt().coerceIn(0, dataPoints.size - 1)
+                                                        val xPos = index * xStep
+                                                        val valRatio = (values[index] - minY) / yRange
+                                                        val yPos = size.height - (valRatio * size.height)
+                                                        tooltipData = Pair(Offset(xPos.toFloat(), yPos.toFloat()), dataPoints[index])
+                                                    }
+                                                }
+                                        ) {
+                                            val width = size.width
+                                            val height = size.height
+
+                                            // Draw grid lines
+                                            for (i in 0..2) {
+                                                val y = height * (i / 2f)
+                                                drawLine(
+                                                    color = palette.ink.copy(alpha = 0.10f),
+                                                    start = Offset(0f, y),
+                                                    end = Offset(width, y),
+                                                    strokeWidth = 1f
+                                                )
+                                            }
+
+                                            if (dataPoints.size > 1) {
+                                                val path = Path()
+                                                val fillPath = Path()
+
+                                                val xStep = width / (dataPoints.size - 1)
+                                                var prevX = 0f
+                                                var prevY = height - (((values[0] - minY) / yRange) * height)
+
+                                                path.moveTo(prevX, prevY)
+                                                fillPath.moveTo(prevX, height)
+                                                fillPath.lineTo(prevX, prevY)
+
+                                                for (i in 1 until dataPoints.size) {
+                                                    val x = i * xStep
+                                                    val y = height - (((values[i] - minY) / yRange) * height)
+
+                                                    val controlX = (prevX + x) / 2
+                                                    path.cubicTo(controlX, prevY, controlX, y, x, y)
+                                                    fillPath.cubicTo(controlX, prevY, controlX, y, x, y)
+
+                                                    prevX = x
+                                                    prevY = y
+                                                }
+
+                                                fillPath.lineTo(width, height)
+                                                fillPath.close()
+
+                                                drawPath(
+                                                    path = fillPath,
+                                                    color = palette.accent.copy(alpha = 0.12f)
+                                                )
+
+                                                drawPath(
+                                                    path = path,
+                                                    color = palette.accentStrong,
+                                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
+                                                )
+
+                                                // Draw data point circles
+                                                for (i in 0 until dataPoints.size) {
+                                                    val x = i * xStep
+                                                    val y = height - (((values[i] - minY) / yRange) * height)
+                                                    drawCircle(
+                                                        color = palette.ink,
+                                                        radius = 6.dp.toPx(),
+                                                        center = Offset(x, y)
+                                                    )
+                                                    drawCircle(
+                                                        color = palette.accentStrong,
+                                                        radius = 4.dp.toPx(),
+                                                        center = Offset(x, y)
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Tooltip (drawn on top of the plot)
+                                        tooltipData?.let { (offset, point) ->
+                                            val density = LocalDensity.current
+                                            val tooltipStart = with(density) {
+                                                (offset.x - 40.dp.toPx()).coerceAtLeast(0f).toDp()
+                                            }
+                                            val tooltipTop = with(density) {
+                                                (offset.y - 40.dp.toPx()).coerceAtLeast(0f).toDp()
+                                            }
+                                            val value = when (selectedMetric) {
+                                                ProgressMetricV2.ESTIMATED_1RM -> point.estimatedOneRm
+                                                ProgressMetricV2.WEIGHT -> point.maxWeight
+                                                ProgressMetricV2.VOLUME -> point.totalVolume
+                                            }
+                                            Box(
+                                                modifier = Modifier
+                                                    .align(Alignment.TopStart)
+                                                    .padding(start = tooltipStart, top = tooltipTop)
+                                                    .background(palette.pageBottom.copy(alpha = 0.92f), RoundedCornerShape(8.dp))
+                                                    .padding(8.dp)
+                                            ) {
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Text("%.0f".format(value), color = palette.ink, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                                    Text(point.date.format(DateTimeFormatter.ofPattern("MMM d")), color = palette.inkMuted, style = MaterialTheme.typography.labelSmall)
+                                                }
+                                            }
                                         }
                                     }
-                            ) {
-                                val width = size.width
-                                val height = size.height
-                                
-                                // Draw grid lines
-                                for (i in 0..2) {
-                                    val y = height * (i / 2f)
-                                    drawLine(
-                                        color = palette.ink.copy(alpha = 0.10f),
-                                        start = Offset(0f, y),
-                                        end = Offset(width, y),
-                                        strokeWidth = 1f
-                                    )
                                 }
-                                
-                                if (dataPoints.size > 1) {
-                                    val path = Path()
-                                    val fillPath = Path()
-                                    
-                                    val xStep = width / (dataPoints.size - 1)
-                                    var prevX = 0f
-                                    var prevY = height - (((values[0] - minY) / yRange) * height)
-                                    
-                                    path.moveTo(prevX, prevY)
-                                    fillPath.moveTo(prevX, height)
-                                    fillPath.lineTo(prevX, prevY)
-                                    
-                                    for (i in 1 until dataPoints.size) {
-                                        val x = i * xStep
-                                        val y = height - (((values[i] - minY) / yRange) * height)
-                                        
-                                        val controlX = (prevX + x) / 2
-                                        path.cubicTo(controlX, prevY, controlX, y, x, y)
-                                        fillPath.cubicTo(controlX, prevY, controlX, y, x, y)
-                                        
-                                        prevX = x
-                                        prevY = y
-                                    }
-                                    
-                                    fillPath.lineTo(width, height)
-                                    fillPath.close()
-                                    
-                                    drawPath(
-                                        path = fillPath,
-                                        color = palette.accent.copy(alpha = 0.12f)
-                                    )
-                                    
-                                    drawPath(
-                                        path = path,
-                                        color = palette.accentStrong,
-                                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
-                                    )
-                                    
-                                    // Draw data point circles
-                                    for (i in 0 until dataPoints.size) {
-                                        val x = i * xStep
-                                        val y = height - (((values[i] - minY) / yRange) * height)
-                                        drawCircle(
-                                            color = palette.ink,
-                                            radius = 6.dp.toPx(),
-                                            center = Offset(x, y)
-                                        )
-                                        drawCircle(
-                                            color = palette.accentStrong,
-                                            radius = 4.dp.toPx(),
-                                            center = Offset(x, y)
-                                        )
-                                    }
-                                }
-                            }
-                            
-                            // Y-axis labels
-                            Column(
-                                modifier = Modifier.fillMaxSize(),
-                                verticalArrangement = Arrangement.SpaceBetween,
-                                horizontalAlignment = Alignment.End
-                            ) {
-                                Text("%.0f".format(maxY), style = MaterialTheme.typography.labelSmall, color = palette.inkSubtle)
-                                Text("%.0f".format(minY + (maxY - minY) / 2), style = MaterialTheme.typography.labelSmall, color = palette.inkSubtle)
-                                Text("%.0f".format(minY), style = MaterialTheme.typography.labelSmall, color = palette.inkSubtle)
-                            }
-                            
-                            // X-axis labels
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .align(Alignment.BottomCenter)
-                                    .padding(top = 16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(dataPoints.first().date.format(DateTimeFormatter.ofPattern("MMM d")), style = MaterialTheme.typography.labelSmall, color = palette.inkSubtle)
-                                Text(dataPoints.last().date.format(DateTimeFormatter.ofPattern("MMM d")), style = MaterialTheme.typography.labelSmall, color = palette.inkSubtle)
-                            }
-                            
-                            // Tooltip
-                            tooltipData?.let { (offset, point) ->
-                                val density = LocalDensity.current
-                                val tooltipStart = with(density) {
-                                    (offset.x - 40.dp.toPx()).coerceAtLeast(0f).toDp()
-                                }
-                                val tooltipTop = with(density) {
-                                    (offset.y - 40.dp.toPx()).coerceAtLeast(0f).toDp()
-                                }
-                                val value = when (selectedMetric) {
-                                    ProgressMetricV2.ESTIMATED_1RM -> point.estimatedOneRm
-                                    ProgressMetricV2.WEIGHT -> point.maxWeight
-                                    ProgressMetricV2.VOLUME -> point.totalVolume
-                                }
-                                Box(
+
+                                // X-axis labels, below the plot
+                                Row(
                                     modifier = Modifier
-                                        .align(Alignment.TopStart)
-                                        .padding(start = tooltipStart, top = tooltipTop)
-                                        .background(palette.pageBottom.copy(alpha = 0.92f), RoundedCornerShape(8.dp))
-                                        .padding(8.dp)
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("%.0f".format(value), color = palette.ink, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                                        Text(point.date.format(DateTimeFormatter.ofPattern("MMM d")), color = palette.inkMuted, style = MaterialTheme.typography.labelSmall)
-                                    }
+                                    Text(dataPoints.first().date.format(DateTimeFormatter.ofPattern("MMM d")), style = MaterialTheme.typography.labelSmall, color = palette.inkSubtle)
+                                    Text(dataPoints.last().date.format(DateTimeFormatter.ofPattern("MMM d")), style = MaterialTheme.typography.labelSmall, color = palette.inkSubtle)
                                 }
                             }
                         }
@@ -575,39 +595,73 @@ fun ProgressDetailScreen(
                 }
             }
 
-            // 2x2 stat grid
+            // Featured PR with the date it was set (right), then a stat sheet (#1/#3/#5)
             item {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier.height(240.dp), // Fixed height to allow grid within LazyColumn
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    item {
-                        StatCard(
-                            label = "Current PR",
-                            value = "${currentPr.toInt()} lbs",
-                            subLabel = prDate?.let { "Set ${it.format(DateTimeFormatter.ofPattern("MMM d"))}" }
-                        )
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 18.dp),
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "Current PR",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = palette.inkSubtle
+                            )
+                            Row(
+                                verticalAlignment = Alignment.Bottom,
+                                modifier = Modifier.padding(top = 2.dp)
+                            ) {
+                                Text(
+                                    text = "${currentPr.toInt()}",
+                                    style = MaterialTheme.typography.displaySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = palette.ink
+                                )
+                                Text(
+                                    text = "lbs",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = palette.inkMuted,
+                                    modifier = Modifier.padding(start = 6.dp, bottom = 6.dp)
+                                )
+                            }
+                        }
+                        prDate?.let {
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "Personal best",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = palette.accentStrong
+                                )
+                                Text(
+                                    text = "set ${it.format(DateTimeFormatter.ofPattern("MMM d"))}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = palette.inkSubtle
+                                )
+                            }
+                        }
                     }
-                    item {
-                        StatCard(
-                            label = "Est. 1RM",
-                            value = "${"%.1f".format(estimatedOneRm)} lbs"
-                        )
-                    }
-                    item {
-                        StatCard(
-                            label = "Total Volume (${selectedRange.label})",
-                            value = formatVolumeLbs(totalVolume)
-                        )
-                    }
-                    item {
-                        StatCard(
-                            label = "Workouts (${selectedRange.label})",
-                            value = "$workoutCount"
-                        )
-                    }
+
+                    SpecRow(
+                        icon = Icons.Default.TrendingUp,
+                        label = "Estimated 1RM",
+                        value = "${"%.1f".format(estimatedOneRm)} lbs",
+                        emphasized = true
+                    )
+                    SpecRow(
+                        icon = Icons.Default.BarChart,
+                        label = "Volume · ${selectedRange.label}",
+                        value = formatVolumeLbs(totalVolume)
+                    )
+                    SpecRow(
+                        icon = Icons.Default.DateRange,
+                        label = "Sessions",
+                        value = "$workoutCount"
+                    )
                 }
             }
         }
@@ -766,7 +820,6 @@ private fun ProgressOrganizationControl(
         modifier = modifier.glassPanel(palette, RoundedCornerShape(14.dp), strong = true),
         shape = RoundedCornerShape(12.dp),
         color = Color.Transparent,
-        border = BorderStroke(1.dp, palette.glassStrokeStrong),
         shadowElevation = 0.dp
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -861,20 +914,31 @@ private fun ProgressExerciseList(
     } else {
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
             modifier = modifier
         ) {
-            items(
+            itemsIndexed(
                 items = exercises,
-                key = { it.id ?: it.name.hashCode().toLong() },
-                contentType = { "progressExercise" }
-            ) { exercise ->
+                key = { _, exercise -> exercise.id ?: exercise.name.hashCode().toLong() },
+                contentType = { _, _ -> "progressExercise" }
+            ) { index, exercise ->
+                val isFirst = index == 0
+                val isLast = index == exercises.lastIndex
+                // Only the ends of the group are rounded, so the rows read as one surface (#2/#4).
+                val rowShape = when {
+                    isFirst && isLast -> RoundedCornerShape(20.dp)
+                    isFirst -> RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                    isLast -> RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp)
+                    else -> RectangleShape
+                }
                 ProgressExerciseListItem(
                     exerciseName = exercise.name,
                     muscleGroups = exercise.muscleGroups,
                     lastSetLabel = exercise.lastSetLabel,
                     trendPercent = exercise.trendPercent,
-                    onClick = { onExerciseClick(exercise) }
+                    onClick = { onExerciseClick(exercise) },
+                    shape = rowShape,
+                    showDivider = !isFirst
                 )
             }
         }

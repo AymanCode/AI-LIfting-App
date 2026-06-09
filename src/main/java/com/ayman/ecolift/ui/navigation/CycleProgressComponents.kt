@@ -3,7 +3,6 @@ package com.ayman.ecolift.ui.navigation
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,9 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -98,19 +95,6 @@ internal fun ComparisonWindow.label(): String = when (this) {
 }
 
 @Composable
-internal fun SectionEyebrow(text: String) {
-    val palette = LocalGlassPalette.current
-    Text(
-        text = text,
-        color = palette.inkMuted,
-        fontSize = 13.sp,
-        fontFamily = Mono,
-        letterSpacing = 0.sp,
-        modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 2.dp),
-    )
-}
-
-@Composable
 internal fun WindowToggle(
     selected: ComparisonWindow,
     onSelect: (ComparisonWindow) -> Unit,
@@ -146,6 +130,46 @@ internal fun WindowToggle(
 }
 
 @Composable
+private fun ArchiveSectionTitle(
+    title: String,
+    trailing: String? = null,
+    modifier: Modifier = Modifier,
+) {
+    val palette = LocalGlassPalette.current
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            color = palette.ink,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f),
+        )
+        if (trailing != null) {
+            Text(
+                text = trailing,
+                color = palette.inkSubtle,
+                fontSize = 11.sp,
+                fontFamily = Mono,
+                textAlign = TextAlign.End,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ArchiveRule(modifier: Modifier = Modifier) {
+    val palette = LocalGlassPalette.current
+    HorizontalDivider(
+        modifier = modifier,
+        thickness = 1.dp,
+        color = palette.glassStroke.copy(alpha = 0.54f),
+    )
+}
+
+@Composable
 internal fun CompositeHeroCard(
     score: ScoreBreakdown,
     window: ComparisonWindow,
@@ -153,15 +177,13 @@ internal fun CompositeHeroCard(
 ) {
     val palette = LocalGlassPalette.current
     val tint = verdictColor(score.composite, palette)
-    Card(
+    val shape = RoundedCornerShape(18.dp)
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .glassPanel(palette, RoundedCornerShape(24.dp), strong = true),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, palette.glassStrokeStrong),
+            .glassPanel(palette, shape, strong = true),
     ) {
-        Column(Modifier.padding(20.dp)) {
+        Column(Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier
@@ -178,14 +200,8 @@ internal fun CompositeHeroCard(
                     letterSpacing = 0.sp,
                 )
             }
-            Spacer(Modifier.height(14.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                ArcGauge(
-                    value = score.composite,
-                    color = tint,
-                    modifier = Modifier.size(150.dp),
-                )
-                Spacer(Modifier.width(18.dp))
+            Spacer(Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         verdictWord(score.composite),
@@ -202,33 +218,39 @@ internal fun CompositeHeroCard(
                         lineHeight = 18.sp,
                     )
                 }
+                Spacer(Modifier.width(14.dp))
+                ArcGauge(
+                    value = score.composite,
+                    color = tint,
+                    modifier = Modifier.size(128.dp),
+                )
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(16.dp))
             SubScoreBar("Progression", score.progression, tint)
             Spacer(Modifier.height(10.dp))
             SubScoreBar("Momentum", score.momentum, tint)
             Spacer(Modifier.height(10.dp))
             SubScoreBar("Consistency", score.consistency, tint)
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "Adjust weights",
-                color = palette.accentStrong,
-                fontSize = 13.sp,
-                fontFamily = Mono,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onAdjustWeights)
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-            )
-            Text(
-                "split exercises only · tap a component for its formula",
-                color = palette.inkSubtle,
-                fontSize = 10.sp,
-                fontFamily = Mono,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "Split exercises only",
+                    color = palette.inkSubtle,
+                    fontSize = 10.sp,
+                    fontFamily = Mono,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "Adjust weights",
+                    color = palette.accentStrong,
+                    fontSize = 13.sp,
+                    fontFamily = Mono,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onAdjustWeights)
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
         }
     }
 }
@@ -240,15 +262,13 @@ internal fun NoComparisonHeroCard(
 ) {
     val palette = LocalGlassPalette.current
     val newLifts = comparison.lifts.count { it.isNew }
-    Card(
+    val shape = RoundedCornerShape(18.dp)
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .glassPanel(palette, RoundedCornerShape(24.dp), strong = true),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, palette.glassStrokeStrong),
+            .glassPanel(palette, shape, strong = true),
     ) {
-        Column(Modifier.padding(20.dp)) {
+        Column(Modifier.padding(18.dp)) {
             Text(
                 "Cycle progress",
                 color = palette.inkSubtle,
@@ -424,32 +444,39 @@ internal fun StoryChips(core: CycleProgressCore, comparison: CycleComparison) {
     val biggest = ranked.firstOrNull()
     val smallest = ranked.lastOrNull()
     val frequent = comparison.lifts.maxByOrNull { it.totalSets }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StoryChip(
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        ArchiveSectionTitle("Cycle snapshot", "vs previous ${comparison.window.label()}")
+        Row(horizontalArrangement = Arrangement.spacedBy(18.dp), modifier = Modifier.fillMaxWidth()) {
+            StoryStat(
                 "Biggest gain",
                 formatPct(biggest?.vsPct),
-                biggest?.name ?: "—",
+                biggest?.name ?: "N/A",
                 movementColor(biggest?.movement ?: Movement.HELD, palette),
                 Modifier.weight(1f),
             )
-            StoryChip(
+            StoryStat(
                 "Smallest gain",
                 formatPct(smallest?.vsPct),
-                smallest?.name ?: "—",
+                smallest?.name ?: "N/A",
                 movementColor(smallest?.movement ?: Movement.HELD, palette),
                 Modifier.weight(1f),
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StoryChip(
+        ArchiveRule()
+        Row(horizontalArrangement = Arrangement.spacedBy(18.dp), modifier = Modifier.fillMaxWidth()) {
+            StoryStat(
                 "Most frequent",
                 "${frequent?.totalSets ?: 0}",
-                "sets · ${frequent?.name ?: "—"}",
+                "sets · ${frequent?.name ?: "N/A"}",
                 palette.ink,
                 Modifier.weight(1f),
             )
-            StoryChip(
+            StoryStat(
                 "Lifts improved",
                 "${comparison.improvedCount}/${comparison.comparedCount}",
                 "vs ${comparison.window.label()} ago",
@@ -457,18 +484,29 @@ internal fun StoryChips(core: CycleProgressCore, comparison: CycleComparison) {
                 Modifier.weight(1f),
             )
         }
-        StoryChip(
-            "Sessions",
-            "${core.sessions}",
-            "${"%.1f".format(core.sessionsPerWeek)}/wk",
-            palette.ink,
-            Modifier.fillMaxWidth(),
-        )
+        ArchiveRule()
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            StoryStat(
+                "Sessions",
+                "${core.sessions}",
+                "${"%.1f".format(core.sessionsPerWeek)}/wk",
+                palette.ink,
+                Modifier.weight(1f),
+            )
+            Text(
+                text = "Training density across this archived span",
+                color = palette.inkSubtle,
+                fontSize = 11.sp,
+                fontFamily = Mono,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 }
 
 @Composable
-private fun StoryChip(
+private fun StoryStat(
     label: String,
     value: String,
     sub: String,
@@ -476,19 +514,12 @@ private fun StoryChip(
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalGlassPalette.current
-    Card(
-        modifier = modifier.glassPanel(palette, RoundedCornerShape(14.dp)),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, palette.glassStroke),
-    ) {
-        Column(Modifier.padding(14.dp)) {
-            Text(label, color = palette.inkSubtle, fontSize = 10.sp, fontFamily = Mono, letterSpacing = 0.sp)
-            Spacer(Modifier.height(6.dp))
-            Text(value, color = valueColor, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(2.dp))
-            Text(sub, color = palette.inkMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
+    Column(modifier = modifier.padding(vertical = 2.dp)) {
+        Text(label, color = palette.inkSubtle, fontSize = 10.sp, fontFamily = Mono, letterSpacing = 0.sp)
+        Spacer(Modifier.height(5.dp))
+        Text(value, color = valueColor, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(2.dp))
+        Text(sub, color = palette.inkMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -496,31 +527,28 @@ private fun StoryChip(
 internal fun OutcomeBar(comparison: CycleComparison) {
     val palette = LocalGlassPalette.current
     val total = comparison.comparedCount.coerceAtLeast(1)
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .glassPanel(palette, RoundedCornerShape(14.dp)),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, palette.glassStroke),
+            .padding(horizontal = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(16.dp)
-                    .clip(RoundedCornerShape(8.dp)),
-            ) {
-                OutcomeSeg(comparison.improvedCount, total, palette.complete)
-                OutcomeSeg(comparison.heldCount, total, HoldAmber)
-                OutcomeSeg(comparison.regressedCount, total, palette.danger)
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutcomeLegend("Improved", comparison.improvedCount, palette.complete)
-                OutcomeLegend("Held", comparison.heldCount, HoldAmber)
-                OutcomeLegend("Regressed", comparison.regressedCount, palette.danger)
-            }
+        ArchiveSectionTitle("Movement mix", "${comparison.comparedCount} compared lifts")
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(18.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(palette.glassFillStrong),
+        ) {
+            OutcomeSeg(comparison.improvedCount, total, palette.complete)
+            OutcomeSeg(comparison.heldCount, total, HoldAmber)
+            OutcomeSeg(comparison.regressedCount, total, palette.danger)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+            OutcomeLegend("Improved", comparison.improvedCount, palette.complete)
+            OutcomeLegend("Held", comparison.heldCount, HoldAmber)
+            OutcomeLegend("Regressed", comparison.regressedCount, palette.danger)
         }
     }
 }
@@ -553,17 +581,15 @@ internal fun GainLadder(comparison: CycleComparison) {
         .sortedByDescending { it.vsPct }
     if (rows.isEmpty()) return
     val maxAbs = rows.maxOf { abs(it.vsPct ?: 0f) }.coerceAtLeast(1f)
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .glassPanel(palette, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, palette.glassStroke),
+            .padding(horizontal = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(Modifier.padding(vertical = 14.dp, horizontal = 14.dp)) {
-            // Axis header: name gutter, then a centered "0" baseline marker.
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        ArchiveSectionTitle("Ranked gains", "center line = 0%")
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
                 Spacer(Modifier.width(116.dp))
                 Spacer(Modifier.width(10.dp))
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
@@ -572,10 +598,11 @@ internal fun GainLadder(comparison: CycleComparison) {
                 Spacer(Modifier.width(8.dp))
                 Spacer(Modifier.width(42.dp))
             }
-            Spacer(Modifier.height(8.dp))
-            rows.forEach { lift ->
+            rows.forEachIndexed { index, lift ->
                 GainLadderRow(lift, maxAbs)
-                Spacer(Modifier.height(9.dp))
+                if (index != rows.lastIndex) {
+                    ArchiveRule(Modifier.padding(top = 9.dp, bottom = 9.dp))
+                }
             }
         }
     }
@@ -673,16 +700,20 @@ private fun BwTag() {
 @Composable
 internal fun RepDistribution(buckets: List<RepBucket>) {
     val palette = LocalGlassPalette.current
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .glassPanel(palette, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, palette.glassStroke),
+            .padding(horizontal = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            buckets.forEach { bucket -> RepBucketRow(bucket) }
+        ArchiveSectionTitle("Rep range mix", "${buckets.sumOf { it.sets }} sets")
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            buckets.forEachIndexed { index, bucket ->
+                RepBucketRow(bucket)
+                if (index != buckets.lastIndex) {
+                    ArchiveRule()
+                }
+            }
         }
     }
 }
@@ -690,7 +721,11 @@ internal fun RepDistribution(buckets: List<RepBucket>) {
 @Composable
 private fun RepBucketRow(bucket: RepBucket) {
     val palette = LocalGlassPalette.current
-    val range = if (bucket.maxReps == Int.MAX_VALUE) "${bucket.minReps}+ reps" else "${bucket.minReps}–${bucket.maxReps} reps"
+    val range = if (bucket.maxReps == Int.MAX_VALUE) {
+        "${bucket.minReps}+ reps"
+    } else {
+        "${bucket.minReps}–${bucket.maxReps} reps"
+    }
     val animated by animateFloatAsState(
         targetValue = (bucket.pctOfSets / 100f).coerceIn(0f, 1f),
         animationSpec = tween(700),
@@ -743,52 +778,44 @@ internal fun ConsistencyHeatmap(core: CycleProgressCore) {
         for (i in 0 until totalDays) add(start.plusDays(i.toLong()))
     }
     val weeks = cells.chunked(7)
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .glassPanel(palette, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, palette.glassStroke),
+            .padding(horizontal = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(Modifier.padding(16.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-                listOf("S", "M", "T", "W", "T", "F", "S").forEach { d ->
-                    Text(
-                        d,
-                        color = palette.inkSubtle,
-                        fontSize = 9.sp,
-                        fontFamily = Mono,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+        ArchiveSectionTitle(
+            title = "Training rhythm",
+            trailing = "${core.sessions} sessions · ${"%.1f".format(core.sessionsPerWeek)}/wk",
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+            listOf("S", "M", "T", "W", "T", "F", "S").forEach { d ->
+                Text(
+                    d,
+                    color = palette.inkSubtle,
+                    fontSize = 9.sp,
+                    fontFamily = Mono,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
             }
-            Spacer(Modifier.height(6.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                weeks.forEach { week ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-                        for (i in 0 until 7) {
-                            val day = week.getOrNull(i)
-                            val on = day != null && day.toString() in sessionDates
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .aspectRatio(1f)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(if (on) palette.accentStrong else palette.glassFillStrong),
-                            )
-                        }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            weeks.forEach { week ->
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                    for (i in 0 until 7) {
+                        val day = week.getOrNull(i)
+                        val on = day != null && day.toString() in sessionDates
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (on) palette.accentStrong else palette.glassFillStrong),
+                        )
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
-            Text(
-                "${core.sessions} sessions · ${"%.1f".format(core.sessionsPerWeek)}/wk avg",
-                color = palette.inkMuted,
-                fontSize = 11.sp,
-                fontFamily = Mono,
-            )
         }
     }
 }
@@ -805,66 +832,70 @@ internal fun TrendGrid(
 ) {
     val palette = LocalGlassPalette.current
     val vsByExercise = comparison?.lifts?.associate { it.exerciseId to (it.vsPct ?: 0f) }.orEmpty()
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .glassPanel(palette, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, palette.glassStroke),
+            .padding(horizontal = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("Sort", color = palette.inkSubtle, fontSize = 11.sp, fontFamily = Mono, letterSpacing = 0.sp)
-                Spacer(Modifier.weight(1f))
-                Row(
-                    modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(palette.glassFill).padding(3.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    TrendSort.entries.forEach { option ->
-                        val on = option == sort
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (on) palette.accent.copy(alpha = 0.20f) else Color.Transparent)
-                                .clickable { onSortChange(option) }
-                                .padding(horizontal = 12.dp, vertical = 5.dp),
-                        ) {
-                            Text(
-                                option.label,
-                                color = if (on) palette.accentStrong else palette.inkMuted,
-                                fontSize = 11.sp,
-                                fontFamily = Mono,
-                                fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
-                            )
-                        }
+        ArchiveSectionTitle("Lift index", "tap for detail")
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text("Sort", color = palette.inkSubtle, fontSize = 11.sp, fontFamily = Mono, letterSpacing = 0.sp)
+            Spacer(Modifier.weight(1f))
+            Row(
+                modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(palette.glassFill).padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                TrendSort.entries.forEach { option ->
+                    val on = option == sort
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (on) palette.accent.copy(alpha = 0.20f) else Color.Transparent)
+                            .clickable { onSortChange(option) }
+                            .padding(horizontal = 12.dp, vertical = 5.dp),
+                    ) {
+                        Text(
+                            option.label,
+                            color = if (on) palette.accentStrong else palette.inkMuted,
+                            fontSize = 11.sp,
+                            fontFamily = Mono,
+                            fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                        )
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
-            val groups = core.lifts.groupBy { it.splitName }
+        }
+        val groups = core.lifts.groupBy { it.splitName }
+        if (groups.isEmpty()) {
+            Text(
+                "No lifts in this archived cycle.",
+                color = palette.inkMuted,
+                fontSize = 13.sp,
+            )
+        } else {
             groups.forEach { (splitName, lifts) ->
-                val sorted = when (sort) {
-                    TrendSort.VELOCITY -> lifts.sortedByDescending { it.slopePerWeek ?: Float.NEGATIVE_INFINITY }
-                    TrendSort.GAIN -> lifts.sortedByDescending { vsByExercise[it.exerciseId] ?: Float.NEGATIVE_INFINITY }
-                    TrendSort.AZ -> lifts.sortedBy { it.name.lowercase() }
-                }
-                Text(
-                    "$splitName · ${lifts.size} lifts",
-                    color = palette.inkSubtle,
-                    fontSize = 11.sp,
-                    fontFamily = Mono,
-                    letterSpacing = 0.sp,
-                    modifier = Modifier.padding(top = 6.dp, bottom = 8.dp),
-                )
-                sorted.chunked(2).forEach { pair ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        pair.forEach { lift ->
-                            TrendTile(lift, Modifier.weight(1f), onClick = { onLiftClick(lift) })
+                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text(
+                        "$splitName · ${lifts.size} lifts",
+                        color = palette.inkSubtle,
+                        fontSize = 11.sp,
+                        fontFamily = Mono,
+                        letterSpacing = 0.sp,
+                    )
+                    val sorted = when (sort) {
+                        TrendSort.VELOCITY -> lifts.sortedByDescending { it.slopePerWeek ?: Float.NEGATIVE_INFINITY }
+                        TrendSort.GAIN -> lifts.sortedByDescending {
+                            vsByExercise[it.exerciseId] ?: Float.NEGATIVE_INFINITY
                         }
-                        if (pair.size == 1) Spacer(Modifier.weight(1f))
+                        TrendSort.AZ -> lifts.sortedBy { it.name.lowercase() }
                     }
-                    Spacer(Modifier.height(10.dp))
+                    sorted.forEachIndexed { index, lift ->
+                        TrendRow(lift, onClick = { onLiftClick(lift) })
+                        if (index != sorted.lastIndex) {
+                            ArchiveRule()
+                        }
+                    }
                 }
             }
         }
@@ -872,7 +903,7 @@ internal fun TrendGrid(
 }
 
 @Composable
-private fun TrendTile(lift: LiftTrend, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun TrendRow(lift: LiftTrend, onClick: () -> Unit) {
     val palette = LocalGlassPalette.current
     val slope = lift.slopePerWeek
     val slopeColor = when {
@@ -881,17 +912,21 @@ private fun TrendTile(lift: LiftTrend, modifier: Modifier = Modifier, onClick: (
         slope < -0.05f -> palette.danger
         else -> palette.inkMuted
     }
-    val slopeText = if (slope == null) "N/A" else "${if (slope >= 0f) "+" else ""}${"%.1f".format(slope)} ${lift.unitLabel}"
-    Card(
-        modifier = modifier
-            .glassPanel(palette, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, palette.glassStroke),
+    val slopeText = if (slope == null) {
+        "N/A"
+    } else {
+        "${if (slope >= 0f) "+" else ""}${"%.1f".format(slope)} ${lift.unitLabel}"
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
                     lift.name,
                     color = palette.ink,
@@ -899,7 +934,7 @@ private fun TrendTile(lift: LiftTrend, modifier: Modifier = Modifier, onClick: (
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
+                    modifier = Modifier.weight(1f),
                 )
                 if (lift.isBodyweight) {
                     Spacer(Modifier.width(4.dp))
@@ -908,15 +943,24 @@ private fun TrendTile(lift: LiftTrend, modifier: Modifier = Modifier, onClick: (
             }
             Spacer(Modifier.height(2.dp))
             Text(slopeText, color = slopeColor, fontSize = 12.sp, fontFamily = Mono)
-            Spacer(Modifier.height(8.dp))
-            MiniSparkline(
-                values = lift.points.map { it.value },
-                color = slopeColor,
-                modifier = Modifier.fillMaxWidth().height(28.dp),
-            )
-            Spacer(Modifier.height(6.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        MiniSparkline(
+            values = lift.points.map { it.value },
+            color = slopeColor,
+            modifier = Modifier.width(78.dp).height(30.dp),
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(44.dp)) {
             Text(
-                if (lift.r2 != null) "R² ${"%.2f".format(lift.r2)}" else "R² N/A",
+                if (lift.r2 != null) "%.2f".format(lift.r2) else "N/A",
+                color = palette.inkMuted,
+                fontSize = 11.sp,
+                fontFamily = Mono,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                "fit",
                 color = palette.inkSubtle,
                 fontSize = 10.sp,
                 fontFamily = Mono,

@@ -77,6 +77,39 @@ class ProgressCalculationsTest {
     }
 
     @Test
+    fun `progress change percentage uses e1rm instead of session volume`() {
+        val points = buildProgressChartPoints(
+            filteredSets = listOf(
+                workoutSet(id = 1L, date = "2026-04-10", weight = 100, reps = 10, setNumber = 1),
+                workoutSet(id = 2L, date = "2026-04-15", weight = 100, reps = 10, setNumber = 1),
+                workoutSet(id = 3L, date = "2026-04-15", weight = 100, reps = 10, setNumber = 2),
+            ),
+            isBodyweight = false,
+            userBodyWeight = 180,
+        )
+
+        assertEquals(1000, points[0].volume)
+        assertEquals(2000, points[1].volume)
+        assertEquals(0f, calculateE1rmChangePercentage(points), 0.01f)
+    }
+
+    @Test
+    fun `buildProgressChartPoints uses best e1rm set for estimated one rep max`() {
+        val points = buildProgressChartPoints(
+            filteredSets = listOf(
+                workoutSet(id = 1L, date = "2026-04-10", weight = 225, reps = 1, setNumber = 1),
+                workoutSet(id = 2L, date = "2026-04-10", weight = 185, reps = 10, setNumber = 2),
+            ),
+            isBodyweight = false,
+            userBodyWeight = 180,
+        )
+
+        assertEquals(185f * (1f + 10f / 30f), points.single().estimated1RM, 0.01f)
+        assertEquals(WeightLbs.fromWholePounds(225), points.single().maxWeight)
+        assertEquals(10, points.single().reps)
+    }
+
+    @Test
     fun `bodyweight progress uses effective load instead of empty zero weight`() {
         val sets = listOf(
             workoutSet(date = "2026-04-10", weight = null, reps = 10, setNumber = 1, isBodyweight = true),
@@ -283,4 +316,54 @@ class ProgressCalculationsTest {
         completed = true,
         restTimeSeconds = null
     )
+
+    @Test
+    fun `bestTimeframeFor picks ONE_MONTH when two sessions fall in the last month`() {
+        val now = LocalDate.of(2026, 6, 8)
+        val dates = listOf(LocalDate.of(2026, 6, 6), LocalDate.of(2026, 5, 20))
+        assertEquals(TimeframeFilter.ONE_MONTH, bestTimeframeFor(dates, now))
+    }
+
+    @Test
+    fun `bestTimeframeFor escalates to THREE_MONTHS for the Lateral Raise case`() {
+        // Real emulator data: sessions on Apr 4 and Jun 6, viewed Jun 8.
+        // 1M window (since May 8) has only Jun 6; 3M window (since Mar 8) has both.
+        val now = LocalDate.of(2026, 6, 8)
+        val dates = listOf(LocalDate.of(2026, 4, 4), LocalDate.of(2026, 6, 6))
+        assertEquals(TimeframeFilter.THREE_MONTHS, bestTimeframeFor(dates, now))
+    }
+
+    @Test
+    fun `bestTimeframeFor escalates to SIX_MONTHS when sessions are older than three months`() {
+        val now = LocalDate.of(2026, 6, 8)
+        val dates = listOf(now.minusMonths(4), now.minusMonths(5))
+        assertEquals(TimeframeFilter.SIX_MONTHS, bestTimeframeFor(dates, now))
+    }
+
+    @Test
+    fun `bestTimeframeFor escalates to ONE_YEAR when sessions are older than six months`() {
+        val now = LocalDate.of(2026, 6, 8)
+        val dates = listOf(now.minusMonths(8), now.minusMonths(10))
+        assertEquals(TimeframeFilter.ONE_YEAR, bestTimeframeFor(dates, now))
+    }
+
+    @Test
+    fun `bestTimeframeFor falls back to ALL_TIME when no window has two sessions`() {
+        val now = LocalDate.of(2026, 6, 8)
+        val dates = listOf(now.minusYears(2), now.minusYears(3))
+        assertEquals(TimeframeFilter.ALL_TIME, bestTimeframeFor(dates, now))
+    }
+
+    @Test
+    fun `bestTimeframeFor falls back to ALL_TIME with a single session`() {
+        val now = LocalDate.of(2026, 6, 8)
+        assertEquals(TimeframeFilter.ALL_TIME, bestTimeframeFor(listOf(now.minusDays(2)), now))
+    }
+
+    @Test
+    fun `bestTimeframeFor does not count multiple sets on the same day as two sessions`() {
+        val now = LocalDate.of(2026, 6, 8)
+        val sameDay = LocalDate.of(2026, 6, 6)
+        assertEquals(TimeframeFilter.ALL_TIME, bestTimeframeFor(listOf(sameDay, sameDay), now))
+    }
 }

@@ -773,17 +773,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             currentDate = inputs.date,
             currentDateLabel = WorkoutDates.formatHeader(inputs.date),
             cycleEnabled = snapshot.cycle.isActive,
-            cycleSlot = if (snapshot.currentDay?.cycleSlotId != null && snapshot.currentDay.cycleSlotOccurrence != null) {
-                val slot = snapshot.slots.find { it.id == snapshot.currentDay.cycleSlotId }
-                CycleSlotUi(
-                    type = snapshot.currentDay.cycleSlotId.toInt(),
-                    occurrence = snapshot.currentDay.cycleSlotOccurrence,
-                    label = slot?.name ?: "Unknown",
-                    shortLabel = slot?.name?.take(2) ?: "Un",
-                )
-            } else {
-                null
-            },
+            cycleSlot = buildCurrentCycleSlotUi(snapshot.currentDay, snapshot.slots),
             alternativeForDate = snapshot.currentDay?.alternativeForDate,
             cycleOptions = cycleOptions,
             exercises = groupedExercises,
@@ -905,6 +895,21 @@ internal fun copyValuesForAppendedSet(newSet: WorkoutSet, source: WorkoutSet): W
         completed = false,
         restTimeSeconds = null,
     )
+
+internal fun buildCurrentCycleSlotUi(
+    currentDay: WorkoutDay?,
+    slots: List<CycleSlot>,
+): CycleSlotUi? {
+    val slotId = currentDay?.cycleSlotId ?: return null
+    val occurrence = currentDay.cycleSlotOccurrence ?: return null
+    val slot = slots.find { it.id == slotId } ?: return null
+    return CycleSlotUi(
+        type = slot.id.toInt(),
+        occurrence = occurrence,
+        label = slot.name,
+        shortLabel = slot.name.take(2),
+    )
+}
 
 private fun formatHistoryLoadLabel(sets: List<WorkoutSet>): String {
     val topSet = sets.maxWithOrNull(

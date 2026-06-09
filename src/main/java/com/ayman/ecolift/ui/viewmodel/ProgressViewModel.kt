@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.Locale
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProgressViewModel(application: Application) : AndroidViewModel(application) {
@@ -86,15 +87,13 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
 
                 summaries.map { summary ->
                     val historySets = setRepository.getSetsSince(summary.exerciseId, historyStartDate)
-                    val trend = buildProgressChartPoints(
+                    val chartPoints = buildProgressChartPoints(
                         filteredSets = historySets,
                         isBodyweight = summary.isBodyweight,
                         userBodyWeight = userBodyweight,
-                    ).takeLast(10).map { it.volume }
-
-                    val latestVol = trend.lastOrNull()?.toFloat() ?: 0f
-                    val prevVol = if (trend.size >= 2) trend[trend.size - 2].toFloat() else 0f
-                    val change = if (prevVol > 0f) (latestVol - prevVol) / prevVol else 0f
+                    )
+                    val e1rmTrend = chartPoints.takeLast(10).map { it.estimated1RM }
+                    val change = calculateE1rmChangePercentage(chartPoints)
 
                     val lastSets = lastSessionSetsByDate[summary.lastSessionDate].orEmpty()
                         .filter { it.exerciseId == summary.exerciseId }
@@ -110,8 +109,8 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                         lastSessionSummary = lastSet?.let {
                             formatProgressSetLabel(it, summary.isBodyweight)
                         } ?: "No sets",
-                        changePercentage = change * 100,
-                        trend = trend
+                        changePercentage = change,
+                        trend = e1rmTrend.map { it.roundToInt() }
                     )
                 }.sortedBy { it.name }
             }.collect {
@@ -217,7 +216,20 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         initialValue = ProgressUiState(),
     )
 
-    fun selectExercise(exerciseId: Long?) { selectedExerciseId.value = exerciseId }
+    fun selectExercise(exerciseId: Long?) {
+        if (exerciseId == null) {
+            selectedExerciseId.value = null
+            return
+        }
+        viewModelScope.launch {
+            // Auto-pick the narrowest timeframe that actually has a graph (>= 2 sessions)
+            // before revealing the detail, so it never opens on an empty default window.
+            val sessionDates = setRepository.getSetsSince(exerciseId, historyStartDate)
+                .mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }
+            timeframe.value = bestTimeframeFor(sessionDates, LocalDate.now())
+            selectedExerciseId.value = exerciseId
+        }
+    }
     fun setTimeframe(filter: TimeframeFilter) { timeframe.value = filter }
     fun setMetric(metric: ProgressMetric) { selectedMetric.value = metric }
     fun setOrganizationMode(mode: ProgressOrganizationMode) { organizationMode.value = mode }
@@ -332,22 +344,47 @@ internal fun buildProgressChartPoints(
         .groupBy { it.date }
         .toSortedMap()
         .map { (date, sets) ->
-            val maxSet = sets.maxByOrNull { effectiveLoadStored(it, isBodyweight, userBodyWeight) } ?: sets.first()
+            val bestEstimatedOneRepMaxSet = sets.maxByOrNull {
+                estimatedOneRepMax(it, isBodyweight, userBodyWeight)
+            } ?: sets.first()
             ProgressPointUi(
                 date = date,
                 label = WorkoutDates.formatAxis(date),
                 volume = calculateSessionVolume(sets, isBodyweight, userBodyWeight),
-                estimated1RM = calc1RM(
-                    weight = maxSet.weightLbs ?: 0,
-                    reps = maxSet.reps ?: 0,
-                    isBodyweight = isBodyweight || maxSet.isBodyweight,
-                    userBodyWeight = userBodyWeight
-                ),
+                estimated1RM = estimatedOneRepMax(bestEstimatedOneRepMaxSet, isBodyweight, userBodyWeight),
                 maxWeight = sets.maxOf { effectiveLoadStored(it, isBodyweight, userBodyWeight) },
                 maxReps = sets.maxOf { it.reps ?: 0 },
-                reps = maxSet.reps ?: 0
+                reps = bestEstimatedOneRepMaxSet.reps ?: 0
             )
         }
+}
+
+internal fun calculateE1rmChangePercentage(points: List<ProgressPointUi>): Float {
+    val e1rmTrend = points.takeLast(10).map { it.estimated1RM }
+    val latest = e1rmTrend.lastOrNull() ?: return 0f
+    val previous = e1rmTrend.getOrNull(e1rmTrend.size - 2) ?: return 0f
+    return if (previous > 0f) (latest - previous) / previous * 100f else 0f
+}
+
+/**
+ * Picks the narrowest timeframe whose window contains at least two distinct session
+ * dates (enough to render a trend line), scanning most-recent -> widest. Falls back to
+ * ALL_TIME when no window has two sessions. Keeps the detail graph from defaulting to an
+ * empty 1-month window when the data lives further back.
+ */
+internal fun bestTimeframeFor(
+    sessionDates: List<LocalDate>,
+    now: LocalDate,
+): TimeframeFilter {
+    val distinctDates = sessionDates.distinct()
+    fun countSince(start: LocalDate) = distinctDates.count { !it.isBefore(start) }
+    return when {
+        countSince(now.minusMonths(1)) >= 2 -> TimeframeFilter.ONE_MONTH
+        countSince(now.minusMonths(3)) >= 2 -> TimeframeFilter.THREE_MONTHS
+        countSince(now.minusMonths(6)) >= 2 -> TimeframeFilter.SIX_MONTHS
+        countSince(now.minusYears(1)) >= 2 -> TimeframeFilter.ONE_YEAR
+        else -> TimeframeFilter.ALL_TIME
+    }
 }
 
 internal fun buildProgressStats(
@@ -375,9 +412,13 @@ internal fun buildProgressStats(
     val sessionsInPeriod = currentSets.groupBy { it.date }.toSortedMap().values.toList()
     val latestSession = sessionsInPeriod.lastOrNull().orEmpty()
 
-    val currentPr = allTimeSets.maxOfOrNull {
+    val currentPrSet = allTimeSets.maxByOrNull {
         effectiveLoadStored(it, isBodyweight, userBodyWeight)
-    } ?: 0
+    }
+    val currentPr = currentPrSet
+        ?.let { effectiveLoadStored(it, isBodyweight, userBodyWeight) }
+        ?: 0
+    val currentPrDate = currentPrSet?.date?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
 
     val current1RM = latestEstimatedOneRepMax(latestSession, isBodyweight, userBodyWeight)
         ?: latestEstimatedOneRepMax(allTimeSets, isBodyweight, userBodyWeight)
@@ -393,6 +434,7 @@ internal fun buildProgressStats(
         totalVolume = formatVolume(currentVolume),
         totalVolumeLbs = currentVolume,
         workoutCount = currentWorkoutCount,
+        currentPrDate = currentPrDate,
     )
 }
 
@@ -409,12 +451,20 @@ private fun latestEstimatedOneRepMax(
         .lastOrNull()
         .orEmpty()
     val maxSet = latestSession.maxByOrNull {
-        effectiveLoadStored(it, isBodyweight, userBodyWeight)
+        estimatedOneRepMax(it, isBodyweight, userBodyWeight)
     } ?: return null
+    return estimatedOneRepMax(maxSet, isBodyweight, userBodyWeight)
+}
+
+private fun estimatedOneRepMax(
+    set: WorkoutSet,
+    isBodyweightExercise: Boolean,
+    userBodyWeight: Int?,
+): Float {
     return calc1RM(
-        weight = maxSet.weightLbs ?: 0,
-        reps = maxSet.reps ?: 0,
-        isBodyweight = isBodyweight || maxSet.isBodyweight,
+        weight = set.weightLbs ?: 0,
+        reps = set.reps ?: 0,
+        isBodyweight = isBodyweightExercise || set.isBodyweight,
         userBodyWeight = userBodyWeight
     )
 }

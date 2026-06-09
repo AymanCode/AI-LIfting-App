@@ -14,8 +14,11 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.util.Locale
 import java.util.UUID
+import kotlin.math.abs
+import kotlin.math.max
 import kotlinx.coroutines.test.runTest
 import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -81,19 +84,31 @@ class CardioOcrImageEvaluationInstrumentedTest {
             val result = engine.analyze(context, Uri.fromFile(imageFile))
             OcrCaseResult(case = case, result = result, passed = result.meets(case))
         }
-        val passCount = results.count { it.passed }
-        val passRate = passCount.toDouble() / results.size.toDouble()
-        val failures = results
-            .filterNot { it.passed }
-            .joinToString(separator = "\n") { failure ->
-                val fields = recognizedFieldCount(failure.result)
-                "${failure.case.fileName}: fields=$fields machine=${failure.result.machineType} text=${failure.result.rawText.take(140)}"
-            }
+        val metrics = OcrEvalMetrics.from(results) { caseResult ->
+            caseResult.result.expectedValuesCorrect(caseResult.case)
+        }
+        val report = buildReport(results, metrics)
+        File(context.filesDir, REPORT_FILE_NAME).writeText(report)
 
         assertTrue(
-            "Cardio OCR pass rate ${"%.0f".format(Locale.US, passRate * 100)}% ($passCount/${results.size}) is below 70%.\n$failures",
-            passRate >= REQUIRED_PASS_RATE,
+            "Cardio OCR usable-session conversion ${metrics.usableSessionPercent()} " +
+                "(${metrics.usablePositiveCount}/${metrics.positiveCount}) is below 70%.\n$report",
+            metrics.usableSessionRate >= REQUIRED_PASS_RATE,
         )
+        if (metrics.expectedValueCount > 0) {
+            assertTrue(
+                "Cardio OCR field-value accuracy ${metrics.fieldValueAccuracyPercent()} " +
+                    "(${metrics.correctValueCount}/${metrics.expectedValueCount}) is below 85%.\n$report",
+                metrics.fieldValueAccuracy >= REQUIRED_FIELD_VALUE_ACCURACY,
+            )
+        }
+        if (metrics.negativeCount > 0) {
+            assertTrue(
+                "Cardio OCR false accept rate ${metrics.falseAcceptPercent()} " +
+                    "(${metrics.falseAcceptCount}/${metrics.negativeCount}) must be 0%.\n$report",
+                metrics.falseAcceptCount == 0,
+            )
+        }
     }
 
     private fun renderScreenImage(lines: List<String>): File {
@@ -138,10 +153,18 @@ class CardioOcrImageEvaluationInstrumentedTest {
         val array = JSONArray(manifestText)
         return List(array.length()) { index ->
             val json = array.getJSONObject(index)
+            val expected = json.optJSONObject("expected")
             OcrImageCase(
                 fileName = json.getString("file"),
+                positive = json.optBoolean("positive", true),
+                sourceUrl = json.optString("sourceUrl").takeIf { it.isNotBlank() },
                 requiredFields = json.optJSONArray("requiredFields")?.toStringList().orEmpty(),
                 expectedMachineType = json.optString("expectedMachineType").takeIf { it.isNotBlank() },
+                expectedDurationSec = expected?.optNullableInt("durationSec"),
+                expectedDistanceMiles = expected?.optNullableDouble("distanceMiles"),
+                expectedCalories = expected?.optNullableInt("calories"),
+                expectedHeartRate = expected?.optNullableInt("heartRate"),
+                expectedSpeedMph = expected?.optNullableDouble("speedMph"),
                 minRecognizedFields = json.optInt("minRecognizedFields", 2),
             )
         }
@@ -150,11 +173,49 @@ class CardioOcrImageEvaluationInstrumentedTest {
     private fun JSONArray.toStringList(): List<String> =
         List(length()) { index -> getString(index) }
 
-    private fun CardioOcrResult.meets(case: OcrImageCase): Boolean =
-        recognizedCardioScreen &&
+    private fun JSONObject.optNullableInt(name: String): Int? =
+        if (has(name) && !isNull(name)) optInt(name) else null
+
+    private fun JSONObject.optNullableDouble(name: String): Double? =
+        if (has(name) && !isNull(name)) optDouble(name) else null
+
+    private fun CardioOcrResult.meets(case: OcrImageCase): Boolean {
+        if (!case.positive) return !recognizedCardioScreen
+        return recognizedCardioScreen &&
             recognizedFieldCount(this) >= case.minRecognizedFields &&
             case.requiredFields.all { fieldName -> hasField(fieldName) } &&
-            (case.expectedMachineType == null || machineType == case.expectedMachineType)
+            (case.expectedMachineType == null || machineType == case.expectedMachineType) &&
+            expectedValuesCorrect(case)
+                .filter { it.field in case.requiredFields }
+                .all { it.correct }
+    }
+
+    private fun CardioOcrResult.expectedValuesCorrect(case: OcrImageCase): List<OcrValueCheck> =
+        listOfNotNull(
+            case.expectedDurationSec?.let { expected ->
+                OcrValueCheck("duration", durationSec != null && abs(durationSec - expected) <= DURATION_TOLERANCE_SEC)
+            },
+            case.expectedDistanceMiles?.let { expected ->
+                val actualMiles = distanceM?.let { it / METERS_PER_MILE }
+                OcrValueCheck(
+                    "distance",
+                    actualMiles != null && abs(actualMiles - expected) <= max(DISTANCE_TOLERANCE_MILES, expected * 0.01),
+                )
+            },
+            case.expectedCalories?.let { expected ->
+                OcrValueCheck("calories", calories != null && abs(calories - expected) <= INTEGER_TOLERANCE)
+            },
+            case.expectedHeartRate?.let { expected ->
+                OcrValueCheck("heartRate", avgHeartRate != null && abs(avgHeartRate - expected) <= INTEGER_TOLERANCE)
+            },
+            case.expectedSpeedMph?.let { expected ->
+                val actualMph = avgSpeed?.let { it / METERS_PER_SECOND_PER_MPH }
+                OcrValueCheck(
+                    "speed",
+                    actualMph != null && abs(actualMph - expected) <= max(SPEED_TOLERANCE_MPH, expected * 0.02),
+                )
+            },
+        )
 
     private fun CardioOcrResult.hasField(fieldName: String): Boolean =
         when (fieldName) {
@@ -171,10 +232,50 @@ class CardioOcrImageEvaluationInstrumentedTest {
         listOf(result.durationSec, result.distanceM, result.calories, result.avgHeartRate, result.avgSpeed)
             .count { it != null }
 
+    private fun buildReport(results: List<OcrCaseResult>, metrics: OcrEvalMetrics): String =
+        buildString {
+            appendLine("Cardio OCR compatibility evaluation")
+            appendLine("Metric boundary: evaluates the app OCR pipeline, not ML Kit model ownership.")
+            appendLine("cases=${results.size} positives=${metrics.positiveCount} negatives=${metrics.negativeCount}")
+            appendLine("usableSessionConversion=${metrics.usableSessionPercent()} (${metrics.usablePositiveCount}/${metrics.positiveCount})")
+            appendLine("fieldValueAccuracy=${metrics.fieldValueAccuracyPercent()} (${metrics.correctValueCount}/${metrics.expectedValueCount})")
+            appendLine("falseAcceptRate=${metrics.falseAcceptPercent()} (${metrics.falseAcceptCount}/${metrics.negativeCount})")
+            appendLine("positiveFallbackRate=${metrics.positiveFallbackPercent()} (${metrics.positiveFallbackCount}/${metrics.positiveCount})")
+            appendLine()
+            results.forEach { caseResult ->
+                val valueChecks = caseResult.result.expectedValuesCorrect(caseResult.case)
+                val valueSummary = if (valueChecks.isEmpty()) {
+                    "no expected values"
+                } else {
+                    valueChecks.joinToString { "${it.field}=${if (it.correct) "ok" else "miss"}" }
+                }
+                appendLine(
+                    "${caseResult.case.fileName}: positive=${caseResult.case.positive} pass=${caseResult.passed} " +
+                        "recognized=${caseResult.result.recognizedCardioScreen} fields=${recognizedFieldCount(caseResult.result)} " +
+                        "confidence=${"%.2f".format(Locale.US, caseResult.result.confidence)} machine=${caseResult.result.machineType} " +
+                        "values=[$valueSummary]",
+                )
+                caseResult.case.sourceUrl?.let { appendLine("  source=$it") }
+                appendLine("  parsed=${caseResult.result.toParsedSummary()}")
+                appendLine("  raw=${caseResult.result.rawText.replace('\n', ' ').take(240)}")
+            }
+        }
+
+    private fun CardioOcrResult.toParsedSummary(): String =
+        "durationSec=$durationSec distanceMiles=${distanceM?.let { "%.2f".format(Locale.US, it / METERS_PER_MILE) }} " +
+            "calories=$calories heartRate=$avgHeartRate speedMph=${avgSpeed?.let { "%.1f".format(Locale.US, it / METERS_PER_SECOND_PER_MPH) }}"
+
     private data class OcrImageCase(
         val fileName: String,
+        val positive: Boolean,
+        val sourceUrl: String?,
         val requiredFields: List<String>,
         val expectedMachineType: String?,
+        val expectedDurationSec: Int?,
+        val expectedDistanceMiles: Double?,
+        val expectedCalories: Int?,
+        val expectedHeartRate: Int?,
+        val expectedSpeedMph: Double?,
         val minRecognizedFields: Int,
     )
 
@@ -184,10 +285,67 @@ class CardioOcrImageEvaluationInstrumentedTest {
         val passed: Boolean,
     )
 
+    private data class OcrValueCheck(
+        val field: String,
+        val correct: Boolean,
+    )
+
+    private data class OcrEvalMetrics(
+        val positiveCount: Int,
+        val negativeCount: Int,
+        val usablePositiveCount: Int,
+        val correctValueCount: Int,
+        val expectedValueCount: Int,
+        val falseAcceptCount: Int,
+        val positiveFallbackCount: Int,
+    ) {
+        val usableSessionRate: Double = ratio(usablePositiveCount, positiveCount)
+        val fieldValueAccuracy: Double = ratio(correctValueCount, expectedValueCount)
+
+        fun usableSessionPercent(): String = percent(usableSessionRate)
+        fun fieldValueAccuracyPercent(): String = percent(fieldValueAccuracy)
+        fun falseAcceptPercent(): String = percent(ratio(falseAcceptCount, negativeCount))
+        fun positiveFallbackPercent(): String = percent(ratio(positiveFallbackCount, positiveCount))
+
+        companion object {
+            fun from(
+                results: List<OcrCaseResult>,
+                valueChecksFor: (OcrCaseResult) -> List<OcrValueCheck>,
+            ): OcrEvalMetrics {
+                val positiveResults = results.filter { it.case.positive }
+                val negativeResults = results.filterNot { it.case.positive }
+                val valueChecks = positiveResults.flatMap(valueChecksFor)
+                return OcrEvalMetrics(
+                    positiveCount = positiveResults.size,
+                    negativeCount = negativeResults.size,
+                    usablePositiveCount = positiveResults.count { it.passed },
+                    correctValueCount = valueChecks.count { it.correct },
+                    expectedValueCount = valueChecks.size,
+                    falseAcceptCount = negativeResults.count { it.result.recognizedCardioScreen },
+                    positiveFallbackCount = positiveResults.count { !it.result.recognizedCardioScreen },
+                )
+            }
+        }
+
+        private fun ratio(numerator: Int, denominator: Int): Double =
+            if (denominator == 0) 0.0 else numerator.toDouble() / denominator.toDouble()
+
+        private fun percent(value: Double): String =
+            "${"%.1f".format(Locale.US, value * 100)}%"
+    }
+
     private companion object {
         const val REQUIRED_PASS_RATE = 0.70
+        const val REQUIRED_FIELD_VALUE_ACCURACY = 0.85
         const val ASSET_DIR = "cardio_ocr_eval"
         const val MANIFEST_ASSET = "$ASSET_DIR/manifest.json"
         const val EXTERNAL_DIR_ARGUMENT = "cardioOcrEvalDir"
+        const val REPORT_FILE_NAME = "cardio_ocr_eval_report.txt"
+        const val METERS_PER_MILE = 1609.344
+        const val METERS_PER_SECOND_PER_MPH = 0.44704
+        const val DURATION_TOLERANCE_SEC = 5
+        const val DISTANCE_TOLERANCE_MILES = 0.03
+        const val SPEED_TOLERANCE_MPH = 0.1
+        const val INTEGER_TOLERANCE = 1
     }
 }

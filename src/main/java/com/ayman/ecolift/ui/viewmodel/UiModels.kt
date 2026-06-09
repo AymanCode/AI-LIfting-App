@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.data.UNCLASSIFIED_MUSCLE_GROUPS
 import com.ayman.ecolift.data.PendingReview
+import java.time.LocalDate
 
 @Immutable
 data class CycleSlotUi(
@@ -80,8 +81,8 @@ data class ProgressExerciseUi(
     val sessions: Int,
     val lastSessionDate: String,
     val lastSessionSummary: String, // e.g. "165 x 7"
-    val changePercentage: Float, // % change last 30 days
-    val trend: List<Int>, // Last few volumes for sparkline
+    val changePercentage: Float, // % change between latest two e1RM session points
+    val trend: List<Int>, // Last few e1RMs for sparkline
 )
 
 enum class ProgressOrganizationMode {
@@ -128,6 +129,7 @@ data class ProgressStatsUi(
     val totalVolume: String,
     val totalVolumeLbs: Int = 0,
     val workoutCount: Int,
+    val currentPrDate: LocalDate? = null,
 )
 
 // Split tab models
