@@ -15,13 +15,13 @@ A companion web version — a Kotlin/Wasm PWA with a cloud backend — is develo
 - [Screenshots](#screenshots)
 - [Engineering Approach](#engineering-approach)
 - [Features](#features)
+- [IronMind Assistant](#ironmind-assistant)
+- [EcoLift Web](#ecolift-web)
 - [Tech Stack](#tech-stack)
 - [Code Map](#code-map)
 - [Getting Started](#getting-started)
 - [Testing](#testing)
-- [IronMind Assistant](#ironmind-assistant)
 - [Analytics](#analytics)
-- [EcoLift Web](#ecolift-web)
 - [Project Structure](#project-structure)
 - [Documentation](#documentation)
 - [Roadmap](#roadmap)
@@ -54,6 +54,53 @@ The project also includes local evaluation and analytics paths. Assistant behavi
 - Progress views with exercise history, trend summaries, estimated strength metrics, sparklines, and detailed set history.
 - Local backup and restore for workout data, split data, audit rows, pending review rows, and agent turns.
 - DuckDB analytics pipeline for querying exported backups outside the app.
+
+## IronMind Assistant
+
+IronMind handles workout requests that are slow or error-prone to do manually, especially historical edits, text imports, and workout questions. Example requests:
+
+- `yesterday calf raises 90 for 12 10 8`
+- `i did bench press 135x7,125x10,85x5`
+- `for last saturday my deadlift top set should say three fifteen for four not 275`
+- `delete the extra squat set from May 10`
+- `what should I use on incline dumbbell press if bench is 185x5`
+
+The assistant can classify intent, ground requests against local workout data, and propose typed database patches. It cannot write arbitrary SQL or mutate Room tables directly.
+
+```text
+user text
+  -> deterministic intent routing
+  -> optional model fallback for ambiguous language
+  -> local data grounding
+  -> typed DbPatch generation
+  -> validation
+  -> confirmation gate for destructive actions
+  -> transactional Room apply
+  -> audit log and undo
+```
+
+Safety controls include typed patch validation, destructive-action confirmation, Room transactions, audit rows with inverse patches, one-tap undo, and recoverable draft cards when a request cannot be safely parsed.
+
+### Agent Evaluation
+
+The agent is tested with JSONL prompt banks instead of relying only on manual demos:
+
+- `ironmind_eval_cases.jsonl`: 200 offline cases for routing, intent accuracy, fallback behavior, patch-field accuracy, and destructive safety.
+- `ironmind_realistic_prompt_bank.jsonl`: 120 realistic prompts for messy historical logs, dated imports, corrections, destructive requests, ambiguous rows, and read-only questions.
+- `ironmind_ai_rescue_cases.jsonl`: 24 hard prompts for opt-in live model rescue.
+
+Recent local eval snapshots reported 99.5% offline intent accuracy, 87.5% deterministic realistic-bank coverage, and 24/24 successful live rescue cases with no unsafe silent mutations. Regenerate the reports before relying on those numbers.
+
+## EcoLift Web
+
+EcoLift also runs in the browser as a Kotlin/Wasm Progressive Web App built with Compose Multiplatform. It shares most of this app's UI and the full IronMind agent pipeline, and replaces local Room persistence with a cloud backend:
+
+- Supabase Auth and Postgres with Row Level Security for per-user data isolation.
+- An offline-tolerant write queue with optimistic UI updates, write coalescing, retry with backoff, and duplicate-insert recovery, so logging keeps working on poor gym connectivity.
+- JWT-authenticated Supabase Edge Functions that proxy model calls server-side, with request limits and per-user daily usage caps.
+- Static assets deployed to Cloudflare Workers through GitHub Actions.
+
+The web version lives in a separate private repository because it carries the live deployment used by invited testers. The agent architecture described in this README is the same one running there.
 
 ## Tech Stack
 
@@ -146,42 +193,6 @@ python -m unittest analytics.test_load_backup
 
 The full testing guide, live AI rescue eval commands, CI details, coverage notes, and pre-push checklist are in [docs/TESTING.md](docs/TESTING.md).
 
-## IronMind Assistant
-
-IronMind handles workout requests that are slow or error-prone to do manually, especially historical edits, text imports, and workout questions. Example requests:
-
-- `yesterday calf raises 90 for 12 10 8`
-- `i did bench press 135x7,125x10,85x5`
-- `for last saturday my deadlift top set should say three fifteen for four not 275`
-- `delete the extra squat set from May 10`
-- `what should I use on incline dumbbell press if bench is 185x5`
-
-The assistant can classify intent, ground requests against local workout data, and propose typed database patches. It cannot write arbitrary SQL or mutate Room tables directly.
-
-```text
-user text
-  -> deterministic intent routing
-  -> optional model fallback for ambiguous language
-  -> local data grounding
-  -> typed DbPatch generation
-  -> validation
-  -> confirmation gate for destructive actions
-  -> transactional Room apply
-  -> audit log and undo
-```
-
-Safety controls include typed patch validation, destructive-action confirmation, Room transactions, audit rows with inverse patches, one-tap undo, and recoverable draft cards when a request cannot be safely parsed.
-
-### Agent Evaluation
-
-The agent is tested with JSONL prompt banks instead of relying only on manual demos:
-
-- `ironmind_eval_cases.jsonl`: 200 offline cases for routing, intent accuracy, fallback behavior, patch-field accuracy, and destructive safety.
-- `ironmind_realistic_prompt_bank.jsonl`: 120 realistic prompts for messy historical logs, dated imports, corrections, destructive requests, ambiguous rows, and read-only questions.
-- `ironmind_ai_rescue_cases.jsonl`: 24 hard prompts for opt-in live model rescue.
-
-Recent local eval snapshots reported 99.5% offline intent accuracy, 87.5% deterministic realistic-bank coverage, and 24/24 successful live rescue cases with no unsafe silent mutations. Regenerate the reports before relying on those numbers.
-
 ## Analytics
 
 The `analytics/` folder contains a DuckDB loader for backup exports. It turns local backup JSON into queryable fact and dimension tables:
@@ -194,17 +205,6 @@ The `analytics/` folder contains a DuckDB loader for backup exports. It turns lo
 - `fact_patch_audit`
 
 Views cover weekly volume, personal records, workout adherence, undo rate, agent error rate, and data-quality issues.
-
-## EcoLift Web
-
-EcoLift also runs in the browser as a Kotlin/Wasm Progressive Web App built with Compose Multiplatform. It shares most of this app's UI and the full IronMind agent pipeline, and replaces local Room persistence with a cloud backend:
-
-- Supabase Auth and Postgres with Row Level Security for per-user data isolation.
-- An offline-tolerant write queue with optimistic UI updates, write coalescing, retry with backoff, and duplicate-insert recovery, so logging keeps working on poor gym connectivity.
-- JWT-authenticated Supabase Edge Functions that proxy model calls server-side, with request limits and per-user daily usage caps.
-- Static assets deployed to Cloudflare Workers through GitHub Actions.
-
-The web version lives in a separate private repository because it carries the live deployment used by invited testers. The agent architecture described in this README is the same one running there.
 
 ## Project Structure
 
