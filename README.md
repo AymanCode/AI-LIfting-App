@@ -8,6 +8,8 @@ The app is designed around a practical constraint: workout data should stay usef
 
 **Status:** active personal project and prototype. It is not a Play Store production release.
 
+A companion web version — a Kotlin/Wasm PWA with a cloud backend — is developed in a separate private repository. See [EcoLift Web](#ecolift-web).
+
 ## Contents
 
 - [Screenshots](#screenshots)
@@ -19,6 +21,7 @@ The app is designed around a practical constraint: workout data should stay usef
 - [Testing](#testing)
 - [IronMind Assistant](#ironmind-assistant)
 - [Analytics](#analytics)
+- [EcoLift Web](#ecolift-web)
 - [Project Structure](#project-structure)
 - [Documentation](#documentation)
 - [Roadmap](#roadmap)
@@ -89,7 +92,7 @@ Useful starting points if you want to understand how the app is put together:
 
 Clone the repository:
 
-```powershell
+```bash
 git clone https://github.com/AymanCode/AI-LIfting-App.git
 cd AI-LIfting-App
 ```
@@ -98,12 +101,12 @@ Open the project in Android Studio, let Gradle sync, then run the `debug` varian
 
 From the terminal, build or install the debug app with:
 
-```powershell
-.\gradlew.bat assembleDebug
-.\gradlew.bat installDebug
+```bash
+./gradlew assembleDebug
+./gradlew installDebug
 ```
 
-The debug APK is written under `build/outputs/apk/debug/`.
+On Windows, use `gradlew.bat` in place of `./gradlew`. The debug APK is written under `build/outputs/apk/debug/`.
 
 ### Local Configuration
 
@@ -123,21 +126,21 @@ Debug builds use the checked-in `.android/debug.keystore` only as a public debug
 
 Run the core Android verification commands:
 
-```powershell
-.\gradlew.bat testDebugUnitTest
-.\gradlew.bat assembleDebug
+```bash
+./gradlew testDebugUnitTest
+./gradlew assembleDebug
 ```
 
 Run Android instrumentation tests on an emulator or physical device:
 
-```powershell
-.\gradlew.bat connectedDebugAndroidTest
+```bash
+./gradlew connectedDebugAndroidTest
 ```
 
 Run the DuckDB analytics test:
 
-```powershell
-python -m pip install -r analytics\requirements.txt
+```bash
+python -m pip install -r analytics/requirements.txt
 python -m unittest analytics.test_load_backup
 ```
 
@@ -192,6 +195,17 @@ The `analytics/` folder contains a DuckDB loader for backup exports. It turns lo
 
 Views cover weekly volume, personal records, workout adherence, undo rate, agent error rate, and data-quality issues.
 
+## EcoLift Web
+
+EcoLift also runs in the browser as a Kotlin/Wasm Progressive Web App built with Compose Multiplatform. It shares most of this app's UI and the full IronMind agent pipeline, and replaces local Room persistence with a cloud backend:
+
+- Supabase Auth and Postgres with Row Level Security for per-user data isolation.
+- An offline-tolerant write queue with optimistic UI updates, write coalescing, retry with backoff, and duplicate-insert recovery, so logging keeps working on poor gym connectivity.
+- JWT-authenticated Supabase Edge Functions that proxy model calls server-side, with request limits and per-user daily usage caps.
+- Static assets deployed to Cloudflare Workers through GitHub Actions.
+
+The web version lives in a separate private repository because it carries the live deployment used by invited testers. The agent architecture described in this README is the same one running there.
+
 ## Project Structure
 
 ```text
@@ -225,8 +239,8 @@ docs/         Architecture, testing, and implementation docs
 
 - Add Compose UI tests for the primary log, progress, split, and IronMind flows.
 - Add a real-device smoke test for local/on-device AI behavior with a model installed.
-- Keep live AI rescue evals opt-in so provider quota is spent intentionally.
 - Continue tightening assistant recovery UX for ambiguous imported workout text.
+- Continue building out the web version's sync and analytics story.
 
 ## Contributing
 
