@@ -216,6 +216,19 @@ object Migrations {
         }
     }
 
+    val MIGRATION_17_18 = object : Migration(17, 18) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            addColumnIfMissing(db, "cardio_sessions", "avg_incline_percent", "REAL DEFAULT NULL")
+            addColumnIfMissing(db, "cardio_sessions", "cadence_rpm", "INTEGER DEFAULT NULL")
+            addColumnIfMissing(db, "cardio_sessions", "resistance_level", "REAL DEFAULT NULL")
+            addColumnIfMissing(db, "cardio_sessions", "avg_power_watts", "INTEGER DEFAULT NULL")
+            addColumnIfMissing(db, "cardio_sessions", "stroke_rate_spm", "INTEGER DEFAULT NULL")
+            addColumnIfMissing(db, "cardio_sessions", "pace_sec_per_500m", "INTEGER DEFAULT NULL")
+            addColumnIfMissing(db, "cardio_sessions", "floors", "INTEGER DEFAULT NULL")
+            addColumnIfMissing(db, "cardio_sessions", "steps", "INTEGER DEFAULT NULL")
+        }
+    }
+
     val ALL_MIGRATIONS = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
@@ -233,6 +246,7 @@ object Migrations {
         MIGRATION_14_15,
         MIGRATION_15_16,
         MIGRATION_16_17,
+        MIGRATION_17_18,
     )
 
     private fun migrateLegacyWorkoutSchemaToV3Shape(db: SupportSQLiteDatabase) {

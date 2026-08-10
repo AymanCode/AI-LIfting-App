@@ -23,6 +23,16 @@ class CardioRepository(private val db: AppDatabase) {
         distanceM: Double? = null,
         calories: Int? = null,
         avgHeartRate: Int? = null,
+        maxHeartRate: Int? = null,
+        avgSpeed: Double? = null,
+        avgInclinePercent: Double? = null,
+        cadenceRpm: Int? = null,
+        resistanceLevel: Double? = null,
+        avgPowerWatts: Int? = null,
+        strokeRateSpm: Int? = null,
+        paceSecPer500m: Int? = null,
+        floors: Int? = null,
+        steps: Int? = null,
         notes: String = "",
     ): CardioSession {
         val now = System.currentTimeMillis()
@@ -35,6 +45,16 @@ class CardioRepository(private val db: AppDatabase) {
             distanceM = distanceM,
             calories = calories,
             avgHeartRate = avgHeartRate,
+            maxHeartRate = maxHeartRate,
+            avgSpeed = avgSpeed,
+            avgInclinePercent = avgInclinePercent,
+            cadenceRpm = cadenceRpm,
+            resistanceLevel = resistanceLevel,
+            avgPowerWatts = avgPowerWatts,
+            strokeRateSpm = strokeRateSpm,
+            paceSecPer500m = paceSecPer500m,
+            floors = floors,
+            steps = steps,
             source = CardioSessionSource.MANUAL,
             notes = notes,
             createdAt = now,
@@ -52,6 +72,16 @@ class CardioRepository(private val db: AppDatabase) {
         distanceM: Double? = null,
         calories: Int? = null,
         avgHeartRate: Int? = null,
+        maxHeartRate: Int? = null,
+        avgSpeed: Double? = null,
+        avgInclinePercent: Double? = null,
+        cadenceRpm: Int? = null,
+        resistanceLevel: Double? = null,
+        avgPowerWatts: Int? = null,
+        strokeRateSpm: Int? = null,
+        paceSecPer500m: Int? = null,
+        floors: Int? = null,
+        steps: Int? = null,
         machineType: String? = null,
         ocrConfidence: Double? = null,
         ocrEngineVersion: String? = null,
@@ -67,6 +97,16 @@ class CardioRepository(private val db: AppDatabase) {
             distanceM = distanceM,
             calories = calories,
             avgHeartRate = avgHeartRate,
+            maxHeartRate = maxHeartRate,
+            avgSpeed = avgSpeed,
+            avgInclinePercent = avgInclinePercent,
+            cadenceRpm = cadenceRpm,
+            resistanceLevel = resistanceLevel,
+            avgPowerWatts = avgPowerWatts,
+            strokeRateSpm = strokeRateSpm,
+            paceSecPer500m = paceSecPer500m,
+            floors = floors,
+            steps = steps,
             source = CardioSessionSource.OCR,
             machineType = machineType,
             ocrConfidence = ocrConfidence,
@@ -98,7 +138,16 @@ class CardioRepository(private val db: AppDatabase) {
             (existing.distanceM == null && session.distanceM != null) ||
             (existing.avgHeartRate == null && session.avgHeartRate != null) ||
             (existing.maxHeartRate == null && session.maxHeartRate != null) ||
-            (existing.durationSec == null && session.durationSec != null)
+            (existing.durationSec == null && session.durationSec != null) ||
+            (existing.avgSpeed == null && session.avgSpeed != null) ||
+            (existing.avgInclinePercent == null && session.avgInclinePercent != null) ||
+            (existing.cadenceRpm == null && session.cadenceRpm != null) ||
+            (existing.resistanceLevel == null && session.resistanceLevel != null) ||
+            (existing.avgPowerWatts == null && session.avgPowerWatts != null) ||
+            (existing.strokeRateSpm == null && session.strokeRateSpm != null) ||
+            (existing.paceSecPer500m == null && session.paceSecPer500m != null) ||
+            (existing.floors == null && session.floors != null) ||
+            (existing.steps == null && session.steps != null)
 
         if (incomingModified <= existingModified && !fillsMissingValues) {
             return existing
@@ -114,6 +163,14 @@ class CardioRepository(private val db: AppDatabase) {
             avgHeartRate = session.avgHeartRate ?: existing.avgHeartRate,
             maxHeartRate = session.maxHeartRate ?: existing.maxHeartRate,
             avgSpeed = session.avgSpeed ?: existing.avgSpeed,
+            avgInclinePercent = session.avgInclinePercent ?: existing.avgInclinePercent,
+            cadenceRpm = session.cadenceRpm ?: existing.cadenceRpm,
+            resistanceLevel = session.resistanceLevel ?: existing.resistanceLevel,
+            avgPowerWatts = session.avgPowerWatts ?: existing.avgPowerWatts,
+            strokeRateSpm = session.strokeRateSpm ?: existing.strokeRateSpm,
+            paceSecPer500m = session.paceSecPer500m ?: existing.paceSecPer500m,
+            floors = session.floors ?: existing.floors,
+            steps = session.steps ?: existing.steps,
             source = CardioSessionSource.HEALTH_CONNECT,
             hcDataOriginPackage = session.hcDataOriginPackage ?: existing.hcDataOriginPackage,
             hcLastModifiedTime = session.hcLastModifiedTime ?: existing.hcLastModifiedTime,
@@ -125,6 +182,14 @@ class CardioRepository(private val db: AppDatabase) {
         )
         db.cardioSessionDao().update(merged)
         return merged
+    }
+
+    suspend fun getById(id: Long): CardioSession? = db.cardioSessionDao().getById(id)
+
+    suspend fun update(session: CardioSession): CardioSession {
+        val updated = session.copy(updatedAt = System.currentTimeMillis())
+        db.cardioSessionDao().update(updated)
+        return updated
     }
 
     suspend fun delete(id: Long) {
