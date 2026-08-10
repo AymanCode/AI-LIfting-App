@@ -51,6 +51,9 @@ class CycleArchiveViewModel(application: Application) : AndroidViewModel(applica
     private val _detailName = MutableStateFlow("")
     val detailName: StateFlow<String> = _detailName.asStateFlow()
 
+    private val _detailVolumeLbs = MutableStateFlow<Long?>(null)
+    val detailVolumeLbs: StateFlow<Long?> = _detailVolumeLbs.asStateFlow()
+
     private val _core = MutableStateFlow<CycleProgressCore?>(null)
     val core: StateFlow<CycleProgressCore?> = _core.asStateFlow()
 
@@ -74,11 +77,13 @@ class CycleArchiveViewModel(application: Application) : AndroidViewModel(applica
         currentArchiveId = id
         viewModelScope.launch {
             val row = repo.getArchivedCycle(id)
-            _detail.value = row?.let {
-                runCatching { archiveJson.decodeFromString<CycleSnapshot>(it.snapshotJson) }
-                    .getOrNull()
-            }
+            _detail.value = runCatching { repo.archivedCycleSnapshot(id) }.getOrNull()
+                ?: row?.let {
+                    runCatching { archiveJson.decodeFromString<CycleSnapshot>(it.snapshotJson) }
+                        .getOrNull()
+                }
             _detailName.value = row?.name.orEmpty()
+            _detailVolumeLbs.value = _detail.value?.totals?.totalVolumeLbs ?: row?.totalVolumeLbs
             _core.value = runCatching { repo.archivedCycleProgress(id) }.getOrNull()
             reloadComparison()
         }
@@ -111,6 +116,7 @@ class CycleArchiveViewModel(application: Application) : AndroidViewModel(applica
         currentArchiveId = null
         _detail.value = null
         _detailName.value = ""
+        _detailVolumeLbs.value = null
         _core.value = null
         _comparison.value = null
         _window.value = ComparisonWindow.M3
