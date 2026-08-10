@@ -1,5 +1,7 @@
 package com.ayman.ecolift.ui.navigation
 
+import com.ayman.ecolift.ui.viewmodel.ProgressMetric
+import com.ayman.ecolift.ui.viewmodel.TimeframeFilter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -37,11 +39,11 @@ class ProgressPresentationTest {
 
         assertEquals(
             "Estimated 1RM up 18 lbs over 3M",
-            progressChartInsight(points, ProgressMetricV2.ESTIMATED_1RM, TimeRangeV2.THREE_MONTHS),
+            progressChartInsight(points, ProgressMetric.ESTIMATED_1RM, TimeframeFilter.THREE_MONTHS),
         )
         assertEquals(
             "Volume up 1,500 lbs over 3M",
-            progressChartInsight(points, ProgressMetricV2.VOLUME, TimeRangeV2.THREE_MONTHS),
+            progressChartInsight(points, ProgressMetric.VOLUME, TimeframeFilter.THREE_MONTHS),
         )
     }
 }

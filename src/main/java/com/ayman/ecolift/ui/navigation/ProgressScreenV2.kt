@@ -100,6 +100,9 @@ import com.ayman.ecolift.ui.theme.LocalGlassPalette
 import com.ayman.ecolift.ui.theme.LogType
 import com.ayman.ecolift.ui.theme.LogUiFontFamily
 import com.ayman.ecolift.ui.theme.glassPanel
+import com.ayman.ecolift.ui.viewmodel.ProgressMetric
+import com.ayman.ecolift.ui.viewmodel.ProgressOrganizationMode
+import com.ayman.ecolift.ui.viewmodel.TimeframeFilter
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -107,9 +110,15 @@ import kotlin.math.PI
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-enum class TimeRangeV2(val label: String) { ONE_MONTH("1M"), THREE_MONTHS("3M"), SIX_MONTHS("6M"), ONE_YEAR("1Y"), ALL("All") }
-enum class ProgressMetricV2 { ESTIMATED_1RM, WEIGHT, VOLUME }
-enum class ProgressOrganizationModeV2 { PROGRESS, SPLIT }
+/** Short axis-chip caption for a timeframe, e.g. "3M". */
+private val TimeframeFilter.label: String
+    get() = when (this) {
+        TimeframeFilter.ONE_MONTH -> "1M"
+        TimeframeFilter.THREE_MONTHS -> "3M"
+        TimeframeFilter.SIX_MONTHS -> "6M"
+        TimeframeFilter.ONE_YEAR -> "1Y"
+        TimeframeFilter.ALL_TIME -> "All"
+    }
 
 data class ExerciseDataPoint(
     val date: LocalDate,
@@ -544,38 +553,38 @@ private fun bestSetDisplay(bestSetLabel: String, currentPr: Float): BestSetDispl
 private fun formatWholeNumber(value: Float): String =
     String.format(Locale.US, "%,.0f", value)
 
-private fun metricLabel(metric: ProgressMetricV2): String =
+private fun metricLabel(metric: ProgressMetric): String =
     when (metric) {
-        ProgressMetricV2.ESTIMATED_1RM -> "Est. 1RM"
-        ProgressMetricV2.WEIGHT -> "Weight"
-        ProgressMetricV2.VOLUME -> "Volume"
+        ProgressMetric.ESTIMATED_1RM -> "Est. 1RM"
+        ProgressMetric.WEIGHT -> "Weight"
+        ProgressMetric.VOLUME -> "Volume"
     }
 
-private fun pastRangeText(range: TimeRangeV2): String =
+private fun pastRangeText(range: TimeframeFilter): String =
     when (range) {
-        TimeRangeV2.ONE_MONTH -> "past month"
-        TimeRangeV2.THREE_MONTHS -> "past 3 months"
-        TimeRangeV2.SIX_MONTHS -> "past 6 months"
-        TimeRangeV2.ONE_YEAR -> "past year"
-        TimeRangeV2.ALL -> "all time"
+        TimeframeFilter.ONE_MONTH -> "past month"
+        TimeframeFilter.THREE_MONTHS -> "past 3 months"
+        TimeframeFilter.SIX_MONTHS -> "past 6 months"
+        TimeframeFilter.ONE_YEAR -> "past year"
+        TimeframeFilter.ALL_TIME -> "all time"
     }
 
-private fun inPastRangeText(range: TimeRangeV2): String =
+private fun inPastRangeText(range: TimeframeFilter): String =
     when (range) {
-        TimeRangeV2.ALL -> "all time"
+        TimeframeFilter.ALL_TIME -> "all time"
         else -> "in the ${pastRangeText(range)}"
     }
 
-private fun metricValue(point: ExerciseDataPoint, metric: ProgressMetricV2): Float =
+private fun metricValue(point: ExerciseDataPoint, metric: ProgressMetric): Float =
     when (metric) {
-        ProgressMetricV2.ESTIMATED_1RM -> point.estimatedOneRm
-        ProgressMetricV2.WEIGHT -> point.maxWeight
-        ProgressMetricV2.VOLUME -> point.totalVolume
+        ProgressMetric.ESTIMATED_1RM -> point.estimatedOneRm
+        ProgressMetric.WEIGHT -> point.maxWeight
+        ProgressMetric.VOLUME -> point.totalVolume
     }
 
-private fun formatMetricValue(value: Float, metric: ProgressMetricV2): String =
+private fun formatMetricValue(value: Float, metric: ProgressMetric): String =
     when (metric) {
-        ProgressMetricV2.VOLUME -> formatVolumeLbs(value)
+        ProgressMetric.VOLUME -> formatVolumeLbs(value)
         else -> "${formatWholeNumber(value)} lbs"
     }
 
@@ -587,7 +596,7 @@ private fun nextPaletteChoice(current: GlassPaletteChoice): GlassPaletteChoice {
 
 private fun chartHeadline(
     dataPoints: List<ExerciseDataPoint>,
-    selectedMetric: ProgressMetricV2,
+    selectedMetric: ProgressMetric,
 ): String {
     if (dataPoints.isEmpty()) return "Log sessions to build your chart"
     val latest = metricValue(dataPoints.last(), selectedMetric)
@@ -745,8 +754,8 @@ fun ProgressDetailScreen(
     exerciseName: String,
     muscleGroups: String,
     dataPoints: List<ExerciseDataPoint>,
-    selectedRange: TimeRangeV2,
-    selectedMetric: ProgressMetricV2,
+    selectedRange: TimeframeFilter,
+    selectedMetric: ProgressMetric,
     currentPr: Float,
     bestSetLabel: String,
     prDate: LocalDate?,
@@ -754,8 +763,8 @@ fun ProgressDetailScreen(
     totalVolume: Float,
     workoutCount: Int,
     onBack: () -> Unit,
-    onRangeChange: (TimeRangeV2) -> Unit,
-    onMetricChange: (ProgressMetricV2) -> Unit,
+    onRangeChange: (TimeframeFilter) -> Unit,
+    onMetricChange: (ProgressMetric) -> Unit,
     onMuscleGroupChange: (String) -> Unit,
     paletteChoice: GlassPaletteChoice = GlassPaletteChoice.Sage,
     onPaletteChoiceChange: (GlassPaletteChoice) -> Unit = {},
@@ -941,7 +950,7 @@ fun ProgressDetailScreen(
                     modifier = Modifier.padding(horizontal = 2.dp),
                     horizontalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
-                    ProgressMetricV2.values().forEach { metric ->
+                    ProgressMetric.values().forEach { metric ->
                         MetricTab(
                             label = metricLabel(metric),
                             selected = metric == selectedMetric,
@@ -966,7 +975,7 @@ fun ProgressDetailScreen(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.Top,
                 ) {
-                    TimeRangeV2.values().forEach { range ->
+                    TimeframeFilter.values().forEach { range ->
                         val selected = range == selectedRange
                         Column(
                             modifier = Modifier
@@ -1036,8 +1045,8 @@ fun ProgressDetailScreen(
 @Composable
 private fun SketchChartCard(
     dataPoints: List<ExerciseDataPoint>,
-    selectedMetric: ProgressMetricV2,
-    selectedRange: TimeRangeV2,
+    selectedMetric: ProgressMetric,
+    selectedRange: TimeframeFilter,
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalGlassPalette.current
@@ -1133,7 +1142,7 @@ private fun SketchChartCard(
 @Composable
 private fun SketchProgressChart(
     dataPoints: List<ExerciseDataPoint>,
-    selectedMetric: ProgressMetricV2,
+    selectedMetric: ProgressMetric,
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalGlassPalette.current
@@ -1262,7 +1271,7 @@ private fun StatsSnapRail(
     totalVolume: Float,
     estimatedOneRm: Float,
     workoutCount: Int,
-    selectedRange: TimeRangeV2,
+    selectedRange: TimeframeFilter,
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
@@ -1468,8 +1477,8 @@ private fun LegacyProgressDetailScreenUnused(
     exerciseName: String,
     muscleGroups: String,
     dataPoints: List<ExerciseDataPoint>,
-    selectedRange: TimeRangeV2,
-    selectedMetric: ProgressMetricV2,
+    selectedRange: TimeframeFilter,
+    selectedMetric: ProgressMetric,
     currentPr: Float,
     bestSetLabel: String,
     prDate: LocalDate?,
@@ -1477,8 +1486,8 @@ private fun LegacyProgressDetailScreenUnused(
     totalVolume: Float,
     workoutCount: Int,
     onBack: () -> Unit,
-    onRangeChange: (TimeRangeV2) -> Unit,
-    onMetricChange: (ProgressMetricV2) -> Unit,
+    onRangeChange: (TimeframeFilter) -> Unit,
+    onMetricChange: (ProgressMetric) -> Unit,
     onMuscleGroupChange: (String) -> Unit,
     paletteChoice: GlassPaletteChoice = GlassPaletteChoice.Sage,
     onPaletteChoiceChange: (GlassPaletteChoice) -> Unit = {},
@@ -1577,12 +1586,12 @@ private fun LegacyProgressDetailScreenUnused(
                     modifier = Modifier.padding(horizontal = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    ProgressMetricV2.values().forEach { metric ->
+                    ProgressMetric.values().forEach { metric ->
                         MetricTab(
                             label = when (metric) {
-                                ProgressMetricV2.ESTIMATED_1RM -> "Est. 1RM"
-                                ProgressMetricV2.WEIGHT -> "Weight"
-                                ProgressMetricV2.VOLUME -> "Volume"
+                                ProgressMetric.ESTIMATED_1RM -> "Est. 1RM"
+                                ProgressMetric.WEIGHT -> "Weight"
+                                ProgressMetric.VOLUME -> "Volume"
                             },
                             selected = metric == selectedMetric,
                             onClick = { onMetricChange(metric) },
@@ -1629,9 +1638,9 @@ private fun LegacyProgressDetailScreenUnused(
                             )
                             if (dataPoints.size == 1) {
                                 val value = when (selectedMetric) {
-                                    ProgressMetricV2.ESTIMATED_1RM -> dataPoints[0].estimatedOneRm
-                                    ProgressMetricV2.WEIGHT -> dataPoints[0].maxWeight
-                                    ProgressMetricV2.VOLUME -> dataPoints[0].totalVolume
+                                    ProgressMetric.ESTIMATED_1RM -> dataPoints[0].estimatedOneRm
+                                    ProgressMetric.WEIGHT -> dataPoints[0].maxWeight
+                                    ProgressMetric.VOLUME -> dataPoints[0].totalVolume
                                 }
                                 Text(
                                     text = "%.0f".format(value),
@@ -1666,9 +1675,9 @@ private fun LegacyProgressDetailScreenUnused(
                             ) {
                             val values = dataPoints.map {
                                 when (selectedMetric) {
-                                    ProgressMetricV2.ESTIMATED_1RM -> it.estimatedOneRm
-                                    ProgressMetricV2.WEIGHT -> it.maxWeight
-                                    ProgressMetricV2.VOLUME -> it.totalVolume
+                                    ProgressMetric.ESTIMATED_1RM -> it.estimatedOneRm
+                                    ProgressMetric.WEIGHT -> it.maxWeight
+                                    ProgressMetric.VOLUME -> it.totalVolume
                                 }
                             }
                             val rawMinY = values.minOrNull() ?: 0f
@@ -1787,9 +1796,9 @@ private fun LegacyProgressDetailScreenUnused(
                                                 (offset.y - 40.dp.toPx()).coerceAtLeast(0f).toDp()
                                             }
                                             val value = when (selectedMetric) {
-                                                ProgressMetricV2.ESTIMATED_1RM -> point.estimatedOneRm
-                                                ProgressMetricV2.WEIGHT -> point.maxWeight
-                                                ProgressMetricV2.VOLUME -> point.totalVolume
+                                                ProgressMetric.ESTIMATED_1RM -> point.estimatedOneRm
+                                                ProgressMetric.WEIGHT -> point.maxWeight
+                                                ProgressMetric.VOLUME -> point.totalVolume
                                             }
                                             Box(
                                                 modifier = Modifier
@@ -1833,7 +1842,7 @@ private fun LegacyProgressDetailScreenUnused(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Spacer(Modifier.weight(1f))
-                    TimeRangeV2.values().forEach { range ->
+                    TimeframeFilter.values().forEach { range ->
                         val selected = range == selectedRange
                         Text(
                             text = range.label,
@@ -1883,27 +1892,27 @@ private fun LegacyProgressDetailScreenUnused(
 
 internal fun progressChartInsight(
     dataPoints: List<ExerciseDataPoint>,
-    selectedMetric: ProgressMetricV2,
-    selectedRange: TimeRangeV2,
+    selectedMetric: ProgressMetric,
+    selectedRange: TimeframeFilter,
 ): String? {
     if (dataPoints.size < 2) return null
 
     fun value(point: ExerciseDataPoint): Float = when (selectedMetric) {
-        ProgressMetricV2.ESTIMATED_1RM -> point.estimatedOneRm
-        ProgressMetricV2.WEIGHT -> point.maxWeight
-        ProgressMetricV2.VOLUME -> point.totalVolume
+        ProgressMetric.ESTIMATED_1RM -> point.estimatedOneRm
+        ProgressMetric.WEIGHT -> point.maxWeight
+        ProgressMetric.VOLUME -> point.totalVolume
     }
 
     val first = value(dataPoints.first())
     val latest = value(dataPoints.last())
     val delta = latest - first
     val metricName = when (selectedMetric) {
-        ProgressMetricV2.ESTIMATED_1RM -> "Estimated 1RM"
-        ProgressMetricV2.WEIGHT -> "Best weight"
-        ProgressMetricV2.VOLUME -> "Volume"
+        ProgressMetric.ESTIMATED_1RM -> "Estimated 1RM"
+        ProgressMetric.WEIGHT -> "Best weight"
+        ProgressMetric.VOLUME -> "Volume"
     }
     val formattedDelta = when (selectedMetric) {
-        ProgressMetricV2.VOLUME -> formatVolumeLbs(kotlin.math.abs(delta))
+        ProgressMetric.VOLUME -> formatVolumeLbs(kotlin.math.abs(delta))
         else -> "${kotlin.math.abs(delta).toInt()} lbs"
     }
     val direction = when {
@@ -1930,10 +1939,10 @@ fun ProgressScreen(
     searchQuery: String,
     onSearchChange: (String) -> Unit,
     onExerciseClick: (ProgressExercise) -> Unit,
-    organizationMode: ProgressOrganizationModeV2 = ProgressOrganizationModeV2.PROGRESS,
+    organizationMode: ProgressOrganizationMode = ProgressOrganizationMode.PROGRESS,
     splitPages: List<ProgressSplitPage> = emptyList(),
     selectedSplitIndex: Int = 0,
-    onOrganizationModeChange: (ProgressOrganizationModeV2) -> Unit = {},
+    onOrganizationModeChange: (ProgressOrganizationMode) -> Unit = {},
     onSelectedSplitIndexChange: (Int) -> Unit = {},
     onPreviousSplit: () -> Unit = {},
     onNextSplit: () -> Unit = {},
@@ -1962,11 +1971,11 @@ fun ProgressScreen(
                         start = 16.dp,
                         top = 12.dp,
                         end = 16.dp,
-                        bottom = if (organizationMode == ProgressOrganizationModeV2.SPLIT) 0.dp else 8.dp
+                        bottom = if (organizationMode == ProgressOrganizationMode.SPLIT) 0.dp else 8.dp
                     )
             )
 
-            if (organizationMode == ProgressOrganizationModeV2.PROGRESS) {
+            if (organizationMode == ProgressOrganizationMode.PROGRESS) {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = onSearchChange,
@@ -1999,13 +2008,13 @@ fun ProgressScreen(
             }
 
             when (organizationMode) {
-                ProgressOrganizationModeV2.PROGRESS -> ProgressExerciseList(
+                ProgressOrganizationMode.PROGRESS -> ProgressExerciseList(
                     exercises = exercises,
                     emptyText = "No exercises match this search",
                     onExerciseClick = onExerciseClick,
                     modifier = Modifier.fillMaxWidth()
                 )
-                ProgressOrganizationModeV2.SPLIT -> {
+                ProgressOrganizationMode.SPLIT -> {
                     if (splitPages.isEmpty()) {
                         ProgressEmptyState(
                             text = "No saved split exercises yet",
@@ -2061,8 +2070,8 @@ fun ProgressScreen(
 
 @Composable
 private fun ProgressOrganizationControl(
-    selectedMode: ProgressOrganizationModeV2,
-    onModeChange: (ProgressOrganizationModeV2) -> Unit,
+    selectedMode: ProgressOrganizationMode,
+    onModeChange: (ProgressOrganizationMode) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val palette = LocalGlassPalette.current
@@ -2073,7 +2082,7 @@ private fun ProgressOrganizationControl(
         shadowElevation = 0.dp
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
-            ProgressOrganizationModeV2.values().forEach { mode ->
+            ProgressOrganizationMode.values().forEach { mode ->
                 val selected = mode == selectedMode
                 TextButton(
                     onClick = { onModeChange(mode) },
@@ -2086,8 +2095,8 @@ private fun ProgressOrganizationControl(
                 ) {
                     Text(
                         text = when (mode) {
-                            ProgressOrganizationModeV2.PROGRESS -> "Progress"
-                            ProgressOrganizationModeV2.SPLIT -> "Splits"
+                            ProgressOrganizationMode.PROGRESS -> "Progress"
+                            ProgressOrganizationMode.SPLIT -> "Splits"
                         },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
@@ -2253,8 +2262,8 @@ fun ProgressDetailScreenPreview() {
             exerciseName = "Bench Press",
             muscleGroups = "Chest, Triceps",
             dataPoints = dataPoints,
-            selectedRange = TimeRangeV2.ONE_MONTH,
-            selectedMetric = ProgressMetricV2.ESTIMATED_1RM,
+            selectedRange = TimeframeFilter.ONE_MONTH,
+            selectedMetric = ProgressMetric.ESTIMATED_1RM,
             currentPr = 185f,
             bestSetLabel = "185 x 5",
             prDate = LocalDate.now(),
