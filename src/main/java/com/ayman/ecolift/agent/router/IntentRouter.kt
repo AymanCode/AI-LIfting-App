@@ -77,18 +77,18 @@ class IntentRouter(
     private fun parseLabelToIntent(label: String, rawText: String): Intent? {
         val clean = label.trim().removeSuffix(".").lowercase()
         return when (clean) {
-            "logset"            -> Intent.Write(PatchType.LogSet, rawText)
-            "editset"           -> Intent.Write(PatchType.EditSet, rawText)
-            "deleteset"         -> Intent.Write(PatchType.DeleteSet, rawText)
-            "moveworkoutday"    -> Intent.Write(PatchType.MoveWorkoutDay, rawText)
-            "renameexercise"    -> Intent.Write(PatchType.RenameExercise, rawText)
+            "logset" -> Intent.Write(PatchType.LogSet, rawText)
+            "editset" -> Intent.Write(PatchType.EditSet, rawText)
+            "deleteset" -> Intent.Write(PatchType.DeleteSet, rawText)
+            "moveworkoutday" -> Intent.Write(PatchType.MoveWorkoutDay, rawText)
+            "renameexercise" -> Intent.Write(PatchType.RenameExercise, rawText)
             "askrecommendation" -> Intent.Read(ReadType.AskRecommendation, rawText)
-            "asksimilar"        -> Intent.Read(ReadType.AskSimilar, rawText)
-            "askhistory"        -> Intent.Read(ReadType.AskHistory, rawText)
-            "querydate"         -> Intent.Read(ReadType.QueryDate, rawText)
-            "queryprogress"     -> Intent.Read(ReadType.QueryProgress, rawText)
-            "clarify"           -> null
-            else                -> null
+            "asksimilar" -> Intent.Read(ReadType.AskSimilar, rawText)
+            "askhistory" -> Intent.Read(ReadType.AskHistory, rawText)
+            "querydate" -> Intent.Read(ReadType.QueryDate, rawText)
+            "queryprogress" -> Intent.Read(ReadType.QueryProgress, rawText)
+            "clarify" -> null
+            else -> null
         }
     }
 

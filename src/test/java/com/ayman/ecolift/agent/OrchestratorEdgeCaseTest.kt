@@ -30,7 +30,7 @@ class OrchestratorEdgeCaseTest {
 
     private val TODAY = "2026-04-16" // Thursday
     private val BENCH = ExerciseMatch(1L, "Bench Press", isBodyweight = false, score = 0.0)
-    private val PULLUP = ExerciseMatch(2L, "Pull Up",    isBodyweight = true,  score = 0.0)
+    private val PULLUP = ExerciseMatch(2L, "Pull Up", isBodyweight = true, score = 0.0)
     private fun lbs(value: Int): Int = WeightLbs.fromWholePounds(value)!!
 
     @Before
@@ -38,11 +38,11 @@ class OrchestratorEdgeCaseTest {
         tools = mock()
         applier = mock()
         orchestrator = AgentOrchestrator(
-            router       = IntentRouter(engine = null),
-            tools        = tools,
+            router = IntentRouter(engine = null),
+            tools = tools,
             patchApplier = applier,
-            engine       = null,
-            today        = { TODAY }
+            engine = null,
+            today = { TODAY }
         )
     }
 

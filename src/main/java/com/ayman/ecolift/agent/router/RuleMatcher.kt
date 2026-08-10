@@ -69,7 +69,7 @@ object RuleMatcher {
             return RuleMatch(Intent.Read(ReadType.AskHistory, text), 0.85f)
         }
 
-        return null  // no rule matched -> fall through to model
+        return null // no rule matched -> fall through to model
     }
 
     // Patterns
@@ -148,18 +148,18 @@ object RuleMatcher {
     // Reps signals:
     //   - "8 reps", "for 5", set notation "3x10"
     private val WEIGHT_WITH_UNIT = Regex("""\d+\s*(lbs?|kg|pounds?|kilos?)""")
-    private val WEIGHT_AT_NUM   = Regex("""\bat\s+\d+\b""")
-    private val UNIT_X_REPS     = Regex("""\d+\s*(lbs?|kg|pounds?|kilos?)\s*x\s*\d+""")
-    private val REPS_EXPLICIT   = Regex("""\d+\s*reps?""")
-    private val FOR_REPS        = Regex("""\bfor\s+\d+\b""")
-    private val SET_NOTATION    = Regex("""\d+\s*x\s*\d+""")
+    private val WEIGHT_AT_NUM = Regex("""\bat\s+\d+\b""")
+    private val UNIT_X_REPS = Regex("""\d+\s*(lbs?|kg|pounds?|kilos?)\s*x\s*\d+""")
+    private val REPS_EXPLICIT = Regex("""\d+\s*reps?""")
+    private val FOR_REPS = Regex("""\bfor\s+\d+\b""")
+    private val SET_NOTATION = Regex("""\d+\s*x\s*\d+""")
 
     private fun hasWeightAndReps(t: String): Boolean {
         // "NxM" alone is sufficient - first number = weight, second = reps (gym convention)
         if (SET_NOTATION.containsMatchIn(t)) return true
         if (UNIT_X_REPS.containsMatchIn(t)) return true
         val hasWeight = WEIGHT_WITH_UNIT.containsMatchIn(t) || WEIGHT_AT_NUM.containsMatchIn(t)
-        val hasReps   = REPS_EXPLICIT.containsMatchIn(t) || FOR_REPS.containsMatchIn(t)
+        val hasReps = REPS_EXPLICIT.containsMatchIn(t) || FOR_REPS.containsMatchIn(t)
         return hasWeight && hasReps
     }
 

@@ -11,28 +11,28 @@ import com.ayman.ecolift.agent.PendingReviewCleanupParser
 import com.ayman.ecolift.agent.WorkoutImportTextParser
 import com.ayman.ecolift.agent.engine.GeminiNanoEngine
 import com.ayman.ecolift.agent.engine.LocalGenAiEngine
-import com.ayman.ecolift.agent.model.DbPatch
 import com.ayman.ecolift.agent.model.AgentTurnLog
+import com.ayman.ecolift.agent.model.DbPatch
+import com.ayman.ecolift.agent.patches.PatchResult
 import com.ayman.ecolift.agent.patches.PatchService
 import com.ayman.ecolift.agent.patches.PatchValidator
-import com.ayman.ecolift.agent.patches.PatchResult
 import com.ayman.ecolift.agent.router.IntentRouter
 import com.ayman.ecolift.agent.tools.AgentToolsImpl
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.DebugDataHelper
 import com.ayman.ecolift.data.PendingReview
-import java.util.UUID
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 /**
  * ViewModel backed by [AgentOrchestrator].
@@ -42,19 +42,19 @@ import kotlinx.coroutines.launch
  */
 class OrchestratorViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val db      = AppDatabase.getInstance(application)
+    private val db = AppDatabase.getInstance(application)
     private val service = PatchService(db, PatchValidator())
-    private val tools   = AgentToolsImpl(db)
+    private val tools = AgentToolsImpl(db)
     private val engine: LocalGenAiEngine? =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) GeminiNanoEngine(application)
         else null
-    private val agent   = AgentOrchestrator(
-        router       = IntentRouter(engine = engine),
-        tools        = tools,
+    private val agent = AgentOrchestrator(
+        router = IntentRouter(engine = engine),
+        tools = tools,
         patchApplier = service,
-        engine       = engine
+        engine = engine
     )
-    private val turnLogDao      = db.agentTurnLogDao()
+    private val turnLogDao = db.agentTurnLogDao()
     private val pendingReviewDao = db.pendingReviewDao()
 
     private val workoutSetDao = db.workoutSetDao()
@@ -84,11 +84,11 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
     }
     // Internal state
 
-    private val _input   = MutableStateFlow("")
-    private val _msgs    = MutableStateFlow(listOf(WELCOME))
+    private val _input = MutableStateFlow("")
+    private val _msgs = MutableStateFlow(listOf(WELCOME))
     private val _confirm = MutableStateFlow<AgentTurn.NeedsConfirmation?>(null)
-    private val _busy    = MutableStateFlow(false)
-    private var nextId   = 1L
+    private val _busy = MutableStateFlow(false)
+    private var nextId = 1L
 
     /** One-shot event: UI should show a Snackbar with "Undo" action. */
     private val _undoEvent = MutableSharedFlow<AgentTurn.Applied>(extraBufferCapacity = 1)
@@ -109,16 +109,16 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
         }
 
         AiUiState(
-            isModelReady  = true,
-            messages      = msgs,
-            shortcuts     = buildDynamicShortcuts(exercises),
-            input         = input,
+            isModelReady = true,
+            messages = msgs,
+            shortcuts = buildDynamicShortcuts(exercises),
+            input = input,
             availableExerciseNames = availableNames,
-            isWorking     = busy,
+            isWorking = busy,
             pendingAction = confirm?.let {
                 AiPendingActionUi(
-                    title        = "Confirm Change",
-                    detail       = it.summary,
+                    title = "Confirm Change",
+                    detail = it.summary,
                     confirmLabel = "Apply"
                 )
             }
@@ -182,12 +182,12 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
 
         viewModelScope.launch {
             _busy.value = true
-            val t0  = System.currentTimeMillis()
+            val t0 = System.currentTimeMillis()
             val turn = agent.process(
                 text,
                 AgentProcessingOptions(allowModelFallback = false)
             )
-            val ms  = System.currentTimeMillis() - t0
+            val ms = System.currentTimeMillis() - t0
             handleTurn(turn)
             logTurn(text, turn, ms)
             _busy.value = false
@@ -349,7 +349,7 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
 
     private fun handleTurn(turn: AgentTurn) {
         when (turn) {
-            is AgentTurn.TextResponse      -> push(isUser = false, text = turn.text)
+            is AgentTurn.TextResponse -> push(isUser = false, text = turn.text)
             is AgentTurn.NeedsConfirmation -> {
                 push(isUser = false, text = turn.summary)
                 _confirm.value = turn
@@ -400,14 +400,14 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
 
     private suspend fun logTurn(userText: String, turn: AgentTurn, latencyMs: Long) {
         val entry = AgentTurnLog(
-            timestamp    = System.currentTimeMillis(),
-            userText     = userText,
-            turnKind     = turn::class.simpleName ?: "Unknown",
-            latencyMs    = latencyMs,
+            timestamp = System.currentTimeMillis(),
+            userText = userText,
+            turnKind = turn::class.simpleName ?: "Unknown",
+            latencyMs = latencyMs,
             errorMessage = (turn as? AgentTurn.Error)?.message,
-            auditId      = (turn as? AgentTurn.Applied)?.auditId,
+            auditId = (turn as? AgentTurn.Applied)?.auditId,
         )
-        runCatching { turnLogDao.insert(entry) }  // Fire-and-forget; never crash the UI.
+        runCatching { turnLogDao.insert(entry) } // Fire-and-forget; never crash the UI.
     }
 
     private fun push(
@@ -430,16 +430,16 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
 
     companion object {
         private val WELCOME = AiMessageUi(
-            id     = 0L,
+            id = 0L,
             isUser = false,
-            text   = "IronMind ready. Log sets, check history, or ask for weight advice."
+            text = "IronMind ready. Log sets, check history, or ask for weight advice."
         )
 
         private val SHORTCUTS = listOf(
-            AiShortcutUi("Log a set",      "Quick-log weight and reps",       "bench press 185 x 5"),
-            AiShortcutUi("My history",     "See recent bench press sessions", "show my bench press history"),
-            AiShortcutUi("Bench trend",    "How strength is progressing",     "how is my bench press trending"),
-            AiShortcutUi("Today's session","What was logged today",           "what did I do today"),
+            AiShortcutUi("Log a set", "Quick-log weight and reps", "bench press 185 x 5"),
+            AiShortcutUi("My history", "See recent bench press sessions", "show my bench press history"),
+            AiShortcutUi("Bench trend", "How strength is progressing", "how is my bench press trending"),
+            AiShortcutUi("Today's session", "What was logged today", "what did I do today"),
         )
     }
 }

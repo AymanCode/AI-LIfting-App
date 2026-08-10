@@ -62,5 +62,6 @@ object CardioEntryParser {
             paceSecPer500m,
             floors,
             steps,
-        ).any { it != null } || notes.trim().isNotEmpty()
+        ).any { it != null } ||
+        notes.trim().isNotEmpty()
 }

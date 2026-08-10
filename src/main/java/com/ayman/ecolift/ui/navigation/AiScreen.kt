@@ -7,8 +7,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
 import com.ayman.ecolift.ui.viewmodel.OrchestratorViewModel
-import java.time.format.DateTimeFormatter
 import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun AiScreen(
@@ -39,7 +39,9 @@ fun AiScreen(
                         lastSession = uiState.pendingAction?.title,
                         sessionCount = null
                     )
-                } else null,
+                } else {
+                    null
+                },
                 recovery = msg.recovery?.let {
                     RecoveryPayload(
                         title = it.title,

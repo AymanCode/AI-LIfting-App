@@ -61,7 +61,7 @@ object WorkoutDataGenerator {
         val slots = listOf("Upper 1", "Lower 1", "Upper 2", "Lower 2")
         val slotIds = mutableListOf<Long>()
         val existingSlots = cycleSlotDao.getAll()
-        
+
         if (existingSlots.isEmpty() || existingSlots.size < 4) {
              cycleSlotDao.deleteAll()
              for ((i, slotName) in slots.withIndex()) {
@@ -152,18 +152,18 @@ object WorkoutDataGenerator {
                 )
 
                 val plannedExercises = getExercisesForPhaseAndSlot(slotIndex, isPhase2)
-                
+
                 for (plannedExName in plannedExercises) {
                     var exName = plannedExName
                     var setOrdinal = 1
-                    
+
                     // On-the-fly Swaps (Complexity 5)
                     if (swapMap.containsKey(exName) && Random.nextFloat() < 0.10f) {
                         exName = swapMap[exName]!!
                     }
 
                     val isConsistent = consistentEx.contains(plannedExName)
-                    
+
                     if (!isConsistent && Random.nextFloat() > 0.6f) {
                         continue // Skip inconsistent exercise
                     }
@@ -182,7 +182,7 @@ object WorkoutDataGenerator {
                     } else {
                         workingWeight = Random.nextInt(20, 100)
                     }
-                    
+
                     // Warm-up Sets (Complexity 4)
                     if (isConsistent) {
                         // Warmup 1
@@ -206,7 +206,7 @@ object WorkoutDataGenerator {
                     // Working Sets & Fatigue (Complexity 3)
                     for (i in 1..workingSets) {
                         var reps = if (isConsistent) 8 else Random.nextInt(8, 16)
-                        
+
                         // Fatigue on the last working set
                         if (i == workingSets && !isDeload && Random.nextFloat() < 0.5f) {
                             reps -= Random.nextInt(1, 4)

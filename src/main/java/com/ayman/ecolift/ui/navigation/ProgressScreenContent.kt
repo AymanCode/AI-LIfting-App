@@ -55,8 +55,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -81,6 +81,8 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -93,8 +95,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
 import com.ayman.ecolift.ui.theme.LocalGlassPalette
 import com.ayman.ecolift.ui.theme.LogType
@@ -1685,7 +1685,7 @@ private fun LegacyProgressDetailScreenUnused(
                             val minY = if (rawMinY == rawMaxY) (rawMinY - 1f).coerceAtLeast(0f) else rawMinY * 0.95f
                             val maxY = if (rawMinY == rawMaxY) rawMaxY + 1f else rawMaxY * 1.05f
                             val yRange = (maxY - minY).coerceAtLeast(1f)
-                            
+
                             Column(modifier = Modifier.fillMaxSize()) {
                                 // Plot band: Y-axis labels (left gutter) + plot area
                                 Row(modifier = Modifier.fillMaxWidth().weight(1f)) {

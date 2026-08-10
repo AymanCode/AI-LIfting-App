@@ -71,9 +71,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.time.LocalDate
-import java.time.YearMonth
-import java.util.Locale
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
 import com.ayman.ecolift.ui.theme.LocalGlassPalette
 import com.ayman.ecolift.ui.theme.LogType
@@ -81,9 +78,12 @@ import com.ayman.ecolift.ui.theme.LogUiFontFamily
 import com.ayman.ecolift.ui.theme.PosterFontFamily
 import com.ayman.ecolift.ui.theme.bounceClick
 import com.ayman.ecolift.ui.theme.glassPanel
-import kotlin.random.Random
 import com.ayman.ecolift.ui.viewmodel.ArchiveCardUi
 import com.ayman.ecolift.ui.viewmodel.SplitTabMode
+import java.time.LocalDate
+import java.time.YearMonth
+import java.util.Locale
+import kotlin.random.Random
 
 data class SplitType(
     val id: Long,
@@ -199,7 +199,7 @@ fun GymCalendarCard(
                                             .background(palette.accent.copy(alpha = 0.15f))
                                     )
                                 }
-                                
+
                                 Text(
                                     text = date.dayOfMonth.toString(),
                                     color = contentColor,
@@ -207,7 +207,7 @@ fun GymCalendarCard(
                                     fontWeight = fontWeight,
                                     modifier = Modifier.padding(bottom = if (isGymDay) 4.dp else 0.dp)
                                 )
-                                
+
                                 if (isGymDay) {
                                     Box(
                                         modifier = Modifier
@@ -339,26 +339,26 @@ fun TodaySplitHeroCard(
                     color = palette.inkSubtle
                 )
             }
-            
+
             Text(
                 text = splitName,
                 style = LogType.exerciseTitle,
                 color = palette.ink,
                 modifier = Modifier.padding(top = 8.dp)
             )
-            
+
             Text(
                 text = "$exerciseCount exercises · $lastRunLabel",
                 style = MaterialTheme.typography.bodySmall,
                 color = palette.inkMuted,
                 modifier = Modifier.padding(top = 4.dp)
             )
-            
+
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 16.dp),
                 color = palette.glassStroke
             )
-            
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -421,7 +421,7 @@ fun RotationCycleRow(
                 color = palette.inkSubtle,
                 modifier = Modifier.padding(bottom = 10.dp)
             )
-            
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -449,7 +449,7 @@ fun RotationCycleRow(
                             color = if (isActive) palette.ink else palette.inkMuted
                         )
                     }
-                    
+
                     if (index < splits.size - 1) {
                         Text(
                             text = "→",
@@ -460,7 +460,7 @@ fun RotationCycleRow(
                     }
                 }
             }
-            
+
             Text(
                 text = "Cycle repeats after ${splits.size} days",
                 style = MaterialTheme.typography.labelSmall,
@@ -504,7 +504,7 @@ fun SplitListItem(
                     .size(20.dp)
                     .padding(end = 12.dp)
             )
-            
+
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -513,7 +513,7 @@ fun SplitListItem(
                         fontWeight = FontWeight.Medium,
                         color = palette.ink
                     )
-                    
+
                     if (isToday) {
                         Box(
                             modifier = Modifier
@@ -532,7 +532,7 @@ fun SplitListItem(
                         }
                     }
                 }
-                
+
                 Text(
                     text = "$exerciseCount exercises · $lastRunLabel",
                     style = MaterialTheme.typography.bodySmall,
@@ -540,7 +540,7 @@ fun SplitListItem(
                     modifier = Modifier.padding(top = 3.dp)
                 )
             }
-            
+
             IconButton(
                 onClick = onOptionsClick,
                 modifier = Modifier.size(24.dp)
@@ -633,7 +633,7 @@ fun MySplitsSection(
                 color = palette.inkSubtle.copy(alpha = 0.72f),
                 modifier = Modifier.padding(bottom = 6.dp)
             )
-            
+
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 splits.forEachIndexed { index, split ->
                     val isToday = splitCycleEnabled && index == currentSplitIndex

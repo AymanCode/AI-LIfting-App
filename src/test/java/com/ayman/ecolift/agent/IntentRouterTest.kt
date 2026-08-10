@@ -27,7 +27,6 @@ class IntentRouterTest {
         Case("add a set: overhead press 95kg 8 reps", Intent.Write::class.java, PatchType.LogSet),
         Case("just finished bench 5x5 at 185 pounds", Intent.Write::class.java, PatchType.LogSet),
         Case("logged 3 sets of curls at 40 lbs 12 reps", Intent.Write::class.java, PatchType.LogSet),
-
         // ── EditSet ──
         Case("fix my last set weight was actually 145", Intent.Write::class.java, PatchType.EditSet),
         Case("that was wrong it was 8 reps not 6", Intent.Write::class.java, PatchType.EditSet),
@@ -35,37 +34,31 @@ class IntentRouterTest {
         Case("i meant 135 not 125", Intent.Write::class.java, PatchType.EditSet),
         Case("update my last set to 10 reps", Intent.Write::class.java, PatchType.EditSet),
         Case("wrong weight on that last set", Intent.Write::class.java, PatchType.EditSet),
-
         // ── DeleteSet ──
         Case("delete my last set", Intent.Write::class.java, PatchType.DeleteSet),
         Case("remove my last bench press entry", Intent.Write::class.java, PatchType.DeleteSet),
         Case("erase that set", Intent.Write::class.java, PatchType.DeleteSet),
         Case("get rid of that last entry", Intent.Write::class.java, PatchType.DeleteSet),
-
         // ── MoveWorkoutDay ──
         Case("reschedule my workout to friday", Intent.Write::class.java, PatchType.MoveWorkoutDay),
         Case("move my workout to tomorrow", Intent.Write::class.java, PatchType.MoveWorkoutDay),
         Case("postpone today's session", Intent.Write::class.java, PatchType.MoveWorkoutDay),
         Case("shift my workout to saturday", Intent.Write::class.java, PatchType.MoveWorkoutDay),
-
         // ── RenameExercise ──
         Case("rename bench press to flat bench", Intent.Write::class.java, PatchType.RenameExercise),
         Case("call it incline press from now on", Intent.Write::class.java, PatchType.RenameExercise),
         Case("change the name of squat to back squat", Intent.Write::class.java, PatchType.RenameExercise),
-
         // ── AskRecommendation ──
         Case("how much should i bench press today", Intent.Read::class.java, readType = ReadType.AskRecommendation),
         Case("what weight should i use for squats", Intent.Read::class.java, readType = ReadType.AskRecommendation),
         Case("suggest a weight for overhead press", Intent.Read::class.java, readType = ReadType.AskRecommendation),
         Case("what should i use for incline bench", Intent.Read::class.java, readType = ReadType.AskRecommendation),
         Case("starting weight for deadlift", Intent.Read::class.java, readType = ReadType.AskRecommendation),
-
         // ── AskSimilar ──
         Case("what's a good alternative to bench press", Intent.Read::class.java, readType = ReadType.AskSimilar),
         Case("something similar to pull ups", Intent.Read::class.java, readType = ReadType.AskSimilar),
         Case("what can i do instead of deadlift", Intent.Read::class.java, readType = ReadType.AskSimilar),
         Case("alternatives for squats", Intent.Read::class.java, readType = ReadType.AskSimilar),
-
         // ── AskHistory ──
         Case("show me my bench press history", Intent.Read::class.java, readType = ReadType.AskHistory),
         Case("how did i do last monday", Intent.Read::class.java, readType = ReadType.AskHistory),
@@ -220,7 +213,7 @@ class IntentRouterTest {
     fun `model fallback parses LogSet label`() = runTest {
         val fakeEngine = FakeReadyEngine("LogSet")
         val routerWithModel = IntentRouter(engine = fakeEngine)
-        val result = routerWithModel.route("blorp morp")  // won't match rules
+        val result = routerWithModel.route("blorp morp") // won't match rules
         val intent = result.intent
         assertTrue("Expected Write but got $intent", intent is Intent.Write)
         assertEquals(PatchType.LogSet, (intent as Intent.Write).patchType)

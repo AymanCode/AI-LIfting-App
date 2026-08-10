@@ -58,8 +58,8 @@ class AgentOrchestrator(
 
         val routing = router.route(userText, allowModelFallback = options.allowModelFallback)
         return when (val intent = routing.intent) {
-            is Intent.Write   -> handleWrite(intent, userText, options)
-            is Intent.Read    -> handleRead(intent, userText, options)
+            is Intent.Write -> handleWrite(intent, userText, options)
+            is Intent.Read -> handleRead(intent, userText, options)
             is Intent.Clarify -> {
                 if (AgentRecoveryGuidance.looksLikeWorkoutLog(userText)) {
                     recoverLogSetFailure(userText)
@@ -76,12 +76,12 @@ class AgentOrchestrator(
      */
     suspend fun confirm(requestId: String, patches: List<DbPatch>): AgentTurn {
         return when (val r = patchApplier.applyPatches(requestId, patches, userConfirmed = true)) {
-            is PatchResult.Applied  -> AgentTurn.Applied(
-                text    = "Done - ${r.patchCount} change(s) applied.",
+            is PatchResult.Applied -> AgentTurn.Applied(
+                text = "Done - ${r.patchCount} change(s) applied.",
                 auditId = r.auditId
             )
             is PatchResult.Rejected -> AgentTurn.Error(r.reason)
-            is PatchResult.Failed   -> AgentTurn.Error(r.error)
+            is PatchResult.Failed -> AgentTurn.Error(r.error)
         }
     }
 
@@ -91,9 +91,9 @@ class AgentOrchestrator(
      */
     suspend fun undo(auditId: Long): AgentTurn {
         return when (val r = patchApplier.undo(auditId)) {
-            is PatchResult.Applied  -> AgentTurn.Applied("Undone.", r.auditId)
+            is PatchResult.Applied -> AgentTurn.Applied("Undone.", r.auditId)
             is PatchResult.Rejected -> AgentTurn.Error(r.reason)
-            is PatchResult.Failed   -> AgentTurn.Error(r.error)
+            is PatchResult.Failed -> AgentTurn.Error(r.error)
         }
     }
 
@@ -187,16 +187,16 @@ class AgentOrchestrator(
         // Gate destructive patches on explicit user confirmation.
         if (patches.any { DbPatch.isDestructive(it) }) {
             return AgentTurn.NeedsConfirmation(
-                summary   = "Are you sure you want to ${describePatch(patches.first())}?",
-                patches   = patches,
+                summary = "Are you sure you want to ${describePatch(patches.first())}?",
+                patches = patches,
                 requestId = requestId
             )
         }
 
         return when (val r = patchApplier.applyPatches(requestId, patches, userConfirmed = false)) {
-            is PatchResult.Applied  -> AgentTurn.Applied(confirmText(patches), r.auditId)
+            is PatchResult.Applied -> AgentTurn.Applied(confirmText(patches), r.auditId)
             is PatchResult.Rejected -> AgentTurn.TextResponse("Couldn't apply: ${r.reason}")
-            is PatchResult.Failed   -> AgentTurn.Error(r.error)
+            is PatchResult.Failed -> AgentTurn.Error(r.error)
         }
     }
 
@@ -277,9 +277,9 @@ class AgentOrchestrator(
         options: AgentProcessingOptions
     ): List<DbPatch>? =
         when (intent.patchType) {
-            PatchType.LogSet         -> generateLogSetPatches(userText, options.allowModelFallback)
-            PatchType.EditSet        -> generateEditSet(userText)?.let(::listOf)
-            PatchType.DeleteSet      -> generateDeleteSet(userText)?.let(::listOf)
+            PatchType.LogSet -> generateLogSetPatches(userText, options.allowModelFallback)
+            PatchType.EditSet -> generateEditSet(userText)?.let(::listOf)
+            PatchType.DeleteSet -> generateDeleteSet(userText)?.let(::listOf)
             PatchType.MoveWorkoutDay -> generateMoveWorkoutDay(userText)?.let(::listOf)
             PatchType.RenameExercise -> generateRenameExercise(userText)?.let(::listOf)
         }
@@ -354,11 +354,11 @@ class AgentOrchestrator(
         val nextSet = (recentSets.filter { it.date == targetDate }.maxOfOrNull { it.setNumber } ?: 0) + 1
         return sets.mapIndexed { index, set ->
             DbPatch.LogSet(
-                exerciseId   = ex.exerciseId,
-                date         = targetDate,
-                setNumber    = nextSet + index,
-                weightLbs    = set.weightLbs,
-                reps         = set.reps,
+                exerciseId = ex.exerciseId,
+                date = targetDate,
+                setNumber = nextSet + index,
+                weightLbs = set.weightLbs,
+                reps = set.reps,
                 isBodyweight = ex.isBodyweight
             )
         }
@@ -536,13 +536,13 @@ class AgentOrchestrator(
         val current = LocalDate.parse(currentDate)
 
         val dayMap = mapOf(
-            "monday"    to DayOfWeek.MONDAY,
-            "tuesday"   to DayOfWeek.TUESDAY,
+            "monday" to DayOfWeek.MONDAY,
+            "tuesday" to DayOfWeek.TUESDAY,
             "wednesday" to DayOfWeek.WEDNESDAY,
-            "thursday"  to DayOfWeek.THURSDAY,
-            "friday"    to DayOfWeek.FRIDAY,
-            "saturday"  to DayOfWeek.SATURDAY,
-            "sunday"    to DayOfWeek.SUNDAY
+            "thursday" to DayOfWeek.THURSDAY,
+            "friday" to DayOfWeek.FRIDAY,
+            "saturday" to DayOfWeek.SATURDAY,
+            "sunday" to DayOfWeek.SUNDAY
         )
         for ((name, dow) in dayMap) {
             if (t.contains(name)) {
@@ -550,7 +550,7 @@ class AgentOrchestrator(
                 return (if (target == current) target.plusWeeks(1) else target).toString()
             }
         }
-        if (t.contains("tomorrow"))  return current.plusDays(1).toString()
+        if (t.contains("tomorrow")) return current.plusDays(1).toString()
         if (t.contains("next week")) return current.plusWeeks(1).toString()
         return null
     }
@@ -618,7 +618,7 @@ class AgentOrchestrator(
         return buildString {
             append("${trend.name}: ${trend.sessionCount} sessions. ")
             if (trend.prWeightLbs != null) append("PR ${WeightLbs.formatStored(trend.prWeightLbs)}lbs on ${trend.prDate}. ")
-            if (trend.est1Rm != null)      append("Est 1RM ${trend.est1Rm}lbs. ")
+            if (trend.est1Rm != null) append("Est 1RM ${trend.est1Rm}lbs. ")
             if (trend.deltaPercent != null) {
                 val dir = if (trend.deltaPercent >= 0.5f) "up (growing)"
                 else if (trend.deltaPercent <= -0.5f) "down (declining)"
@@ -647,9 +647,9 @@ class AgentOrchestrator(
     // Formatting helpers
 
     private fun confirmText(patch: DbPatch): String = when (patch) {
-        is DbPatch.LogSet         -> "Logged ${patch.reps} reps${if (patch.weightLbs != null) " at ${WeightLbs.formatStored(patch.weightLbs)} lbs" else ""}."
-        is DbPatch.EditSet        -> "Set updated."
-        is DbPatch.DeleteSet      -> "Set deleted."
+        is DbPatch.LogSet -> "Logged ${patch.reps} reps${if (patch.weightLbs != null) " at ${WeightLbs.formatStored(patch.weightLbs)} lbs" else ""}."
+        is DbPatch.EditSet -> "Set updated."
+        is DbPatch.DeleteSet -> "Set deleted."
         is DbPatch.MoveWorkoutDay -> "Workout moved to ${patch.newDate}."
         is DbPatch.RenameExercise -> "Renamed to \"${patch.newName}\"."
     }
@@ -676,9 +676,9 @@ class AgentOrchestrator(
     }
 
     private fun describePatch(patch: DbPatch): String = when (patch) {
-        is DbPatch.DeleteSet      -> "delete set ${patch.setId}"
+        is DbPatch.DeleteSet -> "delete set ${patch.setId}"
         is DbPatch.RenameExercise -> "rename exercise to \"${patch.newName}\""
-        else                      -> "apply this change"
+        else -> "apply this change"
     }
 
     private fun formatHistory(name: String, history: HistorySummary): String {

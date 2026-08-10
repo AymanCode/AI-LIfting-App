@@ -36,7 +36,9 @@ class ExerciseEmbeddingIndex {
                         similarityScore = score,
                         sharedPattern = candidatePattern.name
                     )
-                } else null
+                } else {
+                    null
+                }
             }
             .sortedByDescending { it.similarityScore }
             .take(k)

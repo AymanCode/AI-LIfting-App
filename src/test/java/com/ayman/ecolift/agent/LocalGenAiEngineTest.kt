@@ -89,7 +89,7 @@ class LocalGenAiEngineTest {
     fun `engine implements AutoCloseable`() {
         val engine: AutoCloseable = FakeEngine()
         // Can use try-with-resources pattern
-        engine.use { }  // should not throw
+        engine.use { } // should not throw
     }
 
     // ── Prompts ───────────────────────────────────────────────────────

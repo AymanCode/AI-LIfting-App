@@ -1,7 +1,7 @@
 package com.ayman.ecolift.agent
 
-import com.ayman.ecolift.agent.model.DbPatch
 import com.ayman.ecolift.agent.engine.LocalGenAiEngine
+import com.ayman.ecolift.agent.model.DbPatch
 import com.ayman.ecolift.agent.patches.PatchApplier
 import com.ayman.ecolift.agent.patches.PatchResult
 import com.ayman.ecolift.agent.router.IntentRouter
@@ -48,11 +48,11 @@ class AgentOrchestratorTest {
         tools = mock()
         patchApplier = mock()
         orchestrator = AgentOrchestrator(
-            router      = IntentRouter(engine = null),
-            tools       = tools,
+            router = IntentRouter(engine = null),
+            tools = tools,
             patchApplier = patchApplier,
-            engine      = null,
-            today       = { TODAY }
+            engine = null,
+            today = { TODAY }
         )
     }
 
@@ -162,11 +162,11 @@ class AgentOrchestratorTest {
             """.trimIndent()
         )
         val modelBackedOrchestrator = AgentOrchestrator(
-            router       = IntentRouter(engine = engine),
-            tools        = tools,
+            router = IntentRouter(engine = engine),
+            tools = tools,
             patchApplier = patchApplier,
-            engine       = engine,
-            today        = { TODAY }
+            engine = engine,
+            today = { TODAY }
         )
         whenever(tools.findExercise(any())).thenAnswer { invocation ->
             if (invocation.getArgument<String>(0) == "Bench Press") BENCH_MATCH else null
@@ -203,11 +203,11 @@ class AgentOrchestratorTest {
             """.trimIndent()
         )
         val modelBackedOrchestrator = AgentOrchestrator(
-            router       = IntentRouter(engine = engine),
-            tools        = tools,
+            router = IntentRouter(engine = engine),
+            tools = tools,
             patchApplier = patchApplier,
-            engine       = engine,
-            today        = { TODAY }
+            engine = engine,
+            today = { TODAY }
         )
         whenever(tools.findExercise(any())).thenReturn(
             ExerciseMatch(exerciseId = 9L, name = "Leg Press", isBodyweight = false, score = 0.0)
@@ -237,11 +237,11 @@ class AgentOrchestratorTest {
         )
         val pullUp = ExerciseMatch(exerciseId = 2L, name = "Pull Up", isBodyweight = true, score = 0.0)
         val modelBackedOrchestrator = AgentOrchestrator(
-            router       = IntentRouter(engine = engine),
-            tools        = tools,
+            router = IntentRouter(engine = engine),
+            tools = tools,
             patchApplier = patchApplier,
-            engine       = engine,
-            today        = { TODAY }
+            engine = engine,
+            today = { TODAY }
         )
         whenever(tools.findExercise(any())).thenReturn(pullUp)
         whenever(tools.getRecentSets(eq(2L), any())).thenReturn(emptyList())
@@ -262,11 +262,11 @@ class AgentOrchestratorTest {
         val engine: LocalGenAiEngine = mock()
         whenever(engine.isReady).thenReturn(true)
         val deterministicFirstOrchestrator = AgentOrchestrator(
-            router       = IntentRouter(engine = engine),
-            tools        = tools,
+            router = IntentRouter(engine = engine),
+            tools = tools,
             patchApplier = patchApplier,
-            engine       = engine,
-            today        = { TODAY }
+            engine = engine,
+            today = { TODAY }
         )
 
         val original = "just did Bechh Press one thirty five for seven"
@@ -496,12 +496,12 @@ class AgentOrchestratorTest {
         whenever(tools.findExercise(any())).thenReturn(BENCH_MATCH)
         whenever(tools.getExerciseHistory(eq(1L), any())).thenReturn(
             HistorySummary(
-                exerciseId     = 1L,
-                windowDays     = 30,
-                sessionCount   = 5,
+                exerciseId = 1L,
+                windowDays = 30,
+                sessionCount = 5,
                 topSetWeightLbs = lbs(225),
-                topSetReps     = 5,
-                recentSets     = emptyList()
+                topSetReps = 5,
+                recentSets = emptyList()
             )
         )
 
@@ -534,7 +534,7 @@ class AgentOrchestratorTest {
         whenever(tools.getSimilarExercises(eq(1L), any())).thenReturn(
             listOf(
                 SimilarExercise(2L, "Incline Press", 0.85, "horizontal_push"),
-                SimilarExercise(3L, "Dumbbell Fly",  0.70, "horizontal_push")
+                SimilarExercise(3L, "Dumbbell Fly", 0.70, "horizontal_push")
             )
         )
 
@@ -553,11 +553,11 @@ class AgentOrchestratorTest {
         whenever(tools.findExercise(any())).thenReturn(BENCH_MATCH)
         whenever(tools.suggestWeight(eq(1L), any())).thenReturn(
             WeightSuggestion(
-                exerciseId       = 1L,
-                targetReps       = 8,
+                exerciseId = 1L,
+                targetReps = 8,
                 suggestedWeightLbs = lbs(140),
-                confidence       = WeightSuggestion.Confidence.HIGH,
-                reasoning        = "Based on last session."
+                confidence = WeightSuggestion.Confidence.HIGH,
+                reasoning = "Based on last session."
             )
         )
 
