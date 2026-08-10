@@ -78,6 +78,7 @@ data class ProgressPointUi(
 data class ProgressExerciseUi(
     val exerciseId: Long,
     val name: String,
+    val muscleGroups: String = UNCLASSIFIED_MUSCLE_GROUPS,
     val sessions: Int,
     val lastSessionDate: String,
     val lastSessionSummary: String, // e.g. "165 x 7"
@@ -114,6 +115,7 @@ data class ProgressUiState(
     val selectedSplitIndex: Int = 0,
     val selectedExerciseId: Long? = null,
     val selectedExerciseName: String = "",
+    val selectedExerciseMuscleGroups: String = "",
     val isBodyweight: Boolean = false,
     val chartPoints: List<ProgressPointUi> = emptyList(),
     val timeframe: TimeframeFilter = TimeframeFilter.ONE_MONTH,
@@ -125,6 +127,7 @@ data class ProgressUiState(
 data class ProgressStatsUi(
     val currentPr: String,
     val currentPrLbs: Float = 0f,
+    val bestSetLabel: String = "",
     val est1Rm: String,
     val totalVolume: String,
     val totalVolumeLbs: Int = 0,

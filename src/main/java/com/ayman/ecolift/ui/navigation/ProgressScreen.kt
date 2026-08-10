@@ -57,11 +57,12 @@ fun ProgressScreen(
 
         ProgressDetailScreen(
             exerciseName = uiState.selectedExerciseName,
-            muscleGroups = "Selected Exercise",
+            muscleGroups = uiState.selectedExerciseMuscleGroups,
             dataPoints = dataPoints,
             selectedRange = range,
             selectedMetric = metric,
             currentPr = stats?.currentPrLbs ?: 0f,
+            bestSetLabel = stats?.bestSetLabel.orEmpty(),
             prDate = stats?.currentPrDate,
             estimatedOneRm = stats?.est1Rm?.toFloatOrNull() ?: 0f,
             totalVolume = stats?.totalVolumeLbs?.toFloat() ?: 0f,
@@ -87,6 +88,7 @@ fun ProgressScreen(
                     }
                 )
             },
+            onMuscleGroupChange = viewModel::updateSelectedExerciseMuscleGroup,
             paletteChoice = paletteChoice,
             onPaletteChoiceChange = onPaletteChoiceChange,
             modifier = modifier
@@ -96,9 +98,10 @@ fun ProgressScreen(
             ProgressExercise(
                 id = exerciseId,
                 name = name,
-                muscleGroups = "N/A",
+                muscleGroups = muscleGroups,
                 lastSetLabel = lastSessionSummary,
-                trendPercent = changePercentage
+                trendPercent = changePercentage,
+                sessions = sessions
             )
 
         val exercises = uiState.visibleExercises.map { it.toProgressExercise() }
