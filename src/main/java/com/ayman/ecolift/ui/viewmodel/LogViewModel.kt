@@ -23,6 +23,8 @@ import com.ayman.ecolift.data.normalizedBodyweightLoad
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -56,6 +58,8 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private val _restStopwatchSeconds = MutableStateFlow<Int?>(null)
     private var activeRest: ActiveRest? = null
     private var restTickerJob: Job? = null
+
+    private val addMutex = Mutex()
 
     private val _exerciseHints = MutableStateFlow<Map<Long, String?>>(emptyMap())
     private val _exercisePBs = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
@@ -255,8 +259,13 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             val savedExercises = database.splitExerciseDao().getForSplit(slotId)
             
             if (savedExercises.isNotEmpty()) {
-                // Priority 1: Load from manually saved template
-                setRepository.addSetsForExercises(currentDate.value, savedExercises.map { it.exerciseId })
+                // Priority 1: Load from manually saved template, skipping already-logged exercises
+                val existingExerciseIds = setRepository.getSetsForDate(currentDate.value)
+                    .map { it.exerciseId }.toSet()
+                val toAdd = savedExercises.map { it.exerciseId }.filter { it !in existingExerciseIds }
+                if (toAdd.isNotEmpty()) {
+                    setRepository.addSetsForExercises(currentDate.value, toAdd)
+                }
             } else {
                 // Priority 2: Clone from the most recent historical occurrence
                 val previousOccurrence = (assignedDay.cycleSlotOccurrence ?: 1) - 1
@@ -282,24 +291,28 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addSet(exerciseId: Long) {
         viewModelScope.launch {
-            val date = currentDate.value
-            val newSet = setRepository.addSet(date, exerciseId)
-            _sessionSets.update { it + newSet }
-            updateHistoricalHints(date, _sessionSets.value)
+            addMutex.withLock {
+                val date = currentDate.value
+                val newSet = setRepository.addSet(date, exerciseId)
+                _sessionSets.update { it + newSet }
+                updateHistoricalHints(date, _sessionSets.value)
+            }
         }
     }
 
     fun addSetFrom(exerciseId: Long, sourceSetId: Long) {
         viewModelScope.launch {
-            val date = currentDate.value
-            val source = _sessionSets.value.find { it.id == sourceSetId && it.exerciseId == exerciseId }
-            val newSet = setRepository.addSet(date, exerciseId)
-            val copiedSet = source?.let { copyValuesForAppendedSet(newSet, it) } ?: newSet
-            if (source != null) {
-                setRepository.updateSet(copiedSet)
+            addMutex.withLock {
+                val date = currentDate.value
+                val source = _sessionSets.value.find { it.id == sourceSetId && it.exerciseId == exerciseId }
+                val newSet = setRepository.addSet(date, exerciseId)
+                val copiedSet = source?.let { copyValuesForAppendedSet(newSet, it) } ?: newSet
+                if (source != null) {
+                    setRepository.updateSet(copiedSet)
+                }
+                _sessionSets.update { it + copiedSet }
+                updateHistoricalHints(date, _sessionSets.value)
             }
-            _sessionSets.update { it + copiedSet }
-            updateHistoricalHints(date, _sessionSets.value)
         }
     }
 
@@ -379,10 +392,13 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
         if (activeRest?.completedSetId == setId) setActiveRest(null)
         clearSmartAdjustment(setId)
         clearSmartAdjustmentsFromSource(setId)
+        val theSet = _sessionSets.value.find { it.id == setId }
         _sessionSets.update { list -> list.filter { it.id != setId } }
-        if (setId > 0) {
+        if (setId > 0 && theSet != null) {
             viewModelScope.launch {
-                setRepository.deleteSet(setId)
+                setRepository.deleteSetAndCompact(theSet)
+                val refreshed = setRepository.getSetsForDate(currentDate.value)
+                _sessionSets.value = refreshed
             }
         }
     }
@@ -685,10 +701,12 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun addExerciseSession(exerciseId: Long) {
-        val date = currentDate.value
-        val newSets = setRepository.addExerciseSession(date, exerciseId)
-        _sessionSets.update { it + newSets }
-        updateHistoricalHints(date, _sessionSets.value)
+        addMutex.withLock {
+            val date = currentDate.value
+            val newSets = setRepository.addExerciseSession(date, exerciseId)
+            _sessionSets.update { it + newSets }
+            updateHistoricalHints(date, _sessionSets.value)
+        }
         classifyLoggedExercise(exerciseId)
     }
 

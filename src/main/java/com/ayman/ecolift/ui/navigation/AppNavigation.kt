@@ -199,7 +199,7 @@ fun AppNavigation() {
     }
 
     val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val bottomBarReservedHeight = 64.dp + navigationBarPadding
+    val bottomBarReservedHeight = 80.dp + navigationBarPadding
 
     GlassTheme(palette = palette) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -216,7 +216,7 @@ fun AppNavigation() {
                 startDestination = "log",
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = if (!isLogRoute && !isKeyboardVisible) bottomBarReservedHeight else 0.dp),
+                    .padding(bottom = if (!isKeyboardVisible) bottomBarReservedHeight else 0.dp),
             ) {
                 composable("log") {
                     TodayScreen(

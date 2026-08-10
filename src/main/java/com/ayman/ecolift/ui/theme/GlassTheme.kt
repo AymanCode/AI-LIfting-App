@@ -96,9 +96,51 @@ val EmberNoirGlassPalette = GlassPalette(
     scrim = Color(0xFF080605).copy(alpha = 0.62f),
 )
 
+val BorealGlassPalette = GlassPalette(
+    pageTop = Color(0xFF0A1226),
+    pageBottom = Color(0xFF061017),
+    auraBlue = Color(0xFF6F8EFF),
+    auraGreen = Color(0xFF4FE3C2),
+    auraCyan = Color(0xFFB46AFF),
+    glassFill = Color(0xFF121F31).copy(alpha = 0.56f),
+    glassFillStrong = Color(0xFF172B42).copy(alpha = 0.70f),
+    glassStroke = Color(0xFFCCE2FF).copy(alpha = 0.18f),
+    glassStrokeStrong = Color(0xFF75E7DA).copy(alpha = 0.38f),
+    ink = Color(0xFFF5FBFF),
+    inkMuted = Color(0xFFB8D4DD),
+    inkSubtle = Color(0xFF7FA1AD),
+    accent = Color(0xFF58D6C0),
+    accentStrong = Color(0xFFA1FFF0),
+    complete = Color(0xFF58D6C0),
+    danger = Color(0xFFFF8D82),
+    scrim = Color(0xFF030911).copy(alpha = 0.60f),
+)
+
+val MeadowNightGlassPalette = GlassPalette(
+    pageTop = Color(0xFF071712),
+    pageBottom = Color(0xFF080E15),
+    auraBlue = Color(0xFF8EA3FF),
+    auraGreen = Color(0xFF76DF9B),
+    auraCyan = Color(0xFF48D5C6),
+    glassFill = Color(0xFF10251D).copy(alpha = 0.56f),
+    glassFillStrong = Color(0xFF153426).copy(alpha = 0.70f),
+    glassStroke = Color(0xFFD6FFEA).copy(alpha = 0.16f),
+    glassStrokeStrong = Color(0xFF74DF9D).copy(alpha = 0.36f),
+    ink = Color(0xFFF4FFF7),
+    inkMuted = Color(0xFFB8D8BE),
+    inkSubtle = Color(0xFF85A98C),
+    accent = Color(0xFF76DF9B),
+    accentStrong = Color(0xFFC4FFC6),
+    complete = Color(0xFF76DF9B),
+    danger = Color(0xFFFF8D82),
+    scrim = Color(0xFF03100C).copy(alpha = 0.60f),
+)
+
 enum class GlassPaletteChoice(val label: String, val storageKey: String) {
     Sage("Sage", "sage"),
-    Ember("Ember", "ember");
+    Ember("Ember", "ember"),
+    Boreal("Boreal", "boreal"),
+    Meadow("Meadow", "meadow");
 
     companion object {
         fun fromStorageKey(value: String?): GlassPaletteChoice =
@@ -111,6 +153,8 @@ fun GlassPaletteChoice.palette(): GlassPalette =
     when (this) {
         GlassPaletteChoice.Sage -> SageGlassPalette
         GlassPaletteChoice.Ember -> EmberNoirGlassPalette
+        GlassPaletteChoice.Boreal -> BorealGlassPalette
+        GlassPaletteChoice.Meadow -> MeadowNightGlassPalette
     }
 
 val LocalGlassPalette = staticCompositionLocalOf { SageGlassPalette }
@@ -319,13 +363,16 @@ fun GlassPaletteSwitch(
         horizontalArrangement = Arrangement.End,
     ) {
         Surface(
+            modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             color = palette.glassFillStrong.copy(alpha = 0.74f),
             border = BorderStroke(1.dp, palette.glassStrokeStrong),
             shadowElevation = 0.dp,
         ) {
             Row(
-                modifier = Modifier.padding(4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -333,7 +380,8 @@ fun GlassPaletteSwitch(
                     val isSelected = choice == selected
                     Box(
                         modifier = Modifier
-                            .sizeIn(minWidth = 76.dp, minHeight = 48.dp)
+                            .weight(1f)
+                            .sizeIn(minHeight = 48.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(
                                 if (isSelected) palette.accentStrong.copy(alpha = 0.24f) else Color.Transparent,
@@ -368,3 +416,5 @@ typealias LogPaletteChoice = GlassPaletteChoice
 
 val DefaultLogGlassPalette: GlassPalette = SageGlassPalette
 val EmberNoirLogGlassPalette: GlassPalette = EmberNoirGlassPalette
+val BorealLogGlassPalette: GlassPalette = BorealGlassPalette
+val MeadowNightLogGlassPalette: GlassPalette = MeadowNightGlassPalette
