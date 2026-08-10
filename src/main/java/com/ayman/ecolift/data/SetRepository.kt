@@ -1,5 +1,6 @@
 package com.ayman.ecolift.data
 
+import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 
 class SetRepository(private val db: AppDatabase) {
@@ -16,7 +17,7 @@ class SetRepository(private val db: AppDatabase) {
         val exercise = if (template == null) db.exerciseDao().getById(exerciseId) else null
         val isBodyweight = template?.isBodyweight ?: exercise?.isBodyweight ?: false
         
-        val nextSetNumber = currentSets.size + 1
+        val nextSetNumber = nextSetNumber(currentSets)
         val newSet = WorkoutSet(
             exerciseId = exerciseId,
             date = date,
@@ -122,7 +123,27 @@ class SetRepository(private val db: AppDatabase) {
     suspend fun deleteSet(id: Long) {
         db.workoutSetDao().deleteById(id)
     }
+
+    suspend fun deleteSetAndCompact(set: WorkoutSet) {
+        db.withTransaction {
+            db.workoutSetDao().deleteById(set.id)
+            val survivors = db.workoutSetDao().getForDateAndExercise(set.date, set.exerciseId)
+            renumberSequentially(survivors).forEach { renumbered ->
+                val original = survivors.find { it.id == renumbered.id }
+                if (original != null && original.setNumber != renumbered.setNumber) {
+                    db.workoutSetDao().update(renumbered)
+                }
+            }
+        }
+    }
 }
+
+internal fun nextSetNumber(currentSets: List<WorkoutSet>): Int =
+    (currentSets.maxOfOrNull { it.setNumber } ?: 0) + 1
+
+internal fun renumberSequentially(sets: List<WorkoutSet>): List<WorkoutSet> =
+    sets.sortedWith(compareBy({ it.setNumber }, { it.id }))
+        .mapIndexed { index, set -> set.copy(setNumber = index + 1) }
 
 internal fun buildLastSessionSetCopies(
     date: String,

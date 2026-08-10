@@ -53,6 +53,11 @@ class DatabaseHardeningInstrumentedTest {
         context.deleteDatabase(REPOSITORY_MUTATION_DB)
         context.deleteDatabase(FLUID_SET_LIFECYCLE_DB)
         context.deleteDatabase(CARDIO_MIGRATION_DB)
+        context.deleteDatabase(CARDIO_METRICS_MIGRATION_DB)
+        context.deleteDatabase(DATA_HARDENING_SET_DEDUP_DB)
+        context.deleteDatabase(DATA_HARDENING_COMPACT_DB)
+        context.deleteDatabase(DATA_HARDENING_RECHECK_DB)
+        context.deleteDatabase(DATA_HARDENING_ARCHIVE_DETAIL_DB)
     }
 
     @Test
@@ -226,6 +231,59 @@ class DatabaseHardeningInstrumentedTest {
     }
 
     @Test
+    fun migration17To18AddsCardioMetricColumnsWithoutDroppingData() {
+        migrationHelper.createDatabase(CARDIO_METRICS_MIGRATION_DB, 17).apply {
+            execSQL(
+                """
+                INSERT INTO cardio_sessions (
+                    local_uuid,
+                    date,
+                    activity_type,
+                    duration_sec,
+                    distance_m,
+                    calories,
+                    source,
+                    notes,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    'cardio-17-legacy',
+                    '2026-05-16',
+                    'RUN',
+                    1800,
+                    3218.688,
+                    310,
+                    'manual',
+                    '',
+                    1,
+                    1
+                )
+                """.trimIndent()
+            )
+            close()
+        }
+
+        val migrated = migrationHelper.runMigrationsAndValidate(
+            CARDIO_METRICS_MIGRATION_DB,
+            APP_DATABASE_VERSION,
+            true,
+            *Migrations.ALL_MIGRATIONS,
+        )
+
+        assertEquals(1, migrated.longFor("SELECT COUNT(*) FROM cardio_sessions"))
+        assertTrue(migrated.columnExists("cardio_sessions", "avg_incline_percent"))
+        assertTrue(migrated.columnExists("cardio_sessions", "cadence_rpm"))
+        assertTrue(migrated.columnExists("cardio_sessions", "resistance_level"))
+        assertTrue(migrated.columnExists("cardio_sessions", "avg_power_watts"))
+        assertTrue(migrated.columnExists("cardio_sessions", "stroke_rate_spm"))
+        assertTrue(migrated.columnExists("cardio_sessions", "pace_sec_per_500m"))
+        assertTrue(migrated.columnExists("cardio_sessions", "floors"))
+        assertTrue(migrated.columnExists("cardio_sessions", "steps"))
+        migrated.assertCurrentRoomSchema()
+        migrated.close()
+    }
+
+    @Test
     fun legacyVersion1WorkoutRowsMigrateToCurrentWithoutDroppingData() = runTest {
         context.deleteDatabase(LEGACY_SOURCE_DB)
         SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(LEGACY_SOURCE_DB), null).use { db ->
@@ -310,7 +368,15 @@ class DatabaseHardeningInstrumentedTest {
         assertEquals(source.archivedCycleDao().getAll().size, target.archivedCycleDao().getAll().size)
         assertEquals("Spring Block", target.archivedCycleDao().getById(700L)?.name)
         assertEquals(185, target.userSettingsDao().get()?.userBodyweightLbs)
-        assertEquals(310, target.cardioSessionDao().getById(800L)?.calories)
+        val restoredTreadmill = target.cardioSessionDao().getById(800L)
+        val restoredBike = target.cardioSessionDao().getById(801L)
+        assertEquals(310, restoredTreadmill?.calories)
+        assertEquals(CardioActivityType.TREADMILL.name, restoredTreadmill?.activityType)
+        assertEquals(166, restoredTreadmill?.maxHeartRate)
+        assertEquals(5.5, restoredTreadmill?.avgInclinePercent ?: -1.0, 0.0)
+        assertEquals(82, restoredBike?.cadenceRpm)
+        assertEquals(8.0, restoredBike?.resistanceLevel ?: -1.0, 0.0)
+        assertEquals(185, restoredBike?.avgPowerWatts)
         assertTrue(exportedSnapshot.cardioSessions.isNotEmpty())
     }
 
@@ -588,11 +654,14 @@ class DatabaseHardeningInstrumentedTest {
                     id = 800L,
                     localUuid = "cardio-manual-1",
                     date = "2026-05-16",
-                    activityType = CardioActivityType.RUN.name,
+                    activityType = CardioActivityType.TREADMILL.name,
                     durationSec = 1800,
                     distanceM = 3218.688,
                     calories = 310,
                     avgHeartRate = 142,
+                    maxHeartRate = 166,
+                    avgSpeed = 2.68,
+                    avgInclinePercent = 5.5,
                     source = CardioSessionSource.MANUAL,
                     createdAt = 4L,
                     updatedAt = 4L,
@@ -604,6 +673,9 @@ class DatabaseHardeningInstrumentedTest {
                     activityType = CardioActivityType.BIKE.name,
                     durationSec = 1200,
                     calories = 180,
+                    cadenceRpm = 82,
+                    resistanceLevel = 8.0,
+                    avgPowerWatts = 185,
                     source = CardioSessionSource.HEALTH_CONNECT,
                     hcUid = "hc-cardio-1",
                     hcDataOriginPackage = "com.example.health",
@@ -651,6 +723,128 @@ class DatabaseHardeningInstrumentedTest {
         assertNotNull(stringFor("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'index_cardio_sessions_local_uuid'"))
         assertNotNull(stringFor("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'index_cardio_sessions_hc_uid'"))
         assertTrue(columnExists("user_settings", "glass_palette_choice"))
+        assertTrue(columnExists("cardio_sessions", "avg_incline_percent"))
+        assertTrue(columnExists("cardio_sessions", "cadence_rpm"))
+        assertTrue(columnExists("cardio_sessions", "resistance_level"))
+        assertTrue(columnExists("cardio_sessions", "avg_power_watts"))
+        assertTrue(columnExists("cardio_sessions", "stroke_rate_spm"))
+        assertTrue(columnExists("cardio_sessions", "pace_sec_per_500m"))
+        assertTrue(columnExists("cardio_sessions", "floors"))
+        assertTrue(columnExists("cardio_sessions", "steps"))
+    }
+
+    // ── Fix A: deleteSetAndCompact + add produces unique contiguous setNumbers ─
+
+    @Test
+    fun deleteMiddleSetThenAddProducesUniqueContiguousSetNumbers() = runTest {
+        val db = createDb(DATA_HARDENING_SET_DEDUP_DB)
+        val sets = SetRepository(db)
+        db.exerciseDao().insertAll(listOf(Exercise(id = 1L, name = "Squat", muscleGroups = "LEGS")))
+
+        // Seed three sets: 1, 2, 3
+        val s1 = sets.addSet("2026-06-01", 1L)
+        val s2 = sets.addSet("2026-06-01", 1L)
+        val s3 = sets.addSet("2026-06-01", 1L)
+        assertEquals(listOf(1, 2, 3), db.workoutSetDao().getForDateAndExercise("2026-06-01", 1L).map { it.setNumber })
+
+        // Delete the middle set and compact
+        sets.deleteSetAndCompact(s2)
+
+        // Now add a new set — must get setNumber 3, not a duplicate
+        val s4 = sets.addSet("2026-06-01", 1L)
+        val remaining = db.workoutSetDao().getForDateAndExercise("2026-06-01", 1L)
+        assertEquals(3, remaining.size)
+        val numbers = remaining.map { it.setNumber }.sorted()
+        assertEquals(listOf(1, 2, 3), numbers)
+        // All setNumbers must be unique
+        assertEquals(numbers.distinct(), numbers)
+        // The new set also has no duplicate
+        assertFalse(remaining.filter { it.id != s3.id }.any { it.setNumber == s3.setNumber && s3.setNumber == s4.setNumber })
+    }
+
+    @Test
+    fun deleteSetAndCompactRenumbersSurvivorsContiguously() = runTest {
+        val db = createDb(DATA_HARDENING_COMPACT_DB)
+        val sets = SetRepository(db)
+        db.exerciseDao().insertAll(listOf(Exercise(id = 1L, name = "Deadlift", muscleGroups = "BACK")))
+
+        val s1 = sets.addSet("2026-06-02", 1L)
+        val s2 = sets.addSet("2026-06-02", 1L)
+        val s3 = sets.addSet("2026-06-02", 1L)
+
+        // Delete set #2 (middle)
+        sets.deleteSetAndCompact(s2)
+
+        val survivors = db.workoutSetDao().getForDateAndExercise("2026-06-02", 1L)
+        assertEquals(2, survivors.size)
+        assertEquals(listOf(1, 2), survivors.map { it.setNumber }.sorted())
+        assertTrue(survivors.none { it.id == s2.id })
+    }
+
+    // ── Fix A: uncheck → recheck preserves reps/weight ───────────────────────
+
+    @Test
+    fun uncheckRecheckRoundTripPreservesRepsAndWeightAndVolumeFlag() = runTest {
+        val db = createDb(DATA_HARDENING_RECHECK_DB)
+        val sets = SetRepository(db)
+        db.exerciseDao().insertAll(listOf(Exercise(id = 1L, name = "OHP", muscleGroups = "SHOULDERS")))
+
+        val s = sets.addSet("2026-06-03", 1L)
+        val completed = s.copy(weightLbs = 1000, reps = 8, completed = true)
+        sets.updateSet(completed)
+
+        // Uncheck
+        sets.updateSet(completed.copy(completed = false))
+        val unchecked = sets.getById(s.id)
+        assertNotNull(unchecked)
+        assertEquals(1000, unchecked!!.weightLbs)
+        assertEquals(8, unchecked.reps)
+        assertFalse(unchecked.completed)
+        assertTrue(sets.getVolumesSince("2026-01-01").isEmpty())
+
+        // Re-check
+        sets.updateSet(unchecked.copy(completed = true))
+        val rechecked = sets.getById(s.id)
+        assertNotNull(rechecked)
+        assertEquals(1000, rechecked!!.weightLbs)
+        assertEquals(8, rechecked.reps)
+        assertTrue(rechecked.completed)
+        assertFalse(sets.getVolumesSince("2026-01-01").isEmpty())
+    }
+
+    // ── Fix D: archive card volume == detail volume ───────────────────────────
+
+    @Test
+    fun archiveCardVolumeEqualsDetailVolumeAfterSetEdit() = runTest {
+        val db = createDb(DATA_HARDENING_ARCHIVE_DETAIL_DB)
+        db.exerciseDao().insertAll(listOf(Exercise(id = 1L, name = "Bench Press", muscleGroups = "CHEST")))
+        db.cycleDao().upsert(Cycle(id = 1, numTypes = 1, isActive = true, nextSessionType = 0, startDate = "2026-06-01"))
+        db.cycleSlotDao().insertAll(listOf(CycleSlot(id = 10L, name = "Push", orderIndex = 0)))
+        db.splitExerciseDao().insertAll(listOf(SplitExercise(id = 20L, splitId = 10L, exerciseId = 1L, orderIndex = 0)))
+        db.workoutDayDao().insertAll(listOf(WorkoutDay(date = "2026-06-10", cycleSlotId = 10L)))
+        db.workoutSetDao().insertAll(
+            listOf(
+                WorkoutSet(id = 1L, exerciseId = 1L, date = "2026-06-10", setNumber = 1, weightLbs = 2000, reps = 5, completed = true),
+            )
+        )
+
+        val repo = WorkoutRepository(db)
+        val archiveId = repo.archiveCurrentCycle("Summer Block", "2026-06-01", "2026-06-30")
+
+        // Edit a set inside the archive date range (simulating historical edit)
+        db.workoutSetDao().update(
+            WorkoutSet(id = 1L, exerciseId = 1L, date = "2026-06-10", setNumber = 1, weightLbs = 3000, reps = 5, completed = true)
+        )
+
+        val archive = db.archivedCycleDao().getById(archiveId)!!
+        val cardVolume = repo.archiveSummary(archive).totalVolumeLbs
+        val detailVolume = repo.archivedCycleSnapshot(archiveId).totals.totalVolumeLbs
+
+        assertEquals(
+            "archive card and detail volumes must match after historical edit",
+            cardVolume,
+            detailVolume
+        )
     }
 
     private companion object {
@@ -664,5 +858,10 @@ class DatabaseHardeningInstrumentedTest {
         const val REPOSITORY_MUTATION_DB = "repository-mutation.db"
         const val FLUID_SET_LIFECYCLE_DB = "fluid-set-lifecycle.db"
         const val CARDIO_MIGRATION_DB = "migration-16-cardio.db"
+        const val CARDIO_METRICS_MIGRATION_DB = "migration-17-cardio-metrics.db"
+        const val DATA_HARDENING_SET_DEDUP_DB = "data-hardening-set-dedup.db"
+        const val DATA_HARDENING_COMPACT_DB = "data-hardening-compact.db"
+        const val DATA_HARDENING_RECHECK_DB = "data-hardening-recheck.db"
+        const val DATA_HARDENING_ARCHIVE_DETAIL_DB = "data-hardening-archive-detail.db"
     }
 }

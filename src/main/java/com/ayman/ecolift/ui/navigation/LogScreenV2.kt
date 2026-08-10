@@ -278,19 +278,26 @@ fun LogTopBar(
         title = {
             Column(
                 modifier = Modifier
-                    // Status header, not a button: a quiet translucent label — flat, hairline edge, no glow.
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(palette.glassFill.copy(alpha = 0.38f), RoundedCornerShape(13.dp))
-                    .border(1.dp, palette.glassStroke.copy(alpha = 0.40f), RoundedCornerShape(13.dp))
+                    // Bare typography, not a capsule: the date is the page title. The row stays
+                    // tappable (calendar); a trailing chevron carries that affordance instead of a box.
+                    .clip(RoundedCornerShape(10.dp))
                     .clickable(onClick = onDateClick)
-                    .padding(horizontal = 18.dp, vertical = 6.dp),
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = dateLabel,
-                    style = LogType.dateTitle,
-                    color = palette.ink
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = dateLabel,
+                        style = LogType.dateTitle,
+                        color = palette.ink
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowDown,
+                        contentDescription = "Open calendar",
+                        tint = palette.inkSubtle,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
                 if (cycleSlotLabel != null) {
                     Text(
                         text = cycleSlotLabel,
@@ -568,6 +575,10 @@ fun LogSetRow(
             
             Box(
                 modifier = Modifier
+                    // Top-aligned so the unchecked tile pairs with the weight scrubber
+                    // instead of floating in the vertical middle of the input stack.
+                    .align(Alignment.Top)
+                    .padding(top = 2.dp)
                     .size(44.dp)
                     .graphicsLayer {
                         scaleX = checkScale
@@ -697,11 +708,13 @@ private fun CompletedSetSummary(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // Muted: a completed set is settled history — the live scrubber values own
+        // the bright numerals so the card has a single numeric focal point.
         Text(
             text = completedLoadLabel(set),
             modifier = Modifier.weight(1f),
             style = LogType.completedSummary,
-            color = palette.ink,
+            color = palette.inkMuted,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -714,7 +727,7 @@ private fun CompletedSetSummary(
         Text(
             text = "${set.reps.ifBlank { "-" }} reps",
             style = LogType.completedSummary,
-            color = palette.ink,
+            color = palette.inkMuted,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -1197,16 +1210,17 @@ private fun GlassExerciseProgress(
         Box(
             modifier = Modifier
                 .weight(1f)
-                .height(6.dp)
+                .height(4.dp)
                 .clip(RoundedCornerShape(50))
-                .background(Color.White.copy(alpha = 0.38f))
+                // Glass track + palette-aware fill so every theme stays in-family (no stray blue).
+                .background(palette.glassStroke.copy(alpha = 0.45f))
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(progress)
                     .clip(RoundedCornerShape(50))
-                    .background(Brush.linearGradient(listOf(palette.auraBlue, palette.complete)))
+                    .background(Brush.linearGradient(listOf(palette.accent, palette.accentStrong)))
             )
         }
         Text(
@@ -1352,7 +1366,10 @@ private fun FinishedExerciseRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .glassPanel(palette, RoundedCornerShape(14.dp), strong = true, completed = true)
+            // The parent exercise container already wears the Passive glass panel —
+            // adding another here doubled the stroke and made finished rows the
+            // loudest thing on screen. The row is now bare inside its parent.
+            .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onExpand)
             .padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1362,7 +1379,7 @@ private fun FinishedExerciseRow(
             modifier = Modifier
                 .size(26.dp)
                 .clip(CircleShape)
-                .background(palette.complete),
+                .background(palette.complete.copy(alpha = 0.82f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
@@ -1393,7 +1410,7 @@ private fun FinishedExerciseRow(
             text = "Edit",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
-            color = palette.accentStrong
+            color = palette.inkSubtle
         )
     }
 }
@@ -1451,7 +1468,8 @@ private fun ParkedExerciseRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .glassPanel(palette, RoundedCornerShape(14.dp), strong = false, completed = false)
+            // Bare row inside the parent's glass panel (see FinishedExerciseRow note).
+            .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onExpand)
             .padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -2584,44 +2602,52 @@ private fun LogCalendarDay(
 ) {
     val isSelected = date == selectedDate
     val isToday = date == today
-    val containerColor = when {
-        isSelected -> palette.accentStrong
-        isToday -> palette.accent.copy(alpha = 0.13f)
-        else -> Color.Transparent
-    }
+    
     val contentColor = when {
         isSelected -> Color.White
         isInVisibleMonth -> palette.ink
-        else -> palette.inkSubtle.copy(alpha = 0.45f)
-    }
-    val border = if (isToday && !isSelected) {
-        BorderStroke(1.dp, palette.glassStrokeStrong)
-    } else {
-        null
+        else -> palette.inkSubtle.copy(alpha = 0.35f)
     }
 
     Surface(
         onClick = { onDateSelected(date) },
-        modifier = modifier.height(42.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = containerColor,
-        border = border
+        modifier = modifier.height(46.dp),
+        shape = CircleShape,
+        color = Color.Transparent,
+        border = null
     ) {
         Box(contentAlignment = Alignment.Center) {
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(palette.accentStrong)
+                )
+            } else if (isToday) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(palette.accent.copy(alpha = 0.15f))
+                )
+            }
+
             Text(
                 text = date.dayOfMonth.toString(),
                 style = LogType.calendarDay,
                 fontWeight = if (isSelected || isToday || isWorkedDay) FontWeight.Bold else FontWeight.Medium,
                 color = contentColor,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = if (isWorkedDay) 4.dp else 0.dp)
             )
             if (isWorkedDay) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 5.dp)
-                        .size(4.dp)
-                        .clip(CircleShape)
+                        .padding(bottom = 6.dp)
+                        .size(width = 12.dp, height = 3.dp)
+                        .clip(RoundedCornerShape(1.5.dp))
                         .background(if (isSelected) Color.White else palette.accentStrong)
                 )
             }

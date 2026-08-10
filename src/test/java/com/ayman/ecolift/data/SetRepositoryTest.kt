@@ -80,6 +80,70 @@ class SetRepositoryTest {
         assertEquals(emptyList<WorkoutSet>(), copies)
     }
 
+    // ── Fix A: nextSetNumber ──────────────────────────────────────────────────
+
+    @Test
+    fun `nextSetNumber returns max plus 1 for a gapped list`() {
+        val sets = listOf(
+            workoutSet(id = 1L, date = "2026-06-01", setNumber = 1, weight = 100, reps = 5),
+            workoutSet(id = 2L, date = "2026-06-01", setNumber = 3, weight = 110, reps = 5),
+        )
+        assertEquals(4, nextSetNumber(sets))
+    }
+
+    @Test
+    fun `nextSetNumber returns 1 for empty list`() {
+        assertEquals(1, nextSetNumber(emptyList()))
+    }
+
+    // ── Fix A: renumberSequentially ──────────────────────────────────────────
+
+    @Test
+    fun `renumberSequentially compacts a gapped list`() {
+        val sets = listOf(
+            workoutSet(id = 1L, date = "2026-06-01", setNumber = 1, weight = 100, reps = 5),
+            workoutSet(id = 2L, date = "2026-06-01", setNumber = 3, weight = 110, reps = 5),
+        )
+        val result = renumberSequentially(sets)
+        assertEquals(listOf(1, 2), result.map { it.setNumber })
+    }
+
+    @Test
+    fun `renumberSequentially deduplicates tied setNumbers using id as tiebreak`() {
+        val sets = listOf(
+            workoutSet(id = 1L, date = "2026-06-01", setNumber = 1, weight = 100, reps = 5),
+            workoutSet(id = 2L, date = "2026-06-01", setNumber = 3, weight = 110, reps = 5),
+            workoutSet(id = 3L, date = "2026-06-01", setNumber = 3, weight = 120, reps = 5),
+        )
+        val result = renumberSequentially(sets)
+        assertEquals(listOf(1, 2, 3), result.map { it.setNumber })
+    }
+
+    @Test
+    fun `renumberSequentially is a no-op for already contiguous lists`() {
+        val sets = listOf(
+            workoutSet(id = 1L, date = "2026-06-01", setNumber = 1, weight = 100, reps = 5),
+            workoutSet(id = 2L, date = "2026-06-01", setNumber = 2, weight = 110, reps = 5),
+            workoutSet(id = 3L, date = "2026-06-01", setNumber = 3, weight = 120, reps = 5),
+        )
+        val result = renumberSequentially(sets)
+        assertEquals(listOf(1, 2, 3), result.map { it.setNumber })
+        // ids also preserved in original order
+        assertEquals(listOf(1L, 2L, 3L), result.map { it.id })
+    }
+
+    @Test
+    fun `renumberSequentially preserves order by setNumber then id`() {
+        // id=5 has lower setNumber than id=4, so must come first after renumber
+        val sets = listOf(
+            workoutSet(id = 4L, date = "2026-06-01", setNumber = 3, weight = 120, reps = 5),
+            workoutSet(id = 5L, date = "2026-06-01", setNumber = 2, weight = 110, reps = 5),
+        )
+        val result = renumberSequentially(sets)
+        assertEquals(listOf(5L, 4L), result.map { it.id })
+        assertEquals(listOf(1, 2), result.map { it.setNumber })
+    }
+
     private fun workoutSet(
         id: Long,
         exerciseId: Long = 7L,
