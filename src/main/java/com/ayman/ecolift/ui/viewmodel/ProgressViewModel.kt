@@ -3,6 +3,7 @@ package com.ayman.ecolift.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ayman.ecolift.ai.ExerciseMuscleClassifier
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.CycleSlot
 import com.ayman.ecolift.data.ExerciseRepository
@@ -80,7 +81,15 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                 exerciseRepository.exercises,
                 setRepository.observeExerciseProgressSummaries(),
                 userBodyweightLbs,
-            ) { _, summaries, userBodyweight ->
+            ) { exercises, summaries, userBodyweight ->
+                val muscleGroupsById = exercises.associate { exercise ->
+                    val groups = if (ExerciseMuscleClassifier.shouldClassify(exercise)) {
+                        ""
+                    } else {
+                        exercise.muscleGroups
+                    }
+                    exercise.id to groups
+                }
                 val lastSessionSetsByDate = setRepository
                     .getCompletedSetsForDates(summaries.map { it.lastSessionDate }.distinct())
                     .groupBy { it.date }
@@ -104,6 +113,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                     ProgressExerciseUi(
                         exerciseId = summary.exerciseId,
                         name = summary.exerciseName,
+                        muscleGroups = muscleGroupsById[summary.exerciseId].orEmpty(),
                         sessions = summary.sessionCount,
                         lastSessionDate = WorkoutDates.formatAxis(summary.lastSessionDate),
                         lastSessionSummary = lastSet?.let {
@@ -145,6 +155,10 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
             ) { exercises: List<com.ayman.ecolift.data.Exercise>, filteredSets: List<WorkoutSet>, allTimeSets: List<WorkoutSet> ->
                 val exercise = exercises.find { it.id == id }
                 val isBodyweight = exercise?.isBodyweight ?: false
+                val muscleGroups = exercise
+                    ?.takeUnless(ExerciseMuscleClassifier::shouldClassify)
+                    ?.muscleGroups
+                    .orEmpty()
 
                 val chartPoints = buildProgressChartPoints(
                     filteredSets = filteredSets,
@@ -154,6 +168,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
 
                 DetailData(
                     exerciseName = exercise?.name.orEmpty(),
+                    muscleGroups = muscleGroups,
                     isBodyweight = isBodyweight,
                     chartPoints = chartPoints,
                     stats = buildProgressStats(
@@ -176,7 +191,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         splitSources,
     ) { exercises, mode, query, splitIndex, splits ->
         val visibleExercises = organizeProgressExercises(exercises, query)
-        val splitPages = buildProgressSplitPages(exercises, splits, query)
+        val splitPages = buildProgressSplitPages(exercises, splits, searchQuery = "")
         val normalizedSplitIndex = normalizeProgressSplitIndex(splitIndex, splitPages.size)
         ProgressListData(
             exercises = exercises,
@@ -204,6 +219,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
             selectedSplitIndex = list.selectedSplitIndex,
             selectedExerciseId = selectedId,
             selectedExerciseName = detail?.exerciseName.orEmpty(),
+            selectedExerciseMuscleGroups = detail?.muscleGroups.orEmpty(),
             isBodyweight = detail?.isBodyweight ?: false,
             chartPoints = detail?.chartPoints ?: emptyList(),
             timeframe = filter,
@@ -235,6 +251,14 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     fun setOrganizationMode(mode: ProgressOrganizationMode) { organizationMode.value = mode }
     fun setSearchQuery(query: String) { searchQuery.value = query }
     fun setSelectedSplitIndex(index: Int) { selectedSplitIndex.value = index }
+    fun updateSelectedExerciseMuscleGroup(muscleGroup: String) {
+        val exerciseId = selectedExerciseId.value ?: return
+        val normalized = muscleGroup.trim().uppercase(Locale.US)
+        if (normalized !in ExerciseMuscleClassifier.ALLOWED_GROUPS) return
+        viewModelScope.launch {
+            exerciseRepository.updateMuscleGroups(exerciseId, normalized)
+        }
+    }
     fun showPreviousSplit() {
         selectedSplitIndex.value = normalizeProgressSplitIndex(
             index = selectedSplitIndex.value - 1,
@@ -251,6 +275,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
 
 private data class DetailData(
     val exerciseName: String,
+    val muscleGroups: String,
     val isBodyweight: Boolean,
     val chartPoints: List<ProgressPointUi>,
     val stats: ProgressStatsUi
@@ -430,6 +455,7 @@ internal fun buildProgressStats(
     return ProgressStatsUi(
         currentPr = WeightLbs.formatStored(currentPr),
         currentPrLbs = WeightLbs.toLbs(currentPr).toFloat(),
+        bestSetLabel = currentPrSet?.let { formatProgressSetLabel(it, isBodyweight) }.orEmpty(),
         est1Rm = String.format(Locale.US, "%.1f", current1RM),
         totalVolume = formatVolume(currentVolume),
         totalVolumeLbs = currentVolume,

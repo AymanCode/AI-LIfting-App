@@ -290,6 +290,7 @@ class ProgressCalculationsTest {
     ) = ProgressExerciseUi(
         exerciseId = id,
         name = name,
+        muscleGroups = "CHEST",
         sessions = 1,
         lastSessionDate = "May 14",
         lastSessionSummary = "100 x 10",
