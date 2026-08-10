@@ -7,14 +7,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ayman.ecolift.ui.viewmodel.LogViewModel
 import com.ayman.ecolift.data.WeightLbs
-import androidx.compose.ui.Modifier
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
 import com.ayman.ecolift.ui.theme.LogGlassPalette
 import com.ayman.ecolift.ui.theme.palette
+import com.ayman.ecolift.ui.viewmodel.LogViewModel
 
 @Composable
 fun TodayScreen(

@@ -1,5 +1,6 @@
 package com.ayman.ecolift.agent
 
+import com.ayman.ecolift.BuildConfig
 import com.ayman.ecolift.agent.engine.LocalGenAiEngine
 import com.ayman.ecolift.agent.model.DbPatch
 import com.ayman.ecolift.agent.patches.PatchApplier
@@ -16,7 +17,6 @@ import com.ayman.ecolift.agent.tools.SetSummary
 import com.ayman.ecolift.agent.tools.SimilarExercise
 import com.ayman.ecolift.agent.tools.WeightSuggestion
 import com.ayman.ecolift.data.WeightLbs
-import com.ayman.ecolift.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow

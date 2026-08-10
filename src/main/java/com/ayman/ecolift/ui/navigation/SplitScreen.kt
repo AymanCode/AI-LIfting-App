@@ -3,7 +3,6 @@ package com.ayman.ecolift.ui.navigation
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -65,10 +65,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -79,11 +75,28 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
-import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ayman.ecolift.ui.theme.AccentTeal
+import com.ayman.ecolift.ui.theme.AccentTeal15
+import com.ayman.ecolift.ui.theme.AccentTeal20
+import com.ayman.ecolift.ui.theme.AccentTeal35
+import com.ayman.ecolift.ui.theme.BackgroundElevated
+import com.ayman.ecolift.ui.theme.BackgroundPrimary
+import com.ayman.ecolift.ui.theme.BackgroundSubtle
+import com.ayman.ecolift.ui.theme.BackgroundSurface
+import com.ayman.ecolift.ui.theme.BorderDefault
+import com.ayman.ecolift.ui.theme.BorderSubtle
+import com.ayman.ecolift.ui.theme.ErrorRed
+import com.ayman.ecolift.ui.theme.ErrorRedSoft
+import com.ayman.ecolift.ui.theme.GlassPaletteChoice
+import com.ayman.ecolift.ui.theme.LocalGlassPalette
+import com.ayman.ecolift.ui.theme.LogGlassPalette
+import com.ayman.ecolift.ui.theme.LogType
+import com.ayman.ecolift.ui.theme.TextInactive
+import com.ayman.ecolift.ui.theme.TextPrimary
+import com.ayman.ecolift.ui.theme.glassPanel
 import com.ayman.ecolift.ui.viewmodel.AvailableSessionUi
-import com.ayman.ecolift.ui.viewmodel.CycleEntry
 import com.ayman.ecolift.ui.viewmodel.CycleArchiveViewModel
 import com.ayman.ecolift.ui.viewmodel.Split
 import com.ayman.ecolift.ui.viewmodel.SplitCycle
@@ -91,11 +104,8 @@ import com.ayman.ecolift.ui.viewmodel.SplitExerciseRef
 import com.ayman.ecolift.ui.viewmodel.SplitTabMode
 import com.ayman.ecolift.ui.viewmodel.SplitUiState
 import com.ayman.ecolift.ui.viewmodel.SplitViewModel
-import com.ayman.ecolift.ui.theme.GlassPaletteChoice
-import kotlin.math.roundToInt
 import java.time.LocalDate
-
-import com.ayman.ecolift.ui.theme.*
+import kotlin.math.roundToInt
 
 // ... rest of the file ...
 
@@ -126,9 +136,9 @@ fun SplitScreen(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val splitTypes = remember(state.splits) {
-        state.splits.map { split -> 
+        state.splits.map { split ->
             SplitType(
-                id = split.id, 
+                id = split.id,
                 name = split.name,
                 exerciseCount = split.exercises.size,
                 lastRunLabel = split.lastPerformedEpochDay?.let { relativeAge(it) } ?: "Never run"
@@ -142,7 +152,7 @@ fun SplitScreen(
         splitCycleEnabled = state.cycle.enabled,
         currentSplitIndex = state.cycle.currentIndex,
         onToggleSplitCycle = viewModel::toggleCycle,
-        onLoadWorkout = { 
+        onLoadWorkout = {
             val currentId = state.splits.getOrNull(state.cycle.currentIndex)?.id
             if (currentId != null) {
                 viewModel.advanceCycle()
@@ -374,6 +384,7 @@ private fun Header() {
         }
     }
 }
+
 @Composable
 private fun EnableCycleCard(enabled: Boolean, onToggle: (Boolean) -> Unit) {
     Card(

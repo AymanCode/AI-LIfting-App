@@ -43,7 +43,8 @@ object WorkoutImportTextParser {
         val lines = normalizedLines(text)
         if (lines.isEmpty()) return false
         val today = LocalDate.parse(defaultDate)
-        return lines.size > 1 && lines.any { extractDatePrefix(it, today) != null } ||
+        return lines.size > 1 &&
+            lines.any { extractDatePrefix(it, today) != null } ||
             lines.any { line ->
                 val datePrefix = extractDatePrefix(line, today)
                 datePrefix != null && datePrefix.remainder.isNotBlank() && line.contains(";")

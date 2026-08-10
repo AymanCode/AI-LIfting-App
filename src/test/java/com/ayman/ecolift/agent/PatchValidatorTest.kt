@@ -234,7 +234,7 @@ class PatchValidatorTest {
     fun `validateAll rejects on first invalid patch`() {
         assertRejected(validator.validateAll(listOf(
             DbPatch.LogSet(exerciseId = 1, date = "2026-04-16", setNumber = 1, weightLbs = 135, reps = 8),
-            DbPatch.DeleteSet(setId = 0)  // invalid
+            DbPatch.DeleteSet(setId = 0) // invalid
         )), "setId")
     }
 

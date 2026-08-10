@@ -7,10 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
-import com.ayman.ecolift.ui.viewmodel.ProgressMetric
-import com.ayman.ecolift.ui.viewmodel.ProgressOrganizationMode
 import com.ayman.ecolift.ui.viewmodel.ProgressViewModel
-import com.ayman.ecolift.ui.viewmodel.TimeframeFilter
 import java.time.LocalDate
 
 @Composable

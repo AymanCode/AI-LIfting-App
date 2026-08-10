@@ -23,8 +23,6 @@ import com.ayman.ecolift.data.normalizedBodyweightLoad
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +32,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -101,13 +101,15 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             val history = setRepository.getRecentHistoryForExercise(id, date)
             val lastDate = history.maxOfOrNull { it.date }
             val lastSessionSets = history.filter { it.date == lastDate }
-            
+
             hints[id] = if (lastSessionSets.isNotEmpty()) {
                 val maxLabel = formatHistoryLoadLabel(lastSessionSets)
                 "${lastSessionSets.size} sets | Max $maxLabel"
-            } else null
+            } else {
+                null
+            }
 
-            val currentMax1RM = currentSets.filter { it.exerciseId == id }.maxOfOrNull { 
+            val currentMax1RM = currentSets.filter { it.exerciseId == id }.maxOfOrNull {
                 val reps = (it.reps ?: 0).coerceIn(0, 36)
                 if (reps == 0) 0f else WeightLbs.toLbs(it.weightLbs).toFloat() / (1.0278f - 0.0278f * reps)
             } ?: 0f
@@ -254,10 +256,10 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     fun assignCycleSlot(slotId: Long) {
         viewModelScope.launch {
             val assignedDay = workoutRepository.assignCycleSlot(currentDate.value, slotId)
-            
+
             // 1. Check if there are manually saved exercises for this split
             val savedExercises = database.splitExerciseDao().getForSplit(slotId)
-            
+
             if (savedExercises.isNotEmpty()) {
                 // Priority 1: Load from manually saved template, skipping already-logged exercises
                 val existingExerciseIds = setRepository.getSetsForDate(currentDate.value)
@@ -712,7 +714,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun buildUiState(inputs: UiInputs, snapshot: DbSnapshot): LogUiState {
         val exerciseMap = snapshot.exercises.associateBy { it.id }
-        
+
         // Filter exercises based on search input (case-insensitive)
         val filteredSets = if (inputs.input.isNotBlank()) {
             val query = inputs.input.lowercase()
@@ -730,9 +732,9 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             .mapNotNull { entry ->
                 val exercise = exerciseMap[entry.key] ?: return@mapNotNull null
                 val sets = entry.value.sortedBy(WorkoutSet::setNumber)
-                
+
                 // Calculate Est. 1RM: Brzycki Formula
-                val currentMax1RM = sets.maxOfOrNull { 
+                val currentMax1RM = sets.maxOfOrNull {
                     val reps = (it.reps ?: 0).coerceIn(0, 36)
                     if (reps == 0) 0f else WeightLbs.toLbs(it.weightLbs).toFloat() / (1.0278f - 0.0278f * reps)
                 }?.toInt() ?: 0
@@ -761,7 +763,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
                     isNewPB = _exercisePBs.value[exercise.id] ?: false
                 )
             }
-        
+
         val expectedSlotId = buildExpectedSlotId(
             currentDate = inputs.date,
             slots = snapshot.slots,

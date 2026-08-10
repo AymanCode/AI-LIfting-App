@@ -9,10 +9,10 @@ import com.google.android.gms.tasks.Task
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.roundToInt
-import kotlinx.coroutines.suspendCancellableCoroutine
 
 class MlKitCardioOcrEngine {
     suspend fun analyze(context: Context, uri: Uri): CardioOcrResult {

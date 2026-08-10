@@ -124,8 +124,8 @@ class AgentToolsImplTest {
         )
         whenever(setDao.getSetsSince(eq(1L), any())).thenReturn(sets)
         val result = tools.getExerciseHistory(1L, windowDays = 30)
-        assertEquals(2, result.sessionCount)         // 2 distinct dates
-        assertEquals(150, result.topSetWeightLbs)    // max weight
+        assertEquals(2, result.sessionCount) // 2 distinct dates
+        assertEquals(150, result.topSetWeightLbs) // max weight
         assertEquals(5, result.topSetReps)
     }
 

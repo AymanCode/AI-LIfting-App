@@ -147,7 +147,7 @@ class AgentToolsImpl(
         )
 
         // Apply transfer ratio if available, else use raw score as proxy
-        val ratio = sourced.similarityScore  // Similarity score is used as a transfer ratio proxy.
+        val ratio = sourced.similarityScore // Similarity score is used as a transfer ratio proxy.
         val estimatedLbs = (WeightLbs.toLbs(sourceWeight) * ratio).toInt().coerceAtLeast(5)
         val roundedLbs = ((estimatedLbs + 2) / 5) * 5
         val rounded = WeightLbs.fromWholePounds(roundedLbs)
@@ -159,7 +159,7 @@ class AgentToolsImpl(
             confidence = WeightSuggestion.Confidence.LOW,
             reasoning = "Transfer from ${sourced.name} (${WeightLbs.formatStored(sourceWeight)}lbs, similarity ${
                 "%.2f".format(sourced.similarityScore)
-            }). Estimated: ${roundedLbs}lbs for ${targetReps} reps. Log ${target.name} to calibrate."
+            }). Estimated: ${roundedLbs}lbs for $targetReps reps. Log ${target.name} to calibrate."
         )
     }
 
@@ -195,7 +195,7 @@ class AgentToolsImpl(
         // For trend analysis, use the latest workout date as "today" if it's in the future
         val latestDate = sets.maxOfOrNull { it.date } ?: LocalDate.now().toString()
         val referenceDate = if (latestDate > LocalDate.now().toString()) LocalDate.parse(latestDate) else LocalDate.now()
-        
+
         val cutoff30 = referenceDate.minusDays(30).toString()
         val cutoff60 = referenceDate.minusDays(60).toString()
 

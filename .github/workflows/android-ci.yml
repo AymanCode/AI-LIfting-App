@@ -26,6 +26,17 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      - name: Check Kotlin formatting
+        env:
+          KTLINT_VERSION: "1.5.0"
+          KTLINT_SHA256: "a16be01dcc480aab2f55f444b620142152f66e31564b3b9376506d624c28a2ad"
+        run: |
+          curl -sSLo ktlint \
+            "https://github.com/pinterest/ktlint/releases/download/${KTLINT_VERSION}/ktlint"
+          echo "${KTLINT_SHA256}  ktlint" | sha256sum -c -
+          chmod +x ktlint
+          ./ktlint "src/**/*.kt"
+
       - name: Run unit tests and assemble debug APKs
         run: ./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest
 

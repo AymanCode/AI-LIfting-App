@@ -2,8 +2,8 @@ package com.ayman.ecolift.update
 
 import android.content.ContentValues
 import android.content.Intent
-import android.database.sqlite.SQLiteException
 import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteException
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry

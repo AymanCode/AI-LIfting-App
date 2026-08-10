@@ -180,7 +180,9 @@ class SplitViewModel(application: Application) : AndroidViewModel(application) {
                 val history = setDao.getVolumeHistory(id, 6).reversed().map { it.volume.toFloat() }
                 SplitExerciseRef(id, ex.name, history)
             }
-        } else emptyList()
+        } else {
+            emptyList()
+        }
 
         val estimatedDurationMin = if (mostRecentDate == null) 0
         else (completedSetsByDate[mostRecentDate].orEmpty().size * 3).coerceAtLeast(15)

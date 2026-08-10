@@ -5,7 +5,6 @@ import com.ayman.ecolift.agent.model.AuditEntity
 import com.ayman.ecolift.agent.model.DbPatch
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.ExerciseDao
-import com.ayman.ecolift.data.WorkoutDay
 import com.ayman.ecolift.data.WorkoutDayDao
 import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.WorkoutSetDao
@@ -101,7 +100,7 @@ class PatchService(
         return applyPatches(
             requestId = "undo-${audit.requestId}",
             patches = inversePatches,
-            userConfirmed = true  // undo is always user-initiated
+            userConfirmed = true // undo is always user-initiated
         )
     }
 

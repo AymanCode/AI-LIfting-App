@@ -1,0 +1,58 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{kt,kts}]
+indent_style = space
+indent_size = 4
+max_line_length = 120
+ij_kotlin_allow_trailing_comma = true
+ij_kotlin_allow_trailing_comma_on_call_site = true
+
+# ktlint runs in CI (see .github/workflows/android-ci.yml). The rules below are
+# switched off deliberately rather than because the code does not comply.
+#
+# Layout and wrapping: ktlint's defaults reflow argument lists, expression
+# bodies and chained calls to a fixed shape. Compose builds deeply nested
+# argument trees where hand-chosen breaks carry the structure, and enforcing the
+# defaults would reformat most of the UI without making it easier to read.
+ktlint_standard_multiline-expression-wrapping = disabled
+ktlint_standard_string-template-indent = disabled
+ktlint_standard_function-signature = disabled
+ktlint_standard_function-expression-body = disabled
+ktlint_standard_argument-list-wrapping = disabled
+ktlint_standard_chain-method-continuation = disabled
+ktlint_standard_class-signature = disabled
+ktlint_standard_statement-wrapping = disabled
+ktlint_standard_wrapping = disabled
+ktlint_standard_if-else-wrapping = disabled
+ktlint_standard_multiline-if-else = disabled
+ktlint_standard_enum-wrapping = disabled
+ktlint_standard_indent = disabled
+ktlint_standard_max-line-length = disabled
+ktlint_standard_blank-line-before-declaration = disabled
+ktlint_standard_no-empty-first-line-in-class-body = disabled
+ktlint_standard_trailing-comma-on-call-site = disabled
+ktlint_standard_trailing-comma-on-declaration-site = disabled
+
+# @Composable functions are PascalCase by convention.
+ktlint_function_naming_ignore_when_annotated_with = Composable
+
+# `_state` backing a StateFlow exposed through a combined uiState, and the
+# `INSTANCE` singleton field, are both standard Android idioms that this rule
+# does not model.
+ktlint_standard_backing-property-naming = disabled
+ktlint_standard_property-naming = disabled
+
+# Trailing comments on constructor parameters document individual fields; moving
+# them above the parameter separates them from what they describe.
+ktlint_standard_value-parameter-comment = disabled
+
+[src/test/**.kt]
+# `org.junit.Assert.*` and `org.mockito.kotlin.*` are the conventional way to
+# pull in assertion and stubbing DSLs. Production code stays explicit.
+ktlint_standard_no-wildcard-imports = disabled

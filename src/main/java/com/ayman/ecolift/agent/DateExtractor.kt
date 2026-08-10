@@ -21,13 +21,13 @@ object DateExtractor {
         val t = text.lowercase()
 
         if (t.contains("yesterday")) return today.minusDays(1).toString()
-        if (t.contains("today"))     return today.toString()
+        if (t.contains("today")) return today.toString()
 
         val dayMap = mapOf(
-            "monday"    to DayOfWeek.MONDAY,    "tuesday"  to DayOfWeek.TUESDAY,
+            "monday" to DayOfWeek.MONDAY, "tuesday" to DayOfWeek.TUESDAY,
             "wednesday" to DayOfWeek.WEDNESDAY, "thursday" to DayOfWeek.THURSDAY,
-            "friday"    to DayOfWeek.FRIDAY,    "saturday" to DayOfWeek.SATURDAY,
-            "sunday"    to DayOfWeek.SUNDAY
+            "friday" to DayOfWeek.FRIDAY, "saturday" to DayOfWeek.SATURDAY,
+            "sunday" to DayOfWeek.SUNDAY
         )
         for ((name, dow) in dayMap) {
             if (t.contains(name)) {
@@ -43,16 +43,18 @@ object DateExtractor {
         )
         monthDayRe.find(t)?.let { m ->
             val monthNames = listOf(
-                "january","february","march","april","may","june",
-                "july","august","september","october","november","december"
+                "january", "february", "march", "april", "may", "june",
+                "july", "august", "september", "october", "november", "december"
             )
             val month = monthNames.indexOf(m.groupValues[1]) + 1
-            val day   = m.groupValues[2].toIntOrNull() ?: return@let
+            val day = m.groupValues[2].toIntOrNull() ?: return@let
             return try {
                 var d = LocalDate.of(today.year, month, day)
                 if (d.isAfter(today)) d = d.minusYears(1)
                 d.toString()
-            } catch (_: Exception) { null }
+            } catch (_: Exception) {
+                null
+            }
         }
 
         Regex("""\d{4}-\d{2}-\d{2}""").find(t)?.let { return it.value }

@@ -2,8 +2,8 @@ package com.ayman.ecolift.ui.viewmodel
 
 import androidx.compose.runtime.Immutable
 import com.ayman.ecolift.data.Exercise
-import com.ayman.ecolift.data.UNCLASSIFIED_MUSCLE_GROUPS
 import com.ayman.ecolift.data.PendingReview
+import com.ayman.ecolift.data.UNCLASSIFIED_MUSCLE_GROUPS
 import java.time.LocalDate
 
 @Immutable
@@ -149,10 +149,10 @@ data class Split(
     val id: Long,
     val name: String,
     val exercises: List<SplitExerciseRef>,
-    val lastPerformedEpochDay: Long?,   // null = never
+    val lastPerformedEpochDay: Long?, // null = never
     val estimatedDurationMin: Int,
     val recentVolume: List<Float>,
-    val isSaved: Boolean = false,       // true = user explicitly saved exercise list
+    val isSaved: Boolean = false, // true = user explicitly saved exercise list
 )
 
 sealed interface CycleEntry {

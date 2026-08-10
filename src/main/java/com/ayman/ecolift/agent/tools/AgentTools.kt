@@ -5,7 +5,7 @@ data class ExerciseMatch(
     val exerciseId: Long,
     val name: String,
     val isBodyweight: Boolean,
-    val score: Double  // 0.0 = perfect match, higher = worse
+    val score: Double // 0.0 = perfect match, higher = worse
 )
 
 /** One set from history, summarized for agent consumption. */
@@ -23,8 +23,8 @@ data class HistorySummary(
     val exerciseId: Long,
     val windowDays: Int,
     val sessionCount: Int,
-    val topSetWeightLbs: Int?,   // max weight seen in window
-    val topSetReps: Int?,        // reps at that max weight
+    val topSetWeightLbs: Int?, // max weight seen in window
+    val topSetReps: Int?, // reps at that max weight
     val recentSets: List<SetSummary>
 )
 
@@ -32,7 +32,7 @@ data class HistorySummary(
 data class SimilarExercise(
     val exerciseId: Long,
     val name: String,
-    val similarityScore: Double,  // higher = more similar
+    val similarityScore: Double, // higher = more similar
     val sharedPattern: String
 )
 
@@ -43,7 +43,7 @@ data class SimilarExercise(
 data class WeightSuggestion(
     val exerciseId: Long,
     val targetReps: Int,
-    val suggestedWeightLbs: Int?,   // null = bodyweight or no data
+    val suggestedWeightLbs: Int?, // null = bodyweight or no data
     val confidence: Confidence,
     val reasoning: String
 ) {
@@ -70,8 +70,8 @@ data class ProgressTrend(
     val sessionCount: Int,
     val prWeightLbs: Int?,
     val prDate: String?,
-    val est1Rm: Int?,          // Epley formula on best set
-    val deltaPercent: Float?,  // % change in est 1RM: last 30 days vs prior 30 days
+    val est1Rm: Int?, // Epley formula on best set
+    val deltaPercent: Float?, // % change in est 1RM: last 30 days vs prior 30 days
     val recentSessions: List<String> // compact "date: WxR" strings, newest first
 )
 

@@ -1,7 +1,7 @@
 package com.ayman.ecolift.ui.viewmodel
 
-import com.ayman.ecolift.data.ArchivedCycle
 import com.ayman.ecolift.data.ArchiveSummary
+import com.ayman.ecolift.data.ArchivedCycle
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale

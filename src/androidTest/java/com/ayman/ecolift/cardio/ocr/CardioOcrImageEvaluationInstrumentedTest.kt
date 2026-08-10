@@ -10,12 +10,6 @@ import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import java.io.File
-import java.io.FileNotFoundException
-import java.util.Locale
-import java.util.UUID
-import kotlin.math.abs
-import kotlin.math.max
 import kotlinx.coroutines.test.runTest
 import org.json.JSONArray
 import org.json.JSONObject
@@ -26,6 +20,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
+import java.io.FileNotFoundException
+import java.util.Locale
+import java.util.UUID
+import kotlin.math.abs
+import kotlin.math.max
 
 @RunWith(AndroidJUnit4::class)
 class CardioOcrImageEvaluationInstrumentedTest {

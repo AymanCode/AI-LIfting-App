@@ -16,7 +16,7 @@ class SetRepository(private val db: AppDatabase) {
             ?: db.workoutSetDao().getMostRecentBeforeDate(exerciseId, date)
         val exercise = if (template == null) db.exerciseDao().getById(exerciseId) else null
         val isBodyweight = template?.isBodyweight ?: exercise?.isBodyweight ?: false
-        
+
         val nextSetNumber = nextSetNumber(currentSets)
         val newSet = WorkoutSet(
             exerciseId = exerciseId,
@@ -61,7 +61,7 @@ class SetRepository(private val db: AppDatabase) {
     suspend fun cloneDay(templateDate: String, targetDate: String) {
         val existing = db.workoutSetDao().getForDate(targetDate)
         val existingExerciseIds = existing.map { it.exerciseId }.toSet()
-        
+
         db.workoutSetDao().getForDate(templateDate).forEach { set ->
             // Only add exercises that aren't already logged for today
             if (set.exerciseId !in existingExerciseIds) {

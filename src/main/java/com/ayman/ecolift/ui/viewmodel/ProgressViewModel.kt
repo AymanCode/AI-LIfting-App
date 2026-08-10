@@ -39,7 +39,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     private val organizationMode = MutableStateFlow(ProgressOrganizationMode.PROGRESS)
     private val searchQuery = MutableStateFlow("")
     private val selectedSplitIndex = MutableStateFlow(0)
-    
+
     private val historyStartDate = LocalDate.of(2000, 1, 1).toString()
     private val userBodyweightLbs: StateFlow<Int?> = workoutRepository.observeUserBodyweightLbs()
         .stateIn(
@@ -74,7 +74,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
             setsByDate = setsByDate,
         )
     }
-    
+
     init {
         viewModelScope.launch {
             combine(
@@ -147,7 +147,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                 TimeframeFilter.ONE_YEAR -> now.minusYears(1)
                 TimeframeFilter.ALL_TIME -> LocalDate.of(2000, 1, 1)
             }
-            
+
             combine(
                 exerciseRepository.exercises,
                 setRepository.observeSetsSince(id, sinceDate.toString()),
