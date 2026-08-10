@@ -19,6 +19,11 @@ val LogDisplayFontFamily = FontFamily(
     Font(R.font.clash_grotesk_bold, FontWeight.Bold),
 )
 
+// Archive "Discography" poster typefaces. Archivo Black ships a single black
+// weight; Caveat is the handwritten marker voice for annotations.
+val PosterFontFamily = FontFamily(Font(R.font.archivo_black))
+val MarkerFontFamily = FontFamily(Font(R.font.caveat_variable))
+
 val LogMaterialTypography = Typography(
     headlineLarge = TextStyle(
         fontFamily = LogDisplayFontFamily,

@@ -299,6 +299,13 @@ class WorkoutRepository(private val db: AppDatabase) {
         )
     }
 
+    suspend fun archivedCycleSnapshot(archiveId: Long): CycleSnapshot {
+        val archive = requireNotNull(db.archivedCycleDao().getById(archiveId)) {
+            "Archived cycle not found: $archiveId"
+        }
+        return buildMutableArchivedSnapshot(archive, getUserBodyweightLbs())
+    }
+
     suspend fun archiveSummary(archive: ArchivedCycle): ArchiveSummary {
         val snapshot = buildMutableArchivedSnapshot(archive, getUserBodyweightLbs())
         return ArchiveSummary(

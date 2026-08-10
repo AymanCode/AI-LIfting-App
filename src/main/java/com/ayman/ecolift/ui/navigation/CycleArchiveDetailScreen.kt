@@ -6,10 +6,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -66,6 +68,7 @@ fun CycleArchiveDetailScreen(
     }
 
     val name by viewModel.detailName.collectAsStateWithLifecycle()
+    val volumeLbs by viewModel.detailVolumeLbs.collectAsStateWithLifecycle()
     val core by viewModel.core.collectAsStateWithLifecycle()
     val comparison by viewModel.comparison.collectAsStateWithLifecycle()
     val score by viewModel.score.collectAsStateWithLifecycle()
@@ -84,9 +87,11 @@ fun CycleArchiveDetailScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = name.ifBlank { "Archived cycle" },
-                        color = palette.ink,
-                        style = LogType.dateTitle,
+                        text = "FROM THE ARCHIVE",
+                        color = palette.inkSubtle,
+                        fontSize = 11.sp,
+                        letterSpacing = 3.sp,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 },
                 navigationIcon = {
@@ -135,35 +140,59 @@ fun CycleArchiveDetailScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(22.dp),
             ) {
-                item(key = "report-header") {
-                    ArchiveReportHeader(
-                        core = coreSnapshot,
+                val scored = comparisonSnapshot != null &&
+                    scoreSnapshot != null &&
+                    comparisonSnapshot.comparedCount > 0
+                item(key = "hero") {
+                    ArchivePosterHero(
+                        name = name.ifBlank { "Untitled cycle" },
+                        dateRangeLabel = formatArchiveDateRange(
+                            coreSnapshot.startDate,
+                            coreSnapshot.endDate,
+                        ),
+                        weeklyCounts = weeklySessionCounts(coreSnapshot),
+                        score = if (scored) scoreSnapshot else null,
+                        window = window,
+                        improvedCount = comparisonSnapshot?.improvedCount ?: 0,
+                        comparedCount = comparisonSnapshot?.comparedCount ?: 0,
+                    )
+                }
+                item(key = "ticker") {
+                    ArchiveTicker(
+                        buildTickerSegments(coreSnapshot, comparisonSnapshot, volumeLbs, palette),
+                    )
+                }
+                if (scored) {
+                    item(key = "record") {
+                        Column {
+                            ArchiveRecordChips(comparisonSnapshot!!)
+                            Text(
+                                text = "tune score weights",
+                                color = palette.accentStrong,
+                                fontSize = 11.sp,
+                                modifier = Modifier
+                                    .align(Alignment.End)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showWeights = true }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                            )
+                        }
+                    }
+                }
+                item(key = "stats") { ArchiveStatGrid(coreSnapshot) }
+                item(key = "versus") {
+                    VersusSection(
+                        comparison = comparisonSnapshot,
                         window = window,
                         onWindowChange = viewModel::setWindow,
                     )
                 }
-                if (comparisonSnapshot != null && scoreSnapshot != null && comparisonSnapshot.comparedCount > 0) {
-                    item(key = "hero") {
-                        CompositeHeroCard(
-                            score = scoreSnapshot,
-                            window = window,
-                            onAdjustWeights = { showWeights = true },
-                        )
-                    }
-                    item(key = "chips") { StoryChips(coreSnapshot, comparisonSnapshot) }
-                    item(key = "outcome") { OutcomeBar(comparisonSnapshot) }
-                    item(key = "ladder") { GainLadder(comparisonSnapshot) }
-                } else if (comparisonSnapshot != null) {
-                    item(key = "no-comparison") {
-                        NoComparisonHeroCard(
-                            comparison = comparisonSnapshot,
-                            window = window,
-                        )
-                    }
+                item(key = "reel") {
+                    HighlightReel(comparison = comparisonSnapshot, totalVolumeLbs = volumeLbs)
                 }
-                item(key = "rep") { RepDistribution(coreSnapshot.repBuckets) }
-                item(key = "heat") { ConsistencyHeatmap(coreSnapshot) }
-                item(key = "trend") {
+                item(key = "weeks") { SessionsPerWeek(coreSnapshot) }
+                item(key = "setlist") { SetlistBar(coreSnapshot.repBuckets) }
+                item(key = "deepcuts") {
                     TrendGrid(
                         core = coreSnapshot,
                         comparison = comparisonSnapshot,
@@ -223,77 +252,6 @@ fun CycleArchiveDetailScreen(
                     Text("Cancel", color = palette.inkSubtle)
                 }
             },
-        )
-    }
-}
-
-@Composable
-private fun ArchiveReportHeader(
-    core: CycleProgressCore,
-    window: ComparisonWindow,
-    onWindowChange: (ComparisonWindow) -> Unit,
-) {
-    val palette = LocalGlassPalette.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 2.dp, end = 2.dp, top = 4.dp),
-    ) {
-        Text(
-            text = formatArchiveDateRange(core.startDate, core.endDate),
-            color = palette.ink,
-            style = LogType.completedSummary,
-        )
-        Spacer(Modifier.height(10.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
-            ArchiveHeaderStat("Days", core.spanDays.toString(), Modifier.weight(1f))
-            ArchiveHeaderStat("Lifts", core.lifts.size.toString(), Modifier.weight(1f))
-            ArchiveHeaderStat("Sessions", core.sessions.toString(), Modifier.weight(1f))
-            ArchiveHeaderStat("Sets", core.totalSets.toString(), Modifier.weight(1f))
-        }
-        Spacer(Modifier.height(16.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = "Compare against",
-                    color = palette.ink,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = "Previous training history",
-                    color = palette.inkSubtle,
-                    fontSize = 11.sp,
-                )
-            }
-            WindowToggle(selected = window, onSelect = onWindowChange)
-        }
-    }
-}
-
-@Composable
-private fun ArchiveHeaderStat(label: String, value: String, modifier: Modifier = Modifier) {
-    val palette = LocalGlassPalette.current
-    Column(modifier = modifier) {
-        Text(
-            text = value,
-            color = palette.ink,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            text = label,
-            color = palette.inkSubtle,
-            fontSize = 11.sp,
         )
     }
 }
@@ -410,13 +368,13 @@ private fun LiftDetailSheet(
                 DetailStat(
                     "Velocity",
                     if (slope == null) {
-                        "N/A"
+                        "—"
                     } else {
                         "${if (slope >= 0f) "+" else ""}${"%.1f".format(slope)} ${lift.unitLabel}"
                     },
                     slopeColor,
                 )
-                DetailStat("Fit (R²)", if (lift.r2 != null) "%.2f".format(lift.r2) else "N/A", palette.ink)
+                DetailStat("Fit (R²)", if (lift.r2 != null) "%.2f".format(lift.r2) else "—", palette.ink)
                 DetailStat("vs window", formatPct(vsPct), if ((vsPct ?: 0f) >= 0f) palette.complete else palette.danger)
             }
             Spacer(Modifier.height(16.dp))
