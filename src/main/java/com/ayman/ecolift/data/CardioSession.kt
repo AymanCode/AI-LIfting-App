@@ -28,6 +28,14 @@ data class CardioSession(
     @ColumnInfo(name = "avg_heart_rate") val avgHeartRate: Int? = null,
     @ColumnInfo(name = "max_heart_rate") val maxHeartRate: Int? = null,
     @ColumnInfo(name = "avg_speed") val avgSpeed: Double? = null,
+    @ColumnInfo(name = "avg_incline_percent") val avgInclinePercent: Double? = null,
+    @ColumnInfo(name = "cadence_rpm") val cadenceRpm: Int? = null,
+    @ColumnInfo(name = "resistance_level") val resistanceLevel: Double? = null,
+    @ColumnInfo(name = "avg_power_watts") val avgPowerWatts: Int? = null,
+    @ColumnInfo(name = "stroke_rate_spm") val strokeRateSpm: Int? = null,
+    @ColumnInfo(name = "pace_sec_per_500m") val paceSecPer500m: Int? = null,
+    val floors: Int? = null,
+    val steps: Int? = null,
     val source: String,
     @ColumnInfo(name = "hc_uid") val hcUid: String? = null,
     @ColumnInfo(name = "hc_data_origin_package") val hcDataOriginPackage: String? = null,
@@ -44,6 +52,7 @@ data class CardioSession(
 )
 
 enum class CardioActivityType {
+    TREADMILL,
     RUN,
     BIKE,
     ROW,
