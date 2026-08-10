@@ -61,6 +61,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Path
@@ -1380,66 +1382,77 @@ private fun ExerciseProgressRow(ref: SplitExerciseRef, onClick: () -> Unit) {
 // Dialogs
 // ============================================================================
 
+/**
+ * One seamless dialog surface: solid base + single uniform tint + hairline border.
+ * Gradient glass (glassPanel) is deliberately avoided here — at dialog size its
+ * top highlight band reads as a second inner panel.
+ */
+private fun Modifier.flatDialogSurface(palette: LogGlassPalette): Modifier {
+    val shape = RoundedCornerShape(22.dp)
+    return this
+        .clip(shape)
+        .background(palette.pageBottom, shape)
+        .background(palette.glassFillStrong.copy(alpha = 0.30f), shape)
+        .border(1.dp, palette.glassStrokeStrong.copy(alpha = 0.55f), shape)
+}
+
 @Composable
 private fun AddSplitDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     val palette = LocalGlassPalette.current
-    val dialogFill = palette.glassFillStrong.copy(alpha = 0.94f)
-    val fieldFill = palette.glassFillStrong.copy(alpha = 0.88f)
     var name by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
     Dialog(onDismissRequest = onDismiss) {
-        Card(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
-                .glassPanel(palette, RoundedCornerShape(18.dp), strong = true),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = dialogFill),
-            border = BorderStroke(1.dp, palette.glassStrokeStrong),
+                .flatDialogSurface(palette)
+                .padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            Text(
+                text = "New split",
+                color = palette.ink,
+                style = LogType.exerciseTitle,
+            )
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Name") },
+                placeholder = { Text("Push A, Legs, Upper…", color = palette.inkSubtle) },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = palette.accentStrong,
+                    unfocusedBorderColor = palette.glassStroke,
+                    focusedLabelColor = palette.accentStrong,
+                    unfocusedLabelColor = palette.inkSubtle,
+                    cursorColor = palette.accentStrong,
+                    focusedTextColor = palette.ink,
+                    unfocusedTextColor = palette.ink,
+                ),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    "Add split",
-                    color = palette.ink,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-                Text(
-                    "Name it whatever makes sense to you - \"Upper A\", \"Heavy day\", \"Arms\", anything.",
-                    color = palette.inkSubtle,
-                    fontSize = 11.sp,
-                )
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    placeholder = { Text("Split name", color = palette.inkSubtle) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = palette.accentStrong,
-                        unfocusedBorderColor = palette.glassStroke,
-                        focusedContainerColor = fieldFill,
-                        unfocusedContainerColor = fieldFill,
-                        cursorColor = palette.accentStrong,
-                        focusedTextColor = palette.ink,
-                        unfocusedTextColor = palette.ink,
-                    ),
-                )
-                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = palette.inkSubtle)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = { if (name.isNotBlank()) onConfirm(name.trim()) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = palette.accentStrong,
-                            contentColor = palette.pageTop,
-                        ),
-                    ) { Text("Add") }
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel", color = palette.inkMuted)
                 }
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = { onConfirm(name.trim()) },
+                    enabled = name.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = palette.accentStrong,
+                        contentColor = palette.pageBottom,
+                        disabledContainerColor = palette.glassFillStrong,
+                        disabledContentColor = palette.inkSubtle,
+                    ),
+                ) { Text("Add") }
             }
         }
     }
@@ -1476,35 +1489,26 @@ private fun ArchiveCycleDialog(
     }
 
     Dialog(onDismissRequest = onDismiss) {
-        Card(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
-                .glassPanel(palette, RoundedCornerShape(18.dp), strong = true),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-            border = BorderStroke(1.dp, palette.glassStrokeStrong),
+                .flatDialogSurface(palette)
+                .padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
                 Text(
                     "Archive cycle",
                     color = palette.ink,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = LogType.exerciseTitle,
                 )
                 Text(
-                    "Freeze this cycle's progress between two dates. Sets outside the range are not counted.",
+                    "Freeze progress between two dates. Sets outside the range aren't counted.",
                     color = palette.inkSubtle,
-                    fontSize = 11.sp,
+                    style = MaterialTheme.typography.bodySmall,
                 )
                 val fieldColors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = palette.accentStrong,
                     unfocusedBorderColor = palette.glassStroke,
-                    focusedContainerColor = palette.glassFillStrong,
-                    unfocusedContainerColor = palette.glassFill,
                     cursorColor = palette.accentStrong,
                     focusedTextColor = palette.ink,
                     unfocusedTextColor = palette.ink,
@@ -1560,13 +1564,14 @@ private fun ArchiveCycleDialog(
                         enabled = validRange,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = palette.accentStrong,
-                            contentColor = palette.pageTop,
+                            contentColor = palette.pageBottom,
+                            disabledContainerColor = palette.glassFillStrong,
+                            disabledContentColor = palette.inkSubtle,
                         ),
                     ) {
                         Text("Archive")
                     }
                 }
-            }
         }
     }
 }
@@ -1579,46 +1584,38 @@ private fun ConfirmDeleteDialog(
 ) {
     val palette = LocalGlassPalette.current
     Dialog(onDismissRequest = onDismiss) {
-        Card(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
-                .glassPanel(palette, RoundedCornerShape(18.dp), strong = true),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-            border = BorderStroke(1.dp, palette.glassStrokeStrong),
+                .flatDialogSurface(palette)
+                .padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    "Delete \"$splitName\"?",
-                    color = palette.ink,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-                Text(
-                    "Past workout days stay logged. Only the split entry and its saved exercise list are removed.",
-                    color = palette.inkSubtle,
-                    fontSize = 12.sp,
-                )
-                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = palette.inkSubtle)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = onConfirm,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = palette.danger,
-                            contentColor = Color.White,
-                        ),
-                    ) {
-                        Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Delete")
-                    }
+            Text(
+                "Delete \"$splitName\"?",
+                color = palette.ink,
+                style = LogType.exerciseTitle,
+            )
+            Text(
+                "Past workout days stay logged. Only the split entry and its saved exercise list are removed.",
+                color = palette.inkSubtle,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel", color = palette.inkMuted)
+                }
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = onConfirm,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = palette.danger,
+                        contentColor = Color.White,
+                    ),
+                ) {
+                    Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Delete")
                 }
             }
         }
@@ -1633,87 +1630,78 @@ private fun SaveFromDayDialog(
 ) {
     val palette = LocalGlassPalette.current
     Dialog(onDismissRequest = onDismiss) {
-        Card(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
-                .glassPanel(palette, RoundedCornerShape(18.dp), strong = true),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-            border = BorderStroke(1.dp, palette.glassStrokeStrong),
+                .flatDialogSurface(palette)
+                .padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text(
-                    "Pick a workout day",
-                    color = palette.ink,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-                Text(
-                    "The exercises from that day become this split's saved list. Reps/weights stay with the log itself.",
-                    color = palette.inkSubtle,
-                    fontSize = 11.sp,
-                )
+            Text(
+                "Pick a workout day",
+                color = palette.ink,
+                style = LogType.exerciseTitle,
+            )
+            Text(
+                "That day's exercises become this split's list.",
+                color = palette.inkSubtle,
+                style = MaterialTheme.typography.bodySmall,
+            )
 
-                if (sessions.isEmpty()) {
-                    Text(
-                        "No logged workouts yet. Log a session in the Log tab first, then come back.",
-                        color = palette.inkSubtle,
-                        fontSize = 12.sp,
-                    )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.heightIn(max = 360.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        items(sessions.size, key = { sessions[it].date }) { i ->
-                            val s = sessions[i]
-                            Card(
-                                shape = RoundedCornerShape(10.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                                border = BorderStroke(1.dp, palette.glassStroke),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .glassPanel(palette, RoundedCornerShape(10.dp))
-                                    .clickable { onPick(s.date) },
-                            ) {
-                                Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            s.date,
-                                            color = palette.ink,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            modifier = Modifier.weight(1f),
-                                        )
-                                        Text(
-                                            "${s.exerciseCount} exercises",
-                                            color = palette.inkSubtle,
-                                            fontSize = 11.sp,
-                                        )
-                                    }
-                                    if (s.preview.isNotEmpty()) {
-                                        Spacer(Modifier.height(3.dp))
-                                        Text(
-                                            s.preview.joinToString(" · "),
-                                            color = palette.inkSubtle,
-                                            fontSize = 11.sp,
-                                            maxLines = 1,
-                                        )
-                                    }
-                                }
+            if (sessions.isEmpty()) {
+                Text(
+                    "No logged workouts yet — log a session first.",
+                    color = palette.inkSubtle,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 360.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    items(sessions.size, key = { sessions[it].date }) { i ->
+                        val s = sessions[i]
+                        // Flat row: single tint + hairline, no nested glass panel.
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(palette.glassFill.copy(alpha = 0.45f))
+                                .border(1.dp, palette.glassStroke.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                                .clickable { onPick(s.date) }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    s.date,
+                                    color = palette.ink,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    "${s.exerciseCount} exercises",
+                                    color = palette.inkSubtle,
+                                    fontSize = 11.sp,
+                                )
+                            }
+                            if (s.preview.isNotEmpty()) {
+                                Spacer(Modifier.height(3.dp))
+                                Text(
+                                    s.preview.joinToString(" · "),
+                                    color = palette.inkSubtle,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                )
                             }
                         }
                     }
                 }
+            }
 
-                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = palette.inkSubtle)
-                    }
+            Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel", color = palette.inkMuted)
                 }
             }
         }

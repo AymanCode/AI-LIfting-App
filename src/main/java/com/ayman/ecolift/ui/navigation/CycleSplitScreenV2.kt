@@ -1,6 +1,7 @@
 package com.ayman.ecolift.ui.navigation
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -55,19 +56,32 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.LocalDate
 import java.time.YearMonth
+import java.util.Locale
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
 import com.ayman.ecolift.ui.theme.LocalGlassPalette
 import com.ayman.ecolift.ui.theme.LogType
+import com.ayman.ecolift.ui.theme.LogUiFontFamily
+import com.ayman.ecolift.ui.theme.PosterFontFamily
 import com.ayman.ecolift.ui.theme.bounceClick
 import com.ayman.ecolift.ui.theme.glassPanel
+import kotlin.random.Random
 import com.ayman.ecolift.ui.viewmodel.ArchiveCardUi
 import com.ayman.ecolift.ui.viewmodel.SplitTabMode
 
@@ -97,7 +111,7 @@ fun GymCalendarCard(
         shadowElevation = 0.dp
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(20.dp)
         ) {
             // Header Row
             Row(
@@ -114,8 +128,8 @@ fun GymCalendarCard(
                 }
                 Text(
                     text = "${displayedMonth.month.name.lowercase().replaceFirstChar { it.uppercase() }} ${displayedMonth.year}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                     color = palette.ink
                 )
                 IconButton(onClick = onNextMonth) {
@@ -127,7 +141,7 @@ fun GymCalendarCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // Days of week header
             val daysOfWeek = listOf("S", "M", "T", "W", "T", "F", "S")
@@ -138,22 +152,23 @@ fun GymCalendarCard(
                 daysOfWeek.forEach { day ->
                     Text(
                         text = day,
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
                         color = palette.inkSubtle,
-                        modifier = Modifier.width(36.dp),
+                        modifier = Modifier.width(40.dp),
                         textAlign = TextAlign.Center
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Calendar Grid computation
             val daysInGrid = remember(displayedMonth) { buildGymCalendarGrid(displayedMonth) }
-
             val today = LocalDate.now()
+            val dayShape = RoundedCornerShape(10.dp)
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (row in 0 until 6) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -165,61 +180,42 @@ fun GymCalendarCard(
                             val isGymDay = isGymCalendarDateWorked(date, gymDays)
                             val isToday = date == today
 
-                            if (isGymDay && isToday) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .border(2.dp, palette.accentStrong, CircleShape)
-                                        .background(palette.complete),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = date.dayOfMonth.toString(),
-                                        color = palette.ink,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold
+                            val contentColor = when {
+                                !isCurrentMonth -> palette.inkSubtle.copy(alpha = 0.2f)
+                                isGymDay || isToday -> palette.ink
+                                else -> palette.inkMuted
+                            }
+                            val fontWeight = if (isCurrentMonth && (isGymDay || isToday)) FontWeight.Bold else FontWeight.Medium
+
+                            Box(
+                                modifier = Modifier.size(40.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isToday) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .background(palette.accent.copy(alpha = 0.15f))
                                     )
                                 }
-                            } else if (isToday) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .border(1.5.dp, palette.accentStrong, CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = date.dayOfMonth.toString(),
-                                        color = palette.accentStrong,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            } else if (isGymDay) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(palette.accent.copy(alpha = 0.82f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = date.dayOfMonth.toString(),
-                                        color = palette.ink,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                            } else {
-                                Box(
-                                    modifier = Modifier.size(36.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = date.dayOfMonth.toString(),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = if (isCurrentMonth) palette.inkMuted else palette.inkSubtle.copy(alpha = 0.34f)
+                                
+                                Text(
+                                    text = date.dayOfMonth.toString(),
+                                    color = contentColor,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = fontWeight,
+                                    modifier = Modifier.padding(bottom = if (isGymDay) 4.dp else 0.dp)
+                                )
+                                
+                                if (isGymDay) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .padding(bottom = 4.dp)
+                                            .size(5.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isCurrentMonth) palette.accentStrong else palette.accentStrong.copy(alpha = 0.3f))
                                     )
                                 }
                             }
@@ -229,12 +225,13 @@ fun GymCalendarCard(
             }
 
             // Summary Footer
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             Text(
                 text = "${countGymDaysInMonth(gymDays, displayedMonth)} workouts this month",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
                 color = palette.inkMuted,
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 4.dp)
             )
         }
     }
@@ -781,6 +778,17 @@ fun CycleSplitScreen(
                                 )
                             }
                         } else {
+                            item(key = "discographyHeader") {
+                                Text(
+                                    text = "${archives.size} " +
+                                        if (archives.size == 1) "ALBUM" else "ALBUMS",
+                                    color = palette.inkMuted,
+                                    fontFamily = PosterFontFamily,
+                                    fontSize = 12.sp,
+                                    letterSpacing = 2.5.sp,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
                             itemsIndexed(
                                 items = archives,
                                 key = { _, card -> card.id },
@@ -843,7 +851,7 @@ private fun SplitTabToggle(
 @Composable
 private fun ArchiveListCard(card: ArchiveCardUi, onClick: () -> Unit) {
     val palette = LocalGlassPalette.current
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(16.dp)
     Card(
         onClick = onClick,
         modifier = Modifier
@@ -851,28 +859,132 @@ private fun ArchiveListCard(card: ArchiveCardUi, onClick: () -> Unit) {
             .glassPanel(palette, shape),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, palette.glassStroke),
+        border = BorderStroke(1.5.dp, palette.glassStrokeStrong),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = card.name.ifBlank { "Untitled cycle" },
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = palette.ink
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(12.dp)
+        ) {
+            AlbumArt(seed = card.id, modifier = Modifier.size(64.dp))
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = card.name.ifBlank { "Untitled cycle" }.uppercase(Locale.US),
+                    color = palette.ink,
+                    fontFamily = PosterFontFamily,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.rotate(-1f)
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = card.dateRangeLabel.uppercase(Locale.US),
+                    color = palette.inkSubtle,
+                    fontFamily = LogUiFontFamily,
+                    fontSize = 10.sp,
+                    letterSpacing = 1.2.sp
+                )
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    text = "${card.splitCount} " +
+                        (if (card.splitCount == 1) "split" else "splits") +
+                        " · ${card.sessionCount} " +
+                        if (card.sessionCount == 1) "session" else "sessions",
+                    color = palette.inkMuted,
+                    fontSize = 11.sp
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            VolumeFlag(totalVolumeLbs = card.totalVolumeLbs)
+        }
+    }
+}
+
+/** Chunky poster-style flag carrying the cycle's total volume. */
+@Composable
+private fun VolumeFlag(totalVolumeLbs: Long) {
+    val palette = LocalGlassPalette.current
+    val fresh = totalVolumeLbs <= 0L
+    val bg = if (fresh) Color(0xFFB8923A) else palette.complete
+    Text(
+        text = if (fresh) "NEW" else "${formatVolumeLbsShort(totalVolumeLbs)} LB",
+        color = Color(0xFF08130F),
+        fontFamily = PosterFontFamily,
+        fontSize = 12.sp,
+        modifier = Modifier
+            .rotate(3f)
+            .drawBehind {
+                val off = 2.5.dp.toPx()
+                drawRect(Color.Black.copy(alpha = 0.4f), topLeft = Offset(off, off), size = size)
+                drawRect(bg)
+            }
+            .padding(horizontal = 9.dp, vertical = 4.dp)
+    )
+}
+
+/**
+ * Album-art thumbnail: a small ridge line with a flag on its peak. The shape
+ * is decorative, seeded by the archive id so every album gets stable,
+ * distinct art.
+ */
+@Composable
+private fun AlbumArt(seed: Long, modifier: Modifier = Modifier) {
+    val palette = LocalGlassPalette.current
+    val heights = remember(seed) {
+        val random = Random(seed)
+        List(6) { 0.25f + random.nextFloat() * 0.65f }
+    }
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color(0xFF0D1D18))
+            .border(1.dp, palette.accentStrong.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val n = heights.size
+            val stepX = size.width / (n - 1)
+            fun y(h: Float) = size.height - h * size.height * 0.82f
+            val line = Path().apply {
+                heights.forEachIndexed { i, h ->
+                    if (i == 0) moveTo(0f, y(h)) else lineTo(stepX * i, y(h))
+                }
+            }
+            val fill = Path().apply {
+                addPath(line)
+                lineTo(size.width, size.height)
+                lineTo(0f, size.height)
+                close()
+            }
+            drawPath(
+                fill,
+                Brush.verticalGradient(
+                    listOf(palette.complete.copy(alpha = 0.45f), Color.Transparent)
+                )
             )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = card.dateRangeLabel,
-                style = MaterialTheme.typography.labelMedium,
-                color = palette.inkSubtle
+            drawPath(
+                line,
+                color = palette.accentStrong,
+                style = Stroke(1.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
             )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "${card.splitCount} splits · ${card.sessionCount} sessions · ${"%,d".format(card.totalVolumeLbs)} lb volume",
-                style = MaterialTheme.typography.bodySmall,
-                color = palette.inkMuted
+            val peakIndex = heights.indexOf(heights.max())
+            val px = stepX * peakIndex
+            val py = y(heights[peakIndex])
+            drawLine(
+                color = palette.ink,
+                start = Offset(px, py),
+                end = Offset(px, py - 8.dp.toPx()),
+                strokeWidth = 1.2.dp.toPx(),
+                cap = StrokeCap.Round
             )
+            val flag = Path().apply {
+                moveTo(px, py - 8.dp.toPx())
+                lineTo(px + 6.dp.toPx(), py - 5.5.dp.toPx())
+                lineTo(px, py - 3.dp.toPx())
+                close()
+            }
+            drawPath(flag, palette.complete)
         }
     }
 }
