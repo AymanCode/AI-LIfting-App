@@ -70,3 +70,18 @@ Thumbs.db
 *.gguf
 *.bin
 src/main/assets/models/
+
+# Local planning notes, agent tooling, and working artifacts (not part of the app)
+AGENTS.md
+CLAUDE.md
+AGENT_ARCHITECTURE.md
+FEATURE_SUGGESTIONS.md
+IMPROVEMENT_AUDIT.md
+IOS_CONVERSION_PLAN.md
+PRODUCT.md
+docs/superpowers/
+openwiki/
+.github/workflows/openwiki-update.yml
+design/
+claude screenshots/
+build_and_install.sh
