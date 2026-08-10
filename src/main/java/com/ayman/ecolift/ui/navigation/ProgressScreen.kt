@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
+import com.ayman.ecolift.ui.viewmodel.ProgressMetric
 import com.ayman.ecolift.ui.viewmodel.ProgressOrganizationMode
 import com.ayman.ecolift.ui.viewmodel.ProgressViewModel
 import com.ayman.ecolift.ui.viewmodel.TimeframeFilter
@@ -39,28 +40,14 @@ fun ProgressScreen(
             )
         }
 
-        val range = when (uiState.timeframe) {
-            TimeframeFilter.ONE_MONTH -> TimeRangeV2.ONE_MONTH
-            TimeframeFilter.THREE_MONTHS -> TimeRangeV2.THREE_MONTHS
-            TimeframeFilter.SIX_MONTHS -> TimeRangeV2.SIX_MONTHS
-            TimeframeFilter.ONE_YEAR -> TimeRangeV2.ONE_YEAR
-            TimeframeFilter.ALL_TIME -> TimeRangeV2.ALL
-        }
-
-        val metric = when (uiState.selectedMetric) {
-            com.ayman.ecolift.ui.viewmodel.ProgressMetric.ESTIMATED_1RM -> ProgressMetricV2.ESTIMATED_1RM
-            com.ayman.ecolift.ui.viewmodel.ProgressMetric.WEIGHT -> ProgressMetricV2.WEIGHT
-            com.ayman.ecolift.ui.viewmodel.ProgressMetric.VOLUME -> ProgressMetricV2.VOLUME
-        }
-
         val stats = uiState.stats
 
         ProgressDetailScreen(
             exerciseName = uiState.selectedExerciseName,
             muscleGroups = uiState.selectedExerciseMuscleGroups,
             dataPoints = dataPoints,
-            selectedRange = range,
-            selectedMetric = metric,
+            selectedRange = uiState.timeframe,
+            selectedMetric = uiState.selectedMetric,
             currentPr = stats?.currentPrLbs ?: 0f,
             bestSetLabel = stats?.bestSetLabel.orEmpty(),
             prDate = stats?.currentPrDate,
@@ -68,26 +55,8 @@ fun ProgressScreen(
             totalVolume = stats?.totalVolumeLbs?.toFloat() ?: 0f,
             workoutCount = stats?.workoutCount ?: 0,
             onBack = { viewModel.selectExercise(null) },
-            onRangeChange = { r ->
-                viewModel.setTimeframe(
-                    when (r) {
-                        TimeRangeV2.ONE_MONTH -> TimeframeFilter.ONE_MONTH
-                        TimeRangeV2.THREE_MONTHS -> TimeframeFilter.THREE_MONTHS
-                        TimeRangeV2.SIX_MONTHS -> TimeframeFilter.SIX_MONTHS
-                        TimeRangeV2.ONE_YEAR -> TimeframeFilter.ONE_YEAR
-                        TimeRangeV2.ALL -> TimeframeFilter.ALL_TIME
-                    }
-                )
-            },
-            onMetricChange = { m ->
-                viewModel.setMetric(
-                    when (m) {
-                        ProgressMetricV2.ESTIMATED_1RM -> com.ayman.ecolift.ui.viewmodel.ProgressMetric.ESTIMATED_1RM
-                        ProgressMetricV2.WEIGHT -> com.ayman.ecolift.ui.viewmodel.ProgressMetric.WEIGHT
-                        ProgressMetricV2.VOLUME -> com.ayman.ecolift.ui.viewmodel.ProgressMetric.VOLUME
-                    }
-                )
-            },
+            onRangeChange = viewModel::setTimeframe,
+            onMetricChange = viewModel::setMetric,
             onMuscleGroupChange = viewModel::updateSelectedExerciseMuscleGroup,
             paletteChoice = paletteChoice,
             onPaletteChoiceChange = onPaletteChoiceChange,
@@ -115,22 +84,12 @@ fun ProgressScreen(
 
         ProgressScreen(
             exercises = exercises,
-            organizationMode = when (uiState.organizationMode) {
-                ProgressOrganizationMode.PROGRESS -> ProgressOrganizationModeV2.PROGRESS
-                ProgressOrganizationMode.SPLIT -> ProgressOrganizationModeV2.SPLIT
-            },
+            organizationMode = uiState.organizationMode,
             splitPages = splitPages,
             selectedSplitIndex = uiState.selectedSplitIndex,
             searchQuery = uiState.searchQuery,
             onSearchChange = viewModel::setSearchQuery,
-            onOrganizationModeChange = { mode ->
-                viewModel.setOrganizationMode(
-                    when (mode) {
-                        ProgressOrganizationModeV2.PROGRESS -> ProgressOrganizationMode.PROGRESS
-                        ProgressOrganizationModeV2.SPLIT -> ProgressOrganizationMode.SPLIT
-                    }
-                )
-            },
+            onOrganizationModeChange = viewModel::setOrganizationMode,
             onSelectedSplitIndexChange = viewModel::setSelectedSplitIndex,
             onPreviousSplit = viewModel::showPreviousSplit,
             onNextSplit = viewModel::showNextSplit,
