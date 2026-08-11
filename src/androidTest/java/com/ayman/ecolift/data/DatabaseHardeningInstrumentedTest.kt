@@ -758,8 +758,10 @@ class DatabaseHardeningInstrumentedTest {
         assertEquals(listOf(1, 2, 3), numbers)
         // All setNumbers must be unique
         assertEquals(numbers.distinct(), numbers)
-        // The new set also has no duplicate
-        assertFalse(remaining.filter { it.id != s3.id }.any { it.setNumber == s3.setNumber && s3.setNumber == s4.setNumber })
+        // s3 was renumbered by the compaction, so re-read it. The instance
+        // returned by addSet still carries the number it had before the delete.
+        assertEquals(2, db.workoutSetDao().getById(s3.id)?.setNumber)
+        assertEquals(3, s4.setNumber)
     }
 
     @Test

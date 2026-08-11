@@ -19,6 +19,9 @@ import kotlinx.serialization.Serializable
     indices = [
         Index("exerciseId"),
         Index("date"),
+        // A set is identified by its position within one exercise on one day.
+        // Enforced in the schema so a lost race cannot produce two set 3s.
+        Index(value = ["exerciseId", "date", "setNumber"], unique = true),
     ]
 )
 @Serializable

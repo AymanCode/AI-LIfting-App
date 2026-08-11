@@ -32,8 +32,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -58,8 +56,6 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     private val _restStopwatchSeconds = MutableStateFlow<Int?>(null)
     private var activeRest: ActiveRest? = null
     private var restTickerJob: Job? = null
-
-    private val addMutex = Mutex()
 
     private val _exerciseHints = MutableStateFlow<Map<Long, String?>>(emptyMap())
     private val _exercisePBs = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
@@ -293,28 +289,24 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addSet(exerciseId: Long) {
         viewModelScope.launch {
-            addMutex.withLock {
-                val date = currentDate.value
-                val newSet = setRepository.addSet(date, exerciseId)
-                _sessionSets.update { it + newSet }
-                updateHistoricalHints(date, _sessionSets.value)
-            }
+            val date = currentDate.value
+            val newSet = setRepository.addSet(date, exerciseId)
+            _sessionSets.update { it + newSet }
+            updateHistoricalHints(date, _sessionSets.value)
         }
     }
 
     fun addSetFrom(exerciseId: Long, sourceSetId: Long) {
         viewModelScope.launch {
-            addMutex.withLock {
-                val date = currentDate.value
-                val source = _sessionSets.value.find { it.id == sourceSetId && it.exerciseId == exerciseId }
-                val newSet = setRepository.addSet(date, exerciseId)
-                val copiedSet = source?.let { copyValuesForAppendedSet(newSet, it) } ?: newSet
-                if (source != null) {
-                    setRepository.updateSet(copiedSet)
-                }
-                _sessionSets.update { it + copiedSet }
-                updateHistoricalHints(date, _sessionSets.value)
+            val date = currentDate.value
+            val source = _sessionSets.value.find { it.id == sourceSetId && it.exerciseId == exerciseId }
+            val newSet = setRepository.addSet(date, exerciseId)
+            val copiedSet = source?.let { copyValuesForAppendedSet(newSet, it) } ?: newSet
+            if (source != null) {
+                setRepository.updateSet(copiedSet)
             }
+            _sessionSets.update { it + copiedSet }
+            updateHistoricalHints(date, _sessionSets.value)
         }
     }
 
@@ -703,12 +695,10 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun addExerciseSession(exerciseId: Long) {
-        addMutex.withLock {
-            val date = currentDate.value
-            val newSets = setRepository.addExerciseSession(date, exerciseId)
-            _sessionSets.update { it + newSets }
-            updateHistoricalHints(date, _sessionSets.value)
-        }
+        val date = currentDate.value
+        val newSets = setRepository.addExerciseSession(date, exerciseId)
+        _sessionSets.update { it + newSets }
+        updateHistoricalHints(date, _sessionSets.value)
         classifyLoggedExercise(exerciseId)
     }
 

@@ -229,6 +229,48 @@ object Migrations {
         }
     }
 
+    /**
+     * Makes (exerciseId, date, setNumber) unique.
+     *
+     * Existing databases can already violate it: until the previous release
+     * addSet numbered a new set `currentSets.size + 1`, which repeats a number
+     * that is already in use whenever the numbering has a gap. Exported user
+     * data contains such rows, all of them real completed sets, so they are
+     * renumbered rather than deleted.
+     *
+     * Ranking is done into a temp table first. Computing it inline would let a
+     * row's rank depend on numbers this same statement had already rewritten.
+     * The correlated subquery is deliberate too: ROW_NUMBER() needs SQLite
+     * 3.25, and minSdk 26 ships 3.18.
+     */
+    val MIGRATION_18_19 = object : Migration(18, 19) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TEMP TABLE set_renumber AS
+                SELECT w.id AS id,
+                       (SELECT COUNT(*) FROM workout_set w2
+                         WHERE w2.exerciseId = w.exerciseId
+                           AND w2.date = w.date
+                           AND (w2.setNumber < w.setNumber
+                                OR (w2.setNumber = w.setNumber AND w2.id <= w.id))) AS rn
+                FROM workout_set w
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                UPDATE workout_set
+                   SET setNumber = (SELECT rn FROM set_renumber WHERE set_renumber.id = workout_set.id)
+                """.trimIndent()
+            )
+            db.execSQL("DROP TABLE set_renumber")
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_workout_set_exerciseId_date_setNumber` " +
+                    "ON `workout_set` (`exerciseId`, `date`, `setNumber`)"
+            )
+        }
+    }
+
     val ALL_MIGRATIONS = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
@@ -247,6 +289,7 @@ object Migrations {
         MIGRATION_15_16,
         MIGRATION_16_17,
         MIGRATION_17_18,
+        MIGRATION_18_19,
     )
 
     private fun migrateLegacyWorkoutSchemaToV3Shape(db: SupportSQLiteDatabase) {
