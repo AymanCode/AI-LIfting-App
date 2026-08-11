@@ -1395,7 +1395,7 @@ private fun ExerciseProgressRow(ref: SplitExerciseRef, onClick: () -> Unit) {
 
 /**
  * One seamless dialog surface: solid base + single uniform tint + hairline border.
- * Gradient glass (glassPanel) is deliberately avoided here — at dialog size its
+ * Gradient glass (glassPanel) is deliberately avoided here; at dialog size its
  * top highlight band reads as a second inner panel.
  */
 private fun Modifier.flatDialogSurface(palette: LogGlassPalette): Modifier {
@@ -1661,7 +1661,7 @@ private fun SaveFromDayDialog(
 
             if (sessions.isEmpty()) {
                 Text(
-                    "No logged workouts yet — log a session first.",
+                    "No logged workouts yet. Log a session first.",
                     color = palette.inkSubtle,
                     style = MaterialTheme.typography.bodySmall,
                 )

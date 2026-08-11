@@ -352,7 +352,7 @@ class AgentOrchestratorTest {
         verify(patchApplier, never()).applyPatches(any(), any(), any())
     }
 
-    // ── DeleteSet — requires confirmation ────────────────────────────
+    // ── DeleteSet: requires confirmation ────────────────────────────
 
     @Test
     fun `deleteSet returns NeedsConfirmation before applying`() = runTest {
@@ -381,7 +381,7 @@ class AgentOrchestratorTest {
         verify(patchApplier).applyPatches(eq("req-123"), eq(patches), eq(true))
     }
 
-    // ── RenameExercise — also destructive ────────────────────────────
+    // ── RenameExercise: also destructive ────────────────────────────
 
     @Test
     fun `renameExercise returns NeedsConfirmation`() = runTest {
@@ -489,7 +489,7 @@ class AgentOrchestratorTest {
         verify(patchApplier, never()).applyPatches(any(), any(), any())
     }
 
-    // ── Read — AskHistory ─────────────────────────────────────────────
+    // ── Read: AskHistory ─────────────────────────────────────────────
 
     @Test
     fun `askHistory returns TextResponse with session count`() = runTest {
@@ -526,7 +526,7 @@ class AgentOrchestratorTest {
         assertTrue((result as AgentTurn.TextResponse).text.contains("No"))
     }
 
-    // ── Read — AskSimilar ─────────────────────────────────────────────
+    // ── Read: AskSimilar ─────────────────────────────────────────────
 
     @Test
     fun `askSimilar returns comma-separated exercise names`() = runTest {
@@ -546,7 +546,7 @@ class AgentOrchestratorTest {
         assertTrue(text.contains("Dumbbell Fly"))
     }
 
-    // ── Read — AskRecommendation ──────────────────────────────────────
+    // ── Read: AskRecommendation ──────────────────────────────────────
 
     @Test
     fun `askRecommendation with data returns weight suggestion`() = runTest {

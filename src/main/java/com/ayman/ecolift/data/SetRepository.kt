@@ -157,7 +157,7 @@ internal fun buildLastSessionSetCopies(
 ): List<WorkoutSet> {
     // The "reference" for a re-added exercise is the last session the user actually checked off.
     // Sessions logged but left unchecked (parked, abandoned, or later un-checked) must not seed the
-    // new sets — keeping this in sync with the hint label, which is already completed-only.
+    // new sets, keeping this in sync with the hint label, which is already completed-only.
     val completedHistory = historyBeforeDate
         .filter { it.exerciseId == exerciseId && it.date < date && it.completed }
     val lastDate = completedHistory

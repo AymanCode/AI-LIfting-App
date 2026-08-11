@@ -225,12 +225,12 @@ fun GlassAmbientBackground(
  * The four material tiers of the glass system. Higher tiers read brighter and more present, and a
  * warm outer glow is reserved for the top two so a single glance tells you what is live:
  *
- * - [Passive] — completed / inactive surfaces. Quiet: low-opacity fill, soft border, no glow.
- * - [Standard] — default surfaces (normal cards, search, date controls, bottom nav bar). Readable,
+ * - [Passive]: completed / inactive surfaces. Quiet: low-opacity fill, soft border, no glow.
+ * - [Standard]: default surfaces (normal cards, search, date controls, bottom nav bar). Readable,
  *   polished translucency, no glow.
- * - [Active] — the focused panel (the in-progress exercise card). Stronger fill and border, a clearer
+ * - [Active]: the focused panel (the in-progress exercise card). Stronger fill and border, a clearer
  *   top highlight, and a soft warm outer glow for depth.
- * - [Interaction] — touched / selected / mid-gesture surfaces. The brightest tier: accent-tinted
+ * - [Interaction]: touched / selected / mid-gesture surfaces. The brightest tier: accent-tinted
  *   border and the strongest glow, because the user is acting on it right now.
  */
 enum class GlassLevel { Passive, Standard, Active, Interaction }
@@ -258,14 +258,14 @@ fun Modifier.glassPanel(
 
 /**
  * The material itself. Each tier owns a distinct fill, border weight/colour, top specular highlight
- * and glow so no two tiers read alike — this is what keeps the UI from looking like one reused card.
+ * and glow so no two tiers read alike; this is what keeps the UI from looking like one reused card.
  */
 fun Modifier.glassPanel(
     palette: GlassPalette,
     shape: Shape,
     level: GlassLevel,
 ): Modifier {
-    // Every tier stays translucent so the living background reads THROUGH the glass — the card
+    // Every tier stays translucent so the living background reads THROUGH the glass; the card
     // transparency is deliberate. Hierarchy is carried by border, highlight and glow, never by
     // making a higher tier more opaque. All tiers share the same translucent base (glassFill);
     // only Passive drops lower to read quieter, and warmth is added as a tint, not as opacity.

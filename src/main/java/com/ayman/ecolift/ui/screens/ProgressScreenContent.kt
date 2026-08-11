@@ -215,7 +215,7 @@ fun ProgressExerciseListItem(
         isNegativeTrend -> palette.danger
         else -> palette.inkSubtle
     }
-    // A row inside one grouped surface (see ProgressExerciseList) — no per-row card or border.
+    // A row inside one grouped surface (see ProgressExerciseList), no per-row card or border.
     // A shared translucent fill plus a hairline divider carry the grouping (#4/#6).
     Column(
         modifier = modifier
@@ -452,7 +452,7 @@ private fun progressPrimaryMuscleGroup(muscleGroups: String): String? =
 private fun detailSectionLabel() =
     progressBodyStyle(fontSize = 12, lineHeight = 15, weight = FontWeight.Medium)
 
-/** Editorial text tab with a small animated accent underline — shared design language with the cardio tab. */
+/** Editorial text tab with a small animated accent underline, shared design language with the cardio tab. */
 @Composable
 private fun MetricTab(
     label: String,
@@ -1858,7 +1858,7 @@ private fun LegacyProgressDetailScreenUnused(
                 }
             }
 
-            // Stat strip: three typographic columns — no boxes, no icon rows
+            // Stat strip: three typographic columns, no boxes, no icon rows
             item {
                 Row(
                     modifier = Modifier

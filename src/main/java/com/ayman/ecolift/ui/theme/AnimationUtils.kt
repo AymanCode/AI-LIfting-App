@@ -173,7 +173,7 @@ private fun formatVolumeForAnimation(v: Int): String =
     if (v >= 1000) "${v / 1000}.${(v % 1000) / 100}k" else "$v"
 
 /**
- * Performs a light haptic tick — ideal for stepper buttons and frequent interactions.
+ * Performs a light haptic tick, ideal for stepper buttons and frequent interactions.
  */
 @Composable
 fun rememberLightHaptic(): () -> Unit {
@@ -184,7 +184,7 @@ fun rememberLightHaptic(): () -> Unit {
 }
 
 /**
- * Performs a heavy haptic burst — ideal for completing workouts and terminal actions.
+ * Performs a heavy haptic burst, ideal for completing workouts and terminal actions.
  */
 @Composable
 fun rememberHeavyHaptic(): () -> Unit {

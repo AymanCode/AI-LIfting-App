@@ -212,7 +212,7 @@ private const val SET_DELETE_UNDO_MILLIS = 2_000L
 
 /**
  * How long the "Removed {exercise} / Undo" snackbar lingers before the removal commits. A hair longer
- * than a single set since the whole card is gone, but still brief — if you meant it, it shouldn't nag.
+ * than a single set since the whole card is gone, but still brief, if you meant it, it shouldn't nag.
  */
 private const val EXERCISE_REMOVE_UNDO_MILLIS = 2_500L
 
@@ -464,7 +464,7 @@ fun LogSetRow(
         label = "set_vertical_swipe"
     )
     val swipeThresholdPx = with(LocalDensity.current) { 54.dp.toPx() }
-    // The set row is no longer its own boxed container — the exercise card is the ONLY container.
+    // The set row is no longer its own boxed container, the exercise card is the ONLY container.
     // The toggle, value lines and summary read as elements inside the card, parted by space not borders.
 
     Box(
@@ -696,7 +696,7 @@ private fun CompletedSetSummary(
     palette: LogGlassPalette,
     modifier: Modifier = Modifier
 ) {
-    // De-boxed: a completed set reads as inline text within the card — no bordered pill.
+    // De-boxed: a completed set reads as inline text within the card; no bordered pill.
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -705,7 +705,7 @@ private fun CompletedSetSummary(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Muted: a completed set is settled history — the live scrubber values own
+        // Muted: a completed set is settled history; the live scrubber values own
         // the bright numerals so the card has a single numeric focal point.
         Text(
             text = completedLoadLabel(set),
@@ -946,7 +946,7 @@ fun ExerciseLogCard(
     val heavyHaptic = rememberHeavyHaptic()
     // The swipe gesture below lives in a pointerInput keyed on size/collapse/fully-completed,
     // so it does NOT restart when an individual set is ticked complete. Without this, onDragEnd
-    // would invoke a STALE onSwipeFinishAndCollapse captured from an earlier composition — one
+    // would invoke a STALE onSwipeFinishAndCollapse captured from an earlier composition, one
     // whose snapshot still thinks the just-completed set is incomplete, so the swipe would
     // toggle that set back OFF. rememberUpdatedState keeps the long-lived coroutine pointed at
     // the latest lambda (same pattern used for onDeleteSet in LogScreen).
@@ -1061,8 +1061,8 @@ fun ExerciseLogCard(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Top-center grab handle: tap to fold this card — park it if you're mid-exercise, or
-                // collapse it if every set is done — without losing your place. It's a clickable child,
+                // Top-center grab handle: tap to fold this card, park it if you're mid-exercise, or
+                // collapse it if every set is done, without losing your place. It's a clickable child,
                 // so it eats the tap while horizontal drags starting on it still fall through to the
                 // swipe: no dead zone, and no double-tap delay on the title.
                 Box(
@@ -1093,7 +1093,7 @@ fun ExerciseLogCard(
                             .padding(vertical = 1.dp)
                     ) {
                         Row(
-                            // The card now folds via the top handle, so the title is just the title —
+                            // The card now folds via the top handle, so the title is just the title,
                             // no hidden tap-to-collapse here.
                             modifier = Modifier.padding(vertical = 1.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -1363,7 +1363,7 @@ private fun FinishedExerciseRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            // The parent exercise container already wears the Passive glass panel —
+            // The parent exercise container already wears the Passive glass panel,
             // adding another here doubled the stroke and made finished rows the
             // loudest thing on screen. The row is now bare inside its parent.
             .clip(RoundedCornerShape(14.dp))
@@ -1450,7 +1450,7 @@ private fun SwipeActionBackground(
     }
 }
 
-// The folded form of an exercise the user MINIMIZED without finishing — visually distinct from the
+// The folded form of an exercise the user MINIMIZED without finishing; visually distinct from the
 // completed (green check) row so a glance tells "tucked away to do later" apart from "actually done".
 // Tapping anywhere re-opens it with its sets still editable and unchecked.
 @Composable
@@ -2695,7 +2695,7 @@ fun LogScreen(
 ) {
     var collapsedExerciseKeys by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var manuallyExpandedCompletedExerciseKeys by rememberSaveable { mutableStateOf(emptyList<String>()) }
-    // Exercises the user MINIMIZED (parked) without finishing. Independent of completion — this is the
+    // Exercises the user MINIMIZED (parked) without finishing. Independent of completion; this is the
     // "tuck it away to declutter" state, distinct from collapsedExerciseKeys which only applies once done.
     var parkedExerciseKeys by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val collapsedExerciseKeySet = remember(collapsedExerciseKeys) { collapsedExerciseKeys.toSet() }
@@ -2785,7 +2785,7 @@ fun LogScreen(
     val orderedExercises = exercises
         .mapIndexed { index, exercise -> IndexedExercise(index, exercise) }
         // An exercise card exists only as long as it has at least one set. When the last set is
-        // swiped away it sits in pendingDeletedSetIds during the undo window — drop the whole card
+        // swiped away it sits in pendingDeletedSetIds during the undo window, drop the whole card
         // immediately instead of leaving an empty "add a set" shell. Undo restores the set, which
         // re-includes the exercise and brings the card back. (mapIndexed runs first so originalIndex
         // still points into the unfiltered uiState.exercises that the callbacks index into.)
@@ -2800,14 +2800,14 @@ fun LogScreen(
     val keyboardHeightPadding = 306.dp
     // Content padding is kept CONSTANT with respect to chrome visibility. Hiding or
     // showing the top bar / bottom nav must never remeasure or resize the list while
-    // the user is mid-scroll — that relayout-per-frame is what made scrolling stutter.
+    // the user is mid-scroll; that relayout-per-frame is what made scrolling stutter.
     // Instead the chrome fades over the list (see the AnimatedVisibility blocks below).
     // Room for the collapsible top bar and bottom nav is always reserved; while you
     // scroll through the middle that reserved space just sits off-screen, and the bars
     // fade back in over it when you reach an edge.
     val listTopPadding = 72.dp
-    // Only the custom number keyboard changes the bottom inset — and that's a deliberate
-    // tap, never a scroll — so animating this one is safe and smooth.
+    // Only the custom number keyboard changes the bottom inset, and that's a deliberate
+    // tap, never a scroll, so animating this one is safe and smooth.
     val targetListBottomPadding = if (isNumberKeyboardVisible) {
         keyboardHeightPadding
     } else {
@@ -2820,8 +2820,8 @@ fun LogScreen(
     )
 
     // The bars hide proportionally to scroll as deltas arrive (see chromeNestedScroll).
-    // This effect only reacts to the start/stop of a gesture — a single boolean that
-    // flips at most twice per swipe — so it never runs per-frame. On settle it snaps the
+    // This effect only reacts to the start/stop of a gesture: a single boolean that
+    // flips at most twice per swipe, so it never runs per-frame. On settle it snaps the
     // bars to fully shown or hidden so you never rest on a half-faded bar.
     LaunchedEffect(listState) {
         snapshotFlow { listState.isScrollInProgress }
@@ -2954,7 +2954,7 @@ fun LogScreen(
         activeNumberInput = null
         pendingDeletedSetIds = pendingDeletedSetIds + set.id
         scope.launch {
-            // Keep the undo window deliberately brief — long enough to catch a misfire, short
+            // Keep the undo window deliberately brief, long enough to catch a misfire, short
             // enough that it doesn't linger after a real delete. Indefinite + our own timeout
             // lets us pick a duration shorter than SnackbarDuration.Short (~4s).
             val result = withTimeoutOrNull(SET_DELETE_UNDO_MILLIS) {
@@ -2976,7 +2976,7 @@ fun LogScreen(
     // Swipe-left to remove the whole card: stage every set into the same pending-delete window that
     // single-set deletes use, so the existing "card disappears when it has no sets" filter drops it,
     // and one brief Undo restores them all. Removed (deleted) sets leave history entirely, so they
-    // never seed a future session — which is exactly the "don't reference a removed card" behaviour.
+    // never seed a future session, which is exactly the "don't reference a removed card" behaviour.
     fun requestDeleteExercise(exerciseName: String, sets: List<LoggedSet>) {
         val ids = sets.map { it.id }.filter { it !in pendingDeletedSetIds }
         if (ids.isEmpty()) return

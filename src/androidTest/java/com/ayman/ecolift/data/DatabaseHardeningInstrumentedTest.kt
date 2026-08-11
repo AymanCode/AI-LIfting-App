@@ -750,7 +750,7 @@ class DatabaseHardeningInstrumentedTest {
         // Delete the middle set and compact
         sets.deleteSetAndCompact(s2)
 
-        // Now add a new set — must get setNumber 3, not a duplicate
+        // Now add a new set, must get setNumber 3, not a duplicate
         val s4 = sets.addSet("2026-06-01", 1L)
         val remaining = db.workoutSetDao().getForDateAndExercise("2026-06-01", 1L)
         assertEquals(3, remaining.size)

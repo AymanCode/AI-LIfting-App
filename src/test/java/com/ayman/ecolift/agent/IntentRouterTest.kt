@@ -11,7 +11,7 @@ import org.junit.Test
 
 class IntentRouterTest {
 
-    // Router without engine — unmatched rules → Clarify, no model calls
+    // Router without engine: unmatched rules → Clarify, no model calls
     private val router = IntentRouter(engine = null)
 
     // ── Table-driven rule coverage ────────────────────────────────────

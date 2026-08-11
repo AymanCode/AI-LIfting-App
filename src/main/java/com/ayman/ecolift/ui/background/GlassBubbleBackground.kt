@@ -37,7 +37,7 @@ import kotlin.random.Random
  *
  * Performance note: physics runs in a `withFrameNanos` loop that mutates plain (non-snapshot)
  * bubble objects; only a single frame-tick state is read inside the draw lambda, so each frame
- * invalidates the **draw phase only** — there is no per-frame recomposition to stall input.
+ * invalidates the **draw phase only**, there is no per-frame recomposition to stall input.
  */
 @Composable
 fun GlassBubbleBackground(

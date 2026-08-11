@@ -37,7 +37,7 @@ object DateExtractor {
             }
         }
 
-        // "April 5th", "march 12", "January 1"
+        // "April 5th": "march 12", "January 1"
         val monthDayRe = Regex(
             """(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?"""
         )

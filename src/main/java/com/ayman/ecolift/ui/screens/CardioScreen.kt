@@ -281,7 +281,7 @@ private fun CardioSummaryBand(
         }
         Text(
             text = if (recentSessions.isEmpty()) {
-                "No sessions this week — log one below."
+                "No sessions this week. Log one below."
             } else {
                 buildList {
                     add(if (recentSessions.size == 1) "1 session" else "${recentSessions.size} sessions")
@@ -1256,7 +1256,7 @@ private fun sourceLabel(source: String): String = when (source) {
 
 /**
  * Fixed-priority metric list: the first entry is the row's right-aligned anchor,
- * the rest feed the secondary line — so nothing is ever shown twice and a row
+ * the rest feed the secondary line, so nothing is ever shown twice and a row
  * never anchors on "—" while it still has something meaningful to say.
  */
 private fun sessionMetricsOrdered(session: CardioSession): List<String> {

@@ -16,7 +16,7 @@ import org.junit.Test
 import org.mockito.kotlin.*
 
 /**
- * Edge-case coverage for [AgentOrchestrator] — weight/reps extraction
+ * Edge-case coverage for [AgentOrchestrator]: weight/reps extraction
  * boundaries, bodyweight handling, date edges, rename parsing,
  * clarify fallthroughs.
  *
@@ -102,7 +102,7 @@ class OrchestratorEdgeCaseTest {
 
     @Test
     fun `explicit unit overrides set notation path`() = runTest {
-        // "bench 135 lbs for 8" — no NxM, so unit+reps regex fires
+        // "bench 135 lbs for 8": no NxM, so unit+reps regex fires
         whenever(tools.findExercise(any())).thenReturn(BENCH)
         whenever(tools.getRecentSets(any(), any())).thenReturn(emptyList())
         whenever(applier.applyPatches(any(), any(), eq(false)))
@@ -118,7 +118,7 @@ class OrchestratorEdgeCaseTest {
         }
     }
 
-    // ── Bodyweight exercise — null weight is valid ───────────────────
+    // ── Bodyweight exercise: null weight is valid ───────────────────
 
     @Test
     fun `pull up for 10 reps logs with null weight`() = runTest {
@@ -140,7 +140,7 @@ class OrchestratorEdgeCaseTest {
         }
     }
 
-    // ── Reps-only input (no weight) — still logs ─────────────────────
+    // ── Reps-only input (no weight), still logs ─────────────────────
 
     @Test
     fun `log bench press for 8 reps without weight still logs with null weight`() = runTest {
@@ -161,14 +161,14 @@ class OrchestratorEdgeCaseTest {
         }
     }
 
-    // ── Weight alone, no reps → no patch ─────────────────────────────
+    // ── Weight alone: no reps → no patch ─────────────────────────────
 
     @Test
     fun `weight without reps returns recoverable draft`() = runTest {
         whenever(tools.findExercise(any())).thenReturn(BENCH)
         whenever(tools.getRecentSets(any(), any())).thenReturn(emptyList())
 
-        // "logged bench 135 lbs" — weight yes, reps no. generateLogSet
+        // "logged bench 135 lbs": weight yes, reps no. generateLogSet
         // requires reps so returns null → TextResponse.
         val result = orchestrator.process("logged bench 135 lbs")
 

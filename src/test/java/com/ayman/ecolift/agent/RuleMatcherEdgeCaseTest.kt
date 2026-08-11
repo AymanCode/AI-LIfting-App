@@ -8,7 +8,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 /**
- * Edge-case coverage for [RuleMatcher] — boundaries, substring pitfalls,
+ * Edge-case coverage for [RuleMatcher]: boundaries, substring pitfalls,
  * whitespace, casing, priority order, and SET_NOTATION thresholds.
  */
 class RuleMatcherEdgeCaseTest {
@@ -84,7 +84,7 @@ class RuleMatcherEdgeCaseTest {
 
     @Test
     fun `edit wins over LogSet keyword`() {
-        // "fix my" is EditSet, "logged" is LogSet — edit checked first
+        // "fix my" is EditSet, "logged" is LogSet, edit checked first
         val match = RuleMatcher.match("fix my logged bench set")
         assertNotNull(match)
         assertEquals(PatchType.EditSet, (match!!.intent as Intent.Write).patchType)
@@ -92,7 +92,7 @@ class RuleMatcherEdgeCaseTest {
 
     @Test
     fun `rename wins over delete when both appear`() {
-        // "rename" check runs after "delete" — delete should still win for
+        // "rename" check runs after "delete"; delete should still win for
         // a phrase that starts with delete.
         val match = RuleMatcher.match("delete and rename my bench")
         assertNotNull(match)
@@ -103,7 +103,7 @@ class RuleMatcherEdgeCaseTest {
 
     @Test
     fun `call it quits substring false positive hits RenameExercise rule`() {
-        // "call it " is a naive keyword — "call it quits" wrongly matches.
+        // "call it " is a naive keyword, "call it quits" wrongly matches.
         // This is a KNOWN LIMITATION: orchestrator rejects it downstream
         // because no exercise is found, so user sees a clarify message.
         val match = RuleMatcher.match("call it quits")
@@ -113,7 +113,7 @@ class RuleMatcherEdgeCaseTest {
 
     @Test
     fun `remove my substring false positive hits DeleteSet rule`() {
-        // "remove my" is naive — "remove my socks" wrongly matches DeleteSet.
+        // "remove my" is naive, "remove my socks" wrongly matches DeleteSet.
         // Orchestrator returns clarify because 'socks' isn't an exercise.
         val match = RuleMatcher.match("remove my socks")
         assertNotNull(match)
@@ -122,7 +122,7 @@ class RuleMatcherEdgeCaseTest {
 
     @Test
     fun `replace substring hits AskSimilar rule`() {
-        // "replace " triggers AskSimilar — so "replace my last set" is
+        // "replace " triggers AskSimilar, so "replace my last set" is
         // wrongly classified as a read, not EditSet.
         val match = RuleMatcher.match("replace my last set with 145")
         assertNotNull(match)
@@ -159,7 +159,7 @@ class RuleMatcherEdgeCaseTest {
 
     @Test
     fun `just did without numbers still matches LogSet keyword`() {
-        // "just did" is a keyword — orchestrator will later ask for details
+        // "just did" is a keyword, orchestrator will later ask for details
         // but the router should still classify as LogSet.
         val match = RuleMatcher.match("just did a bench set")
         assertNotNull(match)
@@ -172,7 +172,7 @@ class RuleMatcherEdgeCaseTest {
     fun `fullwidth digits do not match set notation`() {
         // Fullwidth '３' is not ASCII \d, so should not match
         val match = RuleMatcher.match("bench ３x１０")
-        // Either null OR something — just confirm no crash
+        // Either null OR something; just confirm no crash
         // If no keyword fires, null is correct.
         // If it somehow matches something else, fail loudly so we know.
         if (match != null) {
@@ -195,13 +195,13 @@ class RuleMatcherEdgeCaseTest {
 
     @Test
     fun `bare number without unit or reps returns null`() {
-        // "bench 135" with no unit and no reps — should not classify as LogSet
+        // "bench 135" with no unit and no reps: should not classify as LogSet
         assertNull(RuleMatcher.match("bench 135"))
     }
 
     @Test
     fun `weight with unit but no reps returns null`() {
-        // "bench 135 lbs" alone — has weight but no reps. Per hasWeightAndReps,
+        // "bench 135 lbs" alone: has weight but no reps. Per hasWeightAndReps,
         // both must be present (SET_NOTATION handles the short form).
         assertNull(RuleMatcher.match("bench 135 lbs"))
     }

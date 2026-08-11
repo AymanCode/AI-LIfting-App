@@ -346,7 +346,7 @@ internal fun ArchivePosterHero(
                     "↑ beat your last ${window.headline().removeSuffix(" ago")} " +
                         "on $improvedCount of $comparedCount lifts"
                 } else {
-                    "no history to race against yet — finish another cycle " +
+                    "no history to race against yet: finish another cycle " +
                         "and the score unlocks"
                 },
                 color = if (scored) palette.accentStrong else HoldAmber,
@@ -623,9 +623,9 @@ internal fun VersusSection(
             NewLiftRow(
                 name = lift.name,
                 why = if (ranked.isEmpty()) {
-                    "first time logged — baseline set ✓"
+                    "first time logged: baseline set ✓"
                 } else {
-                    "no ${window.label()} history — not scored"
+                    "no ${window.label()} history: not scored"
                 },
             )
         }
@@ -633,12 +633,12 @@ internal fun VersusSection(
         val foot = when {
             ranked.isEmpty() && newLifts.isNotEmpty() -> {
                 val extra = newLifts.size - shownNew.size
-                val prefix = if (extra > 0) "+ $extra more — " else ""
+                val prefix = if (extra > 0) "+ $extra more, " else ""
                 prefix + "all ${newLifts.size} lifts just set their baseline. " +
                     "Next cycle, this section becomes the scoreboard."
             }
             newLifts.isNotEmpty() ->
-                "new lifts sit out the scoring — no penalty for trying things"
+                "new lifts sit out the scoring: no penalty for trying things"
             else -> null
         }
         if (foot != null) {
@@ -908,7 +908,7 @@ internal fun HighlightReel(
     }
 }
 
-/** Weekly bars with the session count printed on top — read it like a score. */
+/** Weekly bars with the session count printed on top; read it like a score. */
 @Composable
 internal fun SessionsPerWeek(core: CycleProgressCore) {
     val palette = LocalGlassPalette.current
@@ -1009,12 +1009,12 @@ private fun weeklyNote(counts: List<Int>, sessions: Int): String? {
     if (weeks == 0) return null
     val zeroWeeks = counts.count { it == 0 }
     return when {
-        sessions == 0 -> "nothing logged this cycle — blank pages"
+        sessions == 0 -> "nothing logged this cycle: blank pages"
         zeroWeeks > weeks / 2 ->
-            "$sessions sessions in $weeks weeks — the next album needs more shows"
+            "$sessions sessions in $weeks weeks: the next album needs more shows"
         zeroWeeks > 0 ->
-            "week ${counts.indexOfFirst { it == 0 } + 1} went quiet — rest, or hiding from leg day?"
-        else -> "no zero weeks — relentless"
+            "week ${counts.indexOfFirst { it == 0 } + 1} went quiet: rest, or hiding from leg day?"
+        else -> "no zero weeks: relentless"
     }
 }
 
@@ -1182,9 +1182,9 @@ private fun TrendRow(lift: LiftTrend, onClick: () -> Unit) {
         slope < -0.05f -> palette.danger
         else -> palette.inkMuted
     }
-    // Messy-data rule: never print N/A — say what we actually know.
+    // Messy-data rule: never print N/A; say what we actually know.
     val slopeText = if (slope == null) {
-        "logged ${lift.points.size}× — need more sessions for a trend"
+        "logged ${lift.points.size}×: need more sessions for a trend"
     } else {
         "${if (slope >= 0f) "+" else ""}${"%.1f".format(slope)} ${lift.unitLabel}"
     }

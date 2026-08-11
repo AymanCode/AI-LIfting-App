@@ -98,7 +98,7 @@ class WeightRecommenderTest {
 
     @Test
     fun `reps 1 above target holds weight`() {
-        // 9 reps, target 8 — not enough to increment (need +2)
+        // 9 reps, target 8: not enough to increment (need +2)
         val result = WeightRecommender.suggest(history(topSetWeightLbs = lbs(135), topSetReps = 9), 8, false)
         assertEquals(lbs(135), result.suggestedWeightLbs)
     }
