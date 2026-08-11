@@ -9,7 +9,7 @@ import com.ayman.ecolift.agent.model.AgentTurnLogDao
 import com.ayman.ecolift.agent.model.AuditEntity
 import com.ayman.ecolift.agent.patches.AuditDao
 
-const val APP_DATABASE_VERSION = 18
+const val APP_DATABASE_VERSION = 19
 
 @Database(
     entities = [

@@ -10,7 +10,12 @@ class SetRepository(private val db: AppDatabase) {
 
     suspend fun getSetsForDate(date: String): List<WorkoutSet> = db.workoutSetDao().getForDate(date)
 
-    suspend fun addSet(date: String, exerciseId: Long): WorkoutSet {
+    /**
+     * Reading the current sets and inserting the next one share a transaction:
+     * the set number is derived from what is already stored, so two concurrent
+     * adds must not interleave between the read and the insert.
+     */
+    suspend fun addSet(date: String, exerciseId: Long): WorkoutSet = db.withTransaction {
         val currentSets = db.workoutSetDao().getForDateAndExercise(date, exerciseId)
         val template = currentSets.lastOrNull()
             ?: db.workoutSetDao().getMostRecentBeforeDate(exerciseId, date)
@@ -28,13 +33,13 @@ class SetRepository(private val db: AppDatabase) {
             completed = false,
         )
         val insertedId = db.workoutSetDao().insert(newSet)
-        return newSet.copy(id = insertedId)
+        newSet.copy(id = insertedId)
     }
 
-    suspend fun addExerciseSession(date: String, exerciseId: Long): List<WorkoutSet> {
+    suspend fun addExerciseSession(date: String, exerciseId: Long): List<WorkoutSet> = db.withTransaction {
         val currentSets = db.workoutSetDao().getForDateAndExercise(date, exerciseId)
         if (currentSets.isNotEmpty()) {
-            return listOf(addSet(date, exerciseId))
+            return@withTransaction listOf(addSet(date, exerciseId))
         }
 
         val sessionCopies = buildLastSessionSetCopies(
@@ -43,10 +48,10 @@ class SetRepository(private val db: AppDatabase) {
             historyBeforeDate = db.workoutSetDao().getHistoryBeforeDate(exerciseId, date),
         )
         if (sessionCopies.isEmpty()) {
-            return listOf(addSet(date, exerciseId))
+            return@withTransaction listOf(addSet(date, exerciseId))
         }
 
-        return sessionCopies.map { set ->
+        sessionCopies.map { set ->
             val insertedId = db.workoutSetDao().insert(set)
             set.copy(id = insertedId)
         }
