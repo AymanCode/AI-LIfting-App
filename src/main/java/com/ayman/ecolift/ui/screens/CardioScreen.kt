@@ -1,4 +1,4 @@
-package com.ayman.ecolift.ui.navigation
+package com.ayman.ecolift.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts

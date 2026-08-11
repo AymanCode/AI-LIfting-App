@@ -1,4 +1,4 @@
-package com.ayman.ecolift.ui.navigation
+package com.ayman.ecolift.ui.screens
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
