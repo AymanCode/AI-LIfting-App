@@ -1,4 +1,4 @@
-package com.ayman.ecolift.ui.navigation
+package com.ayman.ecolift.ui.screens
 
 import com.ayman.ecolift.ui.viewmodel.ProgressMetric
 import com.ayman.ecolift.ui.viewmodel.TimeframeFilter

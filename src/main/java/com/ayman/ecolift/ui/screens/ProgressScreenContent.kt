@@ -1,4 +1,4 @@
-package com.ayman.ecolift.ui.navigation
+package com.ayman.ecolift.ui.screens
 
 import android.graphics.Paint
 import android.graphics.Typeface

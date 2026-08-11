@@ -1,4 +1,4 @@
-package com.ayman.ecolift.ui.navigation
+package com.ayman.ecolift.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas

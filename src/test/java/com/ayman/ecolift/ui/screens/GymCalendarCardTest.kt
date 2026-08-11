@@ -1,4 +1,4 @@
-package com.ayman.ecolift.ui.navigation
+package com.ayman.ecolift.ui.screens
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
