@@ -9,8 +9,8 @@ bookkeeping: the numbers went in and mostly disappeared.
 I wanted recording a set to take seconds, previous workouts to be easy to find, and months
 of training to build an encyclopedia of my workout history instead of a pile of rows.
 
-This repository contains the Android app. The web version lives in a separate private
-repository.
+This repository contains the Android app. The web version lives at
+[AymanCode/ecolift-web](https://github.com/AymanCode/ecolift-web).
 
 ## Screenshots
 
@@ -100,8 +100,8 @@ behind App Store review.
 The browser version uses Supabase for sign-in and storage. Workout-set changes update the
 screen first and wait in a per-user browser queue when the connection drops.
 
-The web code lives in a separate private repository. It is the version I use during
-workouts now.
+The web code lives at [AymanCode/ecolift-web](https://github.com/AymanCode/ecolift-web).
+It is the version I use during workouts now.
 
 ## Running it
 
