@@ -18,7 +18,7 @@ Screenshots are from the Android app with demo data.
 
 | Workout log | Set card |
 | --- | --- |
-| <img src="docs/assets/android/log.png" width="390" alt="Friday's log suggesting Lower Strength, with Back Squat 270x5 and Romanian Deadlift 230x6 to beat"> | <img src="docs/assets/android/set-card.png" width="390" alt="Back Squat set 1 at 240 lb by 6, with an Est. 1RM of 288 against 306"> |
+| <img src="docs/assets/android/log.png" width="390" alt="Friday's log suggesting Lower Strength, with Back Squat 270x5 and Romanian Deadlift 230x6 to beat"> | <img src="docs/assets/android/set-card.png" width="390" alt="Set 1 at 240 lb by 6 for a quads and glutes lift, with an Est. 1RM of 288 against 306"> |
 
 | Progress | Split |
 | --- | --- |
@@ -97,8 +97,8 @@ Kotlin code handles each request first, and sending a message does not call a mo
 on a failed draft calls Groq in a debug build with `GROQ_API_KEY` set, and Gemini Nano on API
 31 and newer otherwise. The model never touches the database.
 
-A delete or a rename waits in the chat with Apply and Cancel, and nothing is written until
-you tap Apply. Other changes are saved right away. The most recent applied change offers Undo
+A delete or a rename waits in the chat with Apply and Cancel, and IronMind writes nothing
+until you tap Apply. IronMind saves other changes right away. The most recent applied change offers Undo
 from the chat, and that Undo is still there after you switch tabs and come back. Restoring a
 backup clears any waiting change and the Undo. Restarting the app clears Undo history.
 
