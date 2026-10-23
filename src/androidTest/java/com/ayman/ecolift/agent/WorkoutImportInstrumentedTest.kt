@@ -10,6 +10,7 @@ import com.ayman.ecolift.agent.router.IntentRouter
 import com.ayman.ecolift.agent.tools.AgentToolsImpl
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.Exercise
+import com.ayman.ecolift.data.domain
 import com.ayman.ecolift.data.WeightLbs
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -47,10 +48,10 @@ class WorkoutImportInstrumentedTest {
 
     @Test
     fun datedImportPersistsMessyRowsThroughRoomAndFuzzyExerciseMatch() = runBlocking {
-        val calfId = db.exerciseDao().insert(
+        val calfId = db.exerciseDao().domain().insert(
             Exercise(name = "Standing Calf Raise Machine", muscleGroups = "CALVES")
         )
-        val hipId = db.exerciseDao().insert(
+        val hipId = db.exerciseDao().domain().insert(
             Exercise(name = "Hip Abduction", muscleGroups = "GLUTES")
         )
 
@@ -100,6 +101,6 @@ class WorkoutImportInstrumentedTest {
         assertEquals(1, applied.pendingReviews.size)
         assertEquals("mystery machine 3 plates x 12, 12", applied.pendingReviews.single().rawInput)
         assertEquals("2026-05-13", applied.pendingReviews.single().dateLogged)
-        assertEquals(emptyList<com.ayman.ecolift.data.WorkoutSet>(), db.workoutSetDao().getForDate("2026-05-13"))
+        assertEquals(emptyList<com.ayman.ecolift.data.WorkoutSet>(), db.workoutSetDao().domain().getForDate("2026-05-13"))
     }
 }

@@ -5,10 +5,16 @@ import com.ayman.ecolift.data.CardioSession as DomainCardioSession
 import com.ayman.ecolift.data.Cycle as DomainCycle
 import com.ayman.ecolift.data.CycleSlot as DomainCycleSlot
 import com.ayman.ecolift.data.Exercise as DomainExercise
+import com.ayman.ecolift.data.ExerciseAlias as DomainExerciseAlias
+import com.ayman.ecolift.data.ExerciseDistinctPair as DomainExerciseDistinctPair
 import com.ayman.ecolift.data.PendingReview as DomainPendingReview
 import com.ayman.ecolift.data.SplitExercise as DomainSplitExercise
+import com.ayman.ecolift.data.UnitSystem as DomainUnitSystem
 import com.ayman.ecolift.data.UserSettings as DomainUserSettings
+import com.ayman.ecolift.data.WorkoutCardDisplayMode
+import com.ayman.ecolift.data.WorkoutCardOrigin
 import com.ayman.ecolift.data.WorkoutDay as DomainWorkoutDay
+import com.ayman.ecolift.data.WorkoutExerciseCard as DomainWorkoutExerciseCard
 import com.ayman.ecolift.data.WorkoutSet as DomainWorkoutSet
 
 fun Exercise.toDomain() = DomainExercise(
@@ -17,6 +23,7 @@ fun Exercise.toDomain() = DomainExercise(
     muscleGroups = muscleGroups,
     isBodyweight = isBodyweight,
     createdAt = createdAt,
+    mergedIntoId = mergedIntoId,
 )
 
 fun DomainExercise.toRoom() = Exercise(
@@ -25,6 +32,7 @@ fun DomainExercise.toRoom() = Exercise(
     muscleGroups = muscleGroups,
     isBodyweight = isBodyweight,
     createdAt = if (createdAt == 0L) System.currentTimeMillis() else createdAt,
+    mergedIntoId = mergedIntoId,
 )
 
 fun WorkoutSet.toDomain() = DomainWorkoutSet(
@@ -37,6 +45,10 @@ fun WorkoutSet.toDomain() = DomainWorkoutSet(
     isBodyweight = isBodyweight,
     completed = completed,
     restTimeSeconds = restTimeSeconds,
+    syncId = syncId,
+    rowRevision = rowRevision,
+    cardId = cardId,
+    isWarmup = isWarmup,
 )
 
 fun DomainWorkoutSet.toRoom() = WorkoutSet(
@@ -49,6 +61,10 @@ fun DomainWorkoutSet.toRoom() = WorkoutSet(
     isBodyweight = isBodyweight,
     completed = completed,
     restTimeSeconds = restTimeSeconds,
+    syncId = syncId,
+    rowRevision = rowRevision,
+    cardId = cardId,
+    isWarmup = isWarmup,
 )
 
 fun WorkoutDay.toDomain() = DomainWorkoutDay(
@@ -89,12 +105,26 @@ fun CycleSlot.toDomain() = DomainCycleSlot(
     id = id,
     name = name,
     orderIndex = orderIndex,
+    archivedAt = archivedAt,
+    learned = learned,
+    createdAt = createdAt,
+    seedRevision = seedRevision,
+    anchorUpdatedAt = anchorUpdatedAt,
+    suppressedAt = suppressedAt,
+    colorIndex = colorIndex,
 )
 
 fun DomainCycleSlot.toRoom() = CycleSlot(
     id = id,
     name = name,
     orderIndex = orderIndex,
+    archivedAt = archivedAt,
+    learned = learned,
+    createdAt = createdAt,
+    seedRevision = seedRevision,
+    anchorUpdatedAt = anchorUpdatedAt,
+    suppressedAt = suppressedAt,
+    colorIndex = colorIndex,
 )
 
 fun SplitExercise.toDomain() = DomainSplitExercise(
@@ -102,6 +132,7 @@ fun SplitExercise.toDomain() = DomainSplitExercise(
     splitId = splitId,
     exerciseId = exerciseId,
     orderIndex = orderIndex,
+    userAdded = userAdded,
 )
 
 fun DomainSplitExercise.toRoom() = SplitExercise(
@@ -109,6 +140,7 @@ fun DomainSplitExercise.toRoom() = SplitExercise(
     splitId = splitId,
     exerciseId = exerciseId,
     orderIndex = orderIndex,
+    userAdded = userAdded,
 )
 
 fun PendingReview.toDomain() = DomainPendingReview(
@@ -154,12 +186,70 @@ fun DomainArchivedCycle.toRoom() = ArchivedCycle(
 fun UserSettings.toDomain() = DomainUserSettings(
     userBodyweightLbs = userBodyweightLbs,
     glassPaletteChoice = glassPaletteChoice,
+    timeZone = timeZone,
+    unitSystem = DomainUnitSystem.entries.find { it.name == unitSystem } ?: DomainUnitSystem.LB,
+    smartSuggest = smartSuggest,
 )
 
 fun DomainUserSettings.toRoom() = UserSettings(
     id = USER_SETTINGS_ID,
     userBodyweightLbs = userBodyweightLbs,
     glassPaletteChoice = glassPaletteChoice,
+    timeZone = timeZone,
+    unitSystem = unitSystem.name,
+    smartSuggest = smartSuggest,
+)
+
+fun WorkoutExerciseCard.toDomain() = DomainWorkoutExerciseCard(
+    id = id,
+    date = date,
+    exerciseId = exerciseId,
+    position = position,
+    displayMode = WorkoutCardDisplayMode.entries.find { it.name == displayMode } ?: WorkoutCardDisplayMode.EXPANDED,
+    origin = WorkoutCardOrigin.entries.find { it.name == origin } ?: WorkoutCardOrigin.LEGACY,
+    sourcePlanId = sourcePlanId,
+    rowRevision = rowRevision,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+)
+
+fun DomainWorkoutExerciseCard.toRoom() = WorkoutExerciseCard(
+    id = id,
+    date = date,
+    exerciseId = exerciseId,
+    position = position,
+    displayMode = displayMode.name,
+    origin = origin.name,
+    sourcePlanId = sourcePlanId,
+    rowRevision = rowRevision,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+)
+
+fun ExerciseAlias.toDomain() = DomainExerciseAlias(
+    id = id,
+    exerciseId = exerciseId,
+    alias = alias,
+    normalizedKey = normalizedKey,
+)
+
+fun DomainExerciseAlias.toRoom() = ExerciseAlias(
+    id = id,
+    exerciseId = exerciseId,
+    alias = alias,
+    normalizedKey = normalizedKey,
+)
+
+fun ExerciseDistinctPair.toDomain() = DomainExerciseDistinctPair(
+    id = id,
+    exerciseIdA = exerciseIdA,
+    exerciseIdB = exerciseIdB,
+)
+
+fun DomainExerciseDistinctPair.toRoom() = ExerciseDistinctPair(
+    id = id,
+    exerciseIdA = exerciseIdA,
+    exerciseIdB = exerciseIdB,
 )
 
 fun CardioSession.toDomain() = DomainCardioSession(
