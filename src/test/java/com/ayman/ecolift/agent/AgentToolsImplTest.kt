@@ -4,11 +4,11 @@ import com.ayman.ecolift.agent.tools.AgentToolsImpl
 import com.ayman.ecolift.agent.tools.ExerciseEmbeddingIndex
 import com.ayman.ecolift.agent.tools.WeightSuggestion
 import com.ayman.ecolift.data.AppDatabase
-import com.ayman.ecolift.data.room.Exercise
 import com.ayman.ecolift.data.ExerciseDao
 import com.ayman.ecolift.data.WeightLbs
-import com.ayman.ecolift.data.room.WorkoutSet
 import com.ayman.ecolift.data.WorkoutSetDao
+import com.ayman.ecolift.data.room.Exercise
+import com.ayman.ecolift.data.room.WorkoutSet
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
