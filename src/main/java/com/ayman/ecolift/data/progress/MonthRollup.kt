@@ -449,5 +449,4 @@ object MonthRollup {
     ): Double = sessionSets.mapNotNull { set ->
         com.ayman.ecolift.data.WorkoutMetrics.estimatedOneRepMax(set, exercise?.isBodyweight == true)
     }.maxOrNull() ?: 0.0
-
 }

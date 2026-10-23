@@ -1,12 +1,11 @@
 package com.ayman.ecolift.data
 
-import com.ayman.ecolift.data.room.WorkoutExerciseCard as RoomWorkoutExerciseCard
-
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import com.ayman.ecolift.data.room.WorkoutExerciseCard as RoomWorkoutExerciseCard
 
 @Dao
 interface WorkoutExerciseCardDao {

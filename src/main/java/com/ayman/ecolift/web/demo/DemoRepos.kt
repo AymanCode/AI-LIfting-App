@@ -1,7 +1,5 @@
 package com.ayman.ecolift.web.demo
 
-import com.ayman.ecolift.data.isCheckedWorking
-import com.ayman.ecolift.web.supabase.sync.LocalCommit
 import com.ayman.ecolift.data.ArchivedCycle
 import com.ayman.ecolift.data.CardioSession
 import com.ayman.ecolift.data.CardioSessionSource
@@ -30,13 +28,14 @@ import com.ayman.ecolift.data.SplitBucketKind
 import com.ayman.ecolift.data.SplitExercise
 import com.ayman.ecolift.data.UnitSystem
 import com.ayman.ecolift.data.UserSettings
-import com.ayman.ecolift.data.WorkoutDay
 import com.ayman.ecolift.data.WorkoutCardDisplayMode
 import com.ayman.ecolift.data.WorkoutCardOrigin
+import com.ayman.ecolift.data.WorkoutDay
 import com.ayman.ecolift.data.WorkoutExerciseCard
 import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.activeCycleSlots
 import com.ayman.ecolift.data.forActiveCycleSlots
+import com.ayman.ecolift.data.isCheckedWorking
 import com.ayman.ecolift.data.looksLikeBodyweightExerciseName
 import com.ayman.ecolift.data.normalizedBodyweightLoad
 import com.ayman.ecolift.data.normalizedUserBodyweightLbs
@@ -44,26 +43,29 @@ import com.ayman.ecolift.data.progress.ComparisonWindow
 import com.ayman.ecolift.data.progress.CycleComparison
 import com.ayman.ecolift.data.progress.CycleProgressCalculator
 import com.ayman.ecolift.data.progress.CycleProgressCore
+import com.ayman.ecolift.data.splits.EffectiveSplitMembers
+import com.ayman.ecolift.data.splits.SplitChoicesState
 import com.ayman.ecolift.web.AppRepos
 import com.ayman.ecolift.web.supabase.ArchiveSummary
 import com.ayman.ecolift.web.supabase.AssistantChangeRepository
 import com.ayman.ecolift.web.supabase.CardioRepository
 import com.ayman.ecolift.web.supabase.CloudStamps
-import com.ayman.ecolift.web.supabase.NoAssistantChangeRepository
-import com.ayman.ecolift.web.supabase.ExerciseRepository
 import com.ayman.ecolift.web.supabase.ExerciseMergePreparationResult
 import com.ayman.ecolift.web.supabase.ExerciseMergeResult
 import com.ayman.ecolift.web.supabase.ExerciseRenameResult
-import com.ayman.ecolift.web.supabase.simpleNameKey
-import com.ayman.ecolift.web.supabase.PendingReviewRepository
-import com.ayman.ecolift.web.supabase.SetRepository
+import com.ayman.ecolift.web.supabase.ExerciseRepository
 import com.ayman.ecolift.web.supabase.LearnedSplitsCoordinator
 import com.ayman.ecolift.web.supabase.LearnedSplitsSource
+import com.ayman.ecolift.web.supabase.NoAssistantChangeRepository
+import com.ayman.ecolift.web.supabase.PendingReviewRepository
+import com.ayman.ecolift.web.supabase.SetRepository
 import com.ayman.ecolift.web.supabase.SmartSplitRegistration
 import com.ayman.ecolift.web.supabase.SplitReplacementCoordinator
 import com.ayman.ecolift.web.supabase.UserSettingsRepository
 import com.ayman.ecolift.web.supabase.WorkoutRepository
+import com.ayman.ecolift.web.supabase.simpleNameKey
 import com.ayman.ecolift.web.supabase.sync.DayPendingWrite
+import com.ayman.ecolift.web.supabase.sync.LocalCommit
 import com.ayman.ecolift.web.supabase.sync.PreparedSplitReplacement
 import com.ayman.ecolift.web.supabase.sync.SplitReplacementJournal
 import com.ayman.ecolift.web.supabase.sync.SyncStatus
@@ -73,8 +75,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
-import com.ayman.ecolift.data.splits.EffectiveSplitMembers
-import com.ayman.ecolift.data.splits.SplitChoicesState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -124,6 +124,7 @@ class DemoRepos(seed: DemoSeedData = DemoData.generate()) : AppRepos {
     ).also { it.start() }
 
     override val syncStatus: StateFlow<SyncStatus> = MutableStateFlow<SyncStatus>(SyncStatus.UpToDate)
+
     @OptIn(ExperimentalTime::class)
     override val cloudStamps: StateFlow<CloudStamps> = MutableStateFlow(CloudStamps())
 

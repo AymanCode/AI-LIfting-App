@@ -1,8 +1,13 @@
 package com.ayman.ecolift.android.room
 
 import com.ayman.ecolift.data.AppDatabase
+import com.ayman.ecolift.data.WorkoutCardDisplayMode
+import com.ayman.ecolift.data.WorkoutCardOrigin
+import com.ayman.ecolift.data.WorkoutExerciseCard
+import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.splits.LearnedModel
 import com.ayman.ecolift.web.AppRepos
+import com.ayman.ecolift.web.demo.DemoSeedData
 import com.ayman.ecolift.web.supabase.AssistantChangeRepository
 import com.ayman.ecolift.web.supabase.CardioRepository
 import com.ayman.ecolift.web.supabase.CloudStamps
@@ -81,6 +86,33 @@ class RoomRepos(
         }
     }
 
+    suspend fun installDemoSeed(seed: DemoSeedData) {
+        store.write {
+            db.exerciseDao().deleteAllExercises()
+            exercises = emptyList()
+            seed.exercises.forEach { upsertExercise(it) }
+            upsertSettings(seed.settings)
+            upsertCycle(seed.cycle)
+            seed.slots.forEach { upsertSlot(it) }
+            seed.splitExercises.forEach { insertSplitMember(it) }
+            seed.workoutDays.forEach { upsertDay(it) }
+            val cards = demoSessionCards(seed.sets)
+            val cardIdBySession = cards.associate { (it.date to it.exerciseId) to it.id }
+            cards.forEach { insertCard(it) }
+            seed.sets.forEach { set ->
+                val cardId = if (set.cardId.isNotBlank()) {
+                    set.cardId
+                } else {
+                    cardIdBySession[set.date to set.exerciseId].orEmpty()
+                }
+                insertSet(set.copy(cardId = cardId))
+            }
+            seed.cardio.forEach { insertCardio(it) }
+            seed.pendingReviews.forEach { insertReview(it) }
+            seed.archives.forEach { insertArchive(it) }
+        }
+    }
+
     override fun close() {
         learnedJob?.cancel()
         learnedJob = null
@@ -104,6 +136,42 @@ class RoomRepos(
         )
         learned.bind(child, coordinator)
         coordinator.start(slotsFreshFromBoot = true)
+    }
+}
+
+internal const val SEED_DEMO_EXTRA = "seedDemo"
+
+internal fun shouldSeedDemo(debug: Boolean, requested: Boolean, hasSets: Boolean): Boolean =
+    debug && requested && !hasSets
+
+private fun demoSessionCards(sets: List<WorkoutSet>): List<WorkoutExerciseCard> {
+    val seen = mutableSetOf<Pair<String, Long>>()
+    val positions = mutableMapOf<String, Int>()
+    return buildList {
+        sets.forEach { set ->
+            val key = set.date to set.exerciseId
+            if (seen.add(key)) {
+                val position = positions.getOrElse(set.date) { 0 }
+                val completed = sets
+                    .filter { it.date == set.date && it.exerciseId == set.exerciseId }
+                    .all { it.completed }
+                add(
+                    WorkoutExerciseCard(
+                        id = "demo-${set.date}-${set.exerciseId}",
+                        date = set.date,
+                        exerciseId = set.exerciseId,
+                        position = position,
+                        displayMode = if (completed) {
+                            WorkoutCardDisplayMode.COMPACT
+                        } else {
+                            WorkoutCardDisplayMode.EXPANDED
+                        },
+                        origin = WorkoutCardOrigin.LEGACY,
+                    ),
+                )
+                positions[set.date] = position + 1
+            }
+        }
     }
 }
 

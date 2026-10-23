@@ -1,8 +1,5 @@
 package com.ayman.ecolift.ui.navigation
 
-import com.ayman.ecolift.web.util.countLabel
-import com.ayman.ecolift.web.util.noun
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +27,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -41,8 +39,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,27 +53,24 @@ import com.ayman.ecolift.data.splits.buildEraBands
 import com.ayman.ecolift.data.splits.tickerSegments
 import com.ayman.ecolift.data.splits.volumeBrightThreshold
 import com.ayman.ecolift.data.splits.volumeLightThreshold
-import androidx.compose.runtime.mutableIntStateOf
+import com.ayman.ecolift.ui.theme.*
+import com.ayman.ecolift.ui.theme.EarnedShineTier
+import com.ayman.ecolift.ui.theme.GlassPaletteChoice
 import com.ayman.ecolift.ui.viewmodel.AvailableSessionUi
-import com.ayman.ecolift.ui.viewmodel.DataPart
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.style.TextOverflow
-import com.ayman.ecolift.ui.viewmodel.data
-import com.ayman.ecolift.ui.viewmodel.filler
 import com.ayman.ecolift.ui.viewmodel.CycleArchiveViewModel
+import com.ayman.ecolift.ui.viewmodel.DataPart
 import com.ayman.ecolift.ui.viewmodel.SplitGroupCardUi
 import com.ayman.ecolift.ui.viewmodel.SplitTabMode
 import com.ayman.ecolift.ui.viewmodel.SplitViewModel
-import com.ayman.ecolift.ui.theme.GlassPaletteChoice
-import com.ayman.ecolift.ui.theme.EarnedShineTier
+import com.ayman.ecolift.ui.viewmodel.data
+import com.ayman.ecolift.ui.viewmodel.filler
 import com.ayman.ecolift.web.LocalRepos
 import com.ayman.ecolift.web.demo.DemoGuard
-import com.ayman.ecolift.web.util.todayLocalDate
 import com.ayman.ecolift.web.util.YearMonthW
+import com.ayman.ecolift.web.util.countLabel
+import com.ayman.ecolift.web.util.noun
+import com.ayman.ecolift.web.util.todayLocalDate
 import kotlinx.datetime.LocalDate
-
-import com.ayman.ecolift.ui.theme.*
 
 // ... rest of the file ...
 

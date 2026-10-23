@@ -1,7 +1,5 @@
 package com.ayman.ecolift.ui.navigation
 
-import com.ayman.ecolift.web.util.noun
-
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -68,6 +66,7 @@ import com.ayman.ecolift.ui.theme.LogUiFontFamily
 import com.ayman.ecolift.ui.theme.SheetSansFontFamily
 import com.ayman.ecolift.ui.theme.espressoButtonShadow
 import com.ayman.ecolift.web.util.groupThousands
+import com.ayman.ecolift.web.util.noun
 import kotlin.math.PI
 import kotlin.math.min
 import kotlin.math.pow

@@ -50,6 +50,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
@@ -61,12 +62,11 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -94,7 +94,6 @@ import com.ayman.ecolift.ui.viewmodel.SplitGroupCardUi
 import com.ayman.ecolift.ui.viewmodel.data
 import com.ayman.ecolift.ui.viewmodel.filler
 import com.ayman.ecolift.web.util.keyboardOverlap
-
 import kotlinx.coroutines.launch
 
 internal fun splitEditorSummary(card: SplitGroupCardUi): List<DataPart> = buildList {
@@ -174,6 +173,7 @@ internal fun SplitEditorSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetGesturesEnabled = dragId == null,
         containerColor = EspressoPalette.panel,
         contentColor = EspressoPalette.ink,
         scrimColor = EspressoPalette.mast.copy(alpha = 0.72f),
@@ -397,8 +397,10 @@ private fun DragHandle(name: String, moveUp: (() -> Unit)?, moveDown: (() -> Uni
                 val step = 5.dp.toPx()
                 val left = size.width / 2 - step / 2
                 val top = size.height / 2 - step
-                for (column in 0..1) for (row in 0..2) {
+                for (column in 0..1) {
+                    for (row in 0..2) {
                     drawCircle(EspressoPalette.dim, dot, androidx.compose.ui.geometry.Offset(left + column * step, top + row * step))
+                }
                 }
             },
     )

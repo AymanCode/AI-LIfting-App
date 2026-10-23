@@ -1,16 +1,15 @@
 package com.ayman.ecolift.ui.viewmodel
 
-import com.ayman.ecolift.data.isCheckedWorking
-import com.ayman.ecolift.web.util.countLabel
-
 import com.ayman.ecolift.data.BodyPartRegion
 import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.epleyEstimate
+import com.ayman.ecolift.data.isCheckedWorking
 import com.ayman.ecolift.data.progress.MonthRollup
 import com.ayman.ecolift.web.util.MONTH_ABBREV
 import com.ayman.ecolift.web.util.YearMonthW
+import com.ayman.ecolift.web.util.countLabel
 import kotlinx.datetime.LocalDate
 
 internal fun insightDate(date: LocalDate): String = "${MONTH_ABBREV[date.month.ordinal]} ${date.day}"
@@ -41,7 +40,7 @@ internal fun formatCompactTopSet(top: TopSet, isBodyweight: Boolean): String {
     } else {
         WeightLbs.formatStored(top.loadStored)
     }
-    return "${loadStr}×${top.reps}"
+    return "$loadStr×${top.reps}"
 }
 
 data class MonthPathPoint(

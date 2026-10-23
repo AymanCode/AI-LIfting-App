@@ -16,7 +16,7 @@ lifecycleScope.launch {
 
 `loadAll()` reads every user table inside one Room transaction, then publishes the `StateFlow` values. `close()` cancels the learned-splits scope. `syncStatus` stays `SyncStatus.UpToDate`. `cloudStamps` stays an empty `CloudStamps`. `syncReview` stays `SyncReview.Empty`. `resolveSyncConflict`, `useExistingExercise`, and `retryExerciseCreate` keep the interface defaults.
 
-`assistantChanges` is `NoAssistantChangeRepository`. `exerciseSwaps` is `NoExerciseSwapRepository`. Both match `DemoRepos`. A local exercise swap is not in this pass.
+`assistantChanges` is `NoAssistantChangeRepository`. `exerciseSwaps` is `RoomExerciseSwapRepository`.
 
 ## The set index stays
 

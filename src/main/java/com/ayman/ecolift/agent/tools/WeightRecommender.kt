@@ -2,8 +2,8 @@ package com.ayman.ecolift.agent.tools
 
 import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.progress.inferWeightStepStored
-import kotlin.math.max
 import com.ayman.ecolift.web.util.countLabel
+import kotlin.math.max
 
 /**
  * Pure Kotlin weight recommendation logic. No model, no DB - takes history as input.

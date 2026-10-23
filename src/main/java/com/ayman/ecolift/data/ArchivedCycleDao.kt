@@ -1,12 +1,11 @@
 package com.ayman.ecolift.data
 
-import com.ayman.ecolift.data.room.ArchivedCycle as RoomArchivedCycle
-
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
+import com.ayman.ecolift.data.room.ArchivedCycle as RoomArchivedCycle
 
 @Dao
 interface ArchivedCycleDao {

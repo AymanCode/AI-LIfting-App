@@ -27,7 +27,6 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageShader
@@ -78,6 +77,7 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.random.Random
+import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 
 /** Reuse the screen's body/display weights without introducing tracked, semibold tile text. */
 @Composable
@@ -485,8 +485,12 @@ private fun GroupWallValueRow(tile: GroupWallTileUi, tint: Color, modifier: Modi
         val top = tile.topSet
         val maxPx = constraints.maxWidth
         val numberSp = remember(top, tile.winNumber, tile.winUnit, maxPx, density) {
-            if (top == null) 21f else {
-                val pill = if (tile.win == null) 0f else {
+            if (top == null) {
+                21f
+            } else {
+                val pill = if (tile.win == null) {
+                    0f
+                } else {
                     fun width(text: String, style: TextStyle) = measurer.measure(text, style, softWrap = false, maxLines = 1).size.width
                     (6f + 7f + 3f + 3f + 7f) * density + width(tile.winNumber, gothic(16.sp, tracking = 0.3.sp)) +
                         width(tile.winUnit, spaceSemi(6.5.sp, 1.1.sp, Color.Unspecified))

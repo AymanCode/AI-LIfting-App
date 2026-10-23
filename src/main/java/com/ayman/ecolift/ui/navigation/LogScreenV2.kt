@@ -1,38 +1,23 @@
 package com.ayman.ecolift.ui.navigation
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.StartOffset
-import androidx.compose.animation.core.keyframes
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.animateScrollBy
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -44,6 +29,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -52,63 +38,37 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
-import com.ayman.ecolift.ui.viewmodel.PendingExerciseResolutionUi
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
@@ -116,151 +76,124 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.withFrameNanos
-import androidx.compose.runtime.saveable.listSaver
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.semantics.CustomAccessibilityAction
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.customActions
-import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutCardDisplayMode
-import com.ayman.ecolift.data.BodyPartRegionMapper
 import com.ayman.ecolift.data.selectableBodyPartGroups
 import com.ayman.ecolift.data.selectableBodyPartParts
 import com.ayman.ecolift.data.splits.SplitSwitchTarget
 import com.ayman.ecolift.ui.theme.AnimatedCounter
 import com.ayman.ecolift.ui.theme.AnimatedVolumeCounter
-import com.ayman.ecolift.ui.theme.DefaultLogGlassPalette
+import com.ayman.ecolift.ui.theme.ConfirmTone
 import com.ayman.ecolift.ui.theme.DataText
+import com.ayman.ecolift.ui.theme.DefaultLogGlassPalette
+import com.ayman.ecolift.ui.theme.EspressoConfirmSheet
 import com.ayman.ecolift.ui.theme.EspressoEyebrow
+import com.ayman.ecolift.ui.theme.EspressoGrabber
 import com.ayman.ecolift.ui.theme.EspressoIconButton
 import com.ayman.ecolift.ui.theme.EspressoMasthead
 import com.ayman.ecolift.ui.theme.EspressoPalette
 import com.ayman.ecolift.ui.theme.EspressoType
-import com.ayman.ecolift.ui.theme.LogDisplayFontFamily
-import com.ayman.ecolift.ui.theme.LogUiFontFamily
-import com.ayman.ecolift.ui.theme.splitAccentColor
-import com.ayman.ecolift.ui.theme.espressoLongDate
-import com.ayman.ecolift.ui.theme.espressoShortDate
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
+import com.ayman.ecolift.ui.theme.LogDisplayFontFamily
 import com.ayman.ecolift.ui.theme.LogGlassPalette
 import com.ayman.ecolift.ui.theme.LogMaterialTypography
 import com.ayman.ecolift.ui.theme.LogType
-import com.ayman.ecolift.ui.theme.bounceClick
-import com.ayman.ecolift.ui.theme.CarveDepth
-import com.ayman.ecolift.ui.theme.carvedPanel
+import com.ayman.ecolift.ui.theme.LogUiFontFamily
+import com.ayman.ecolift.ui.theme.espressoLongDate
+import com.ayman.ecolift.ui.theme.espressoShortDate
 import com.ayman.ecolift.ui.theme.glassPanel
 import com.ayman.ecolift.ui.theme.palette
-import com.ayman.ecolift.ui.theme.rememberHeavyHaptic
-import com.ayman.ecolift.ui.theme.rememberLightHaptic
-import com.ayman.ecolift.ui.viewmodel.E1rmPointUi
-import com.ayman.ecolift.ui.viewmodel.GhostSetUi
-import com.ayman.ecolift.ui.viewmodel.RecommendationState
-import com.ayman.ecolift.ui.viewmodel.PendingSplitSwitchConfirmation
+import com.ayman.ecolift.ui.theme.splitAccentColor
 import com.ayman.ecolift.ui.viewmodel.ClipboardCheck
 import com.ayman.ecolift.ui.viewmodel.ClipboardLiftUi
 import com.ayman.ecolift.ui.viewmodel.ClipboardPick
 import com.ayman.ecolift.ui.viewmodel.ClipboardPickRequest
 import com.ayman.ecolift.ui.viewmodel.ClipboardProgramUi
 import com.ayman.ecolift.ui.viewmodel.DataPart
-import com.ayman.ecolift.ui.viewmodel.defaultTicketInclusion
-import com.ayman.ecolift.ui.viewmodel.ticketInclusionKey
-import com.ayman.ecolift.ui.viewmodel.data
-import com.ayman.ecolift.ui.viewmodel.filler
-import com.ayman.ecolift.ui.viewmodel.DayUndoState
-import com.ayman.ecolift.web.supabase.sync.LocalCommit
 import com.ayman.ecolift.ui.viewmodel.DayUndoCopy
+import com.ayman.ecolift.ui.viewmodel.DayUndoState
 import com.ayman.ecolift.ui.viewmodel.DayUndoTint
+import com.ayman.ecolift.ui.viewmodel.E1rmPointUi
+import com.ayman.ecolift.ui.viewmodel.GhostSetUi
+import com.ayman.ecolift.ui.viewmodel.PendingExerciseResolutionUi
+import com.ayman.ecolift.ui.viewmodel.PendingSplitSwitchConfirmation
+import com.ayman.ecolift.ui.viewmodel.RecommendationState
+import com.ayman.ecolift.ui.viewmodel.data
+import com.ayman.ecolift.ui.viewmodel.defaultTicketInclusion
+import com.ayman.ecolift.ui.viewmodel.filler
 import com.ayman.ecolift.ui.viewmodel.liftRemovedCopy
 import com.ayman.ecolift.ui.viewmodel.setRemovedCopy
-import com.ayman.ecolift.ui.theme.ConfirmTone
-import com.ayman.ecolift.ui.theme.DataText
-import com.ayman.ecolift.ui.theme.EspressoConfirmSheet
-import com.ayman.ecolift.ui.theme.EspressoGrabber
-import com.ayman.ecolift.ui.theme.espressoButtonShadow
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.onClick
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.LineHeightStyle
-import androidx.compose.ui.text.drawText
+import com.ayman.ecolift.ui.viewmodel.ticketInclusionKey
 import com.ayman.ecolift.web.demo.DemoGuard
-import com.ayman.ecolift.web.util.noun
+import com.ayman.ecolift.web.supabase.sync.LocalCommit
 import com.ayman.ecolift.web.util.YearMonthW
 import com.ayman.ecolift.web.util.formatTrimmedDecimal
-import com.ayman.ecolift.web.util.isBefore
 import com.ayman.ecolift.web.util.minusDays
+import com.ayman.ecolift.web.util.noun
 import com.ayman.ecolift.web.util.plusDays
 import com.ayman.ecolift.web.util.todayLocalDate
-import kotlinx.datetime.LocalDate
-import kotlinx.datetime.isoDayNumber
-import kotlinx.datetime.daysUntil
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.daysUntil
+import kotlinx.datetime.isoDayNumber
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -496,7 +429,6 @@ private data class InlineSetEditTarget(
     val setId: Long,
     val kind: NumberInputKind,
 )
-
 
 private fun LazyListState.isAtTop(): Boolean =
     firstVisibleItemIndex == 0 && firstVisibleItemScrollOffset == 0
@@ -1417,7 +1349,8 @@ private fun PlateSheet(weightText: String) {
                 filler = EspressoPalette.dim,
                 data = EspressoPalette.ink,
             )
-        } else Canvas(
+        } else {
+            Canvas(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(160.dp),
@@ -1483,6 +1416,7 @@ private fun PlateSheet(weightText: String) {
                 if (below) lastLabelEnd = cx + label.size.width / 2f
                 x += w + gap * squeeze
             }
+        }
         }
         Spacer(Modifier.height(14.dp))
         DataText(
@@ -2006,7 +1940,9 @@ private val RemovalOfferSaver = listSaver<RemovalOffer?, Any>(
         )
     },
     restore = { values ->
-        if (values.isEmpty()) null else {
+        if (values.isEmpty()) {
+            null
+        } else {
             val headline = (values[1] as List<*>).chunked(2).map { DataPart(it[0] as String, it[1] as Boolean) }
             val detail = (values[3] as List<*>).chunked(2).map { DataPart(it[0] as String, it[1] as Boolean) }
             val tint = when (values[4]) {
@@ -2812,7 +2748,8 @@ fun LogScreen(
                 val dayHasCheckedSet = orderedExercises.any { exercise -> exercise.sets.any { it.isCompleted } }
                 val ticketProgram = emptyDayProgram(clipboardPrograms, chosenEmptyDaySlot[currentDate])
                 val ticketShown = orderedExercises.isEmpty() &&
-                    ticketProgram != null && ticketProgram.rows.isNotEmpty() &&
+                    ticketProgram != null &&
+                    ticketProgram.rows.isNotEmpty() &&
                     pendingSetDeletionRefsState.value.isEmpty() &&
                     currentDate !in putAwayEmptyDay
                 val stampedProgram = clipboardStamp(clipboardPrograms, chosenEmptyDaySlot[currentDate], selectedSplitId, dayHasCheckedSet, ticketShown)

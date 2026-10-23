@@ -3,7 +3,6 @@ package com.ayman.ecolift.ui.theme
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -40,7 +39,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayman.ecolift.ui.viewmodel.DataPart
 import com.ayman.ecolift.web.util.keyboardOverlap
-
 
 /** What the sheet's main button does: removes something (red tone) or goes ahead (a colour). */
 sealed interface ConfirmTone {

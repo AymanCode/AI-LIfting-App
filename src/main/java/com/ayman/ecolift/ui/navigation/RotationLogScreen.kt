@@ -1,37 +1,39 @@
 package com.ayman.ecolift.ui.navigation
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.TweenSpec
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -39,162 +41,146 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.FirstBaseline
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.semantics.onClick
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.key
-import androidx.compose.runtime.rememberCoroutineScope
-import com.ayman.ecolift.ui.theme.rememberReducedMotion
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.TextMeasurer
-import androidx.compose.ui.text.rememberTextMeasurer
-import com.ayman.ecolift.ui.theme.HighlightsDisplayFontFamily
-import com.ayman.ecolift.ui.theme.LogUiFontFamily
-import com.ayman.ecolift.web.util.MONTH_ABBREV
-import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.listSaver
-import androidx.compose.runtime.snapshots.SnapshotStateMap
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.SnapshotStateMap
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayman.ecolift.data.BodyPartRegion
 import com.ayman.ecolift.data.BodyPartRegionMapper
-import com.ayman.ecolift.data.selectableBodyPartParts
 import com.ayman.ecolift.data.WeightLbs
-import com.ayman.ecolift.data.epleyEstimate
 import com.ayman.ecolift.data.WorkoutDates
+import com.ayman.ecolift.data.epleyEstimate
 import com.ayman.ecolift.data.selectableBodyPartGroups
-import com.ayman.ecolift.ui.theme.LogDisplayFontFamily
+import com.ayman.ecolift.data.selectableBodyPartParts
 import com.ayman.ecolift.ui.theme.EspressoDeltaChip
 import com.ayman.ecolift.ui.theme.EspressoEyebrow
 import com.ayman.ecolift.ui.theme.EspressoPalette
 import com.ayman.ecolift.ui.theme.EspressoTone
-import com.ayman.ecolift.ui.theme.espressoButtonShadow
+import com.ayman.ecolift.ui.theme.LogDisplayFontFamily
 import com.ayman.ecolift.ui.theme.LogGlassPalette
-import com.ayman.ecolift.ui.theme.PosterFontFamily
+import com.ayman.ecolift.ui.theme.LogUiFontFamily
+import com.ayman.ecolift.ui.theme.ShaderWarmup
 import com.ayman.ecolift.ui.theme.SheetSansFontFamily
-import com.ayman.ecolift.ui.theme.SheetSerifFontFamily
+import com.ayman.ecolift.ui.theme.espressoButtonShadow
 import com.ayman.ecolift.ui.theme.rememberHeavyHaptic
 import com.ayman.ecolift.ui.theme.rememberLightHaptic
-import com.ayman.ecolift.ui.theme.ShaderWarmup
+import com.ayman.ecolift.ui.theme.rememberReducedMotion
 import com.ayman.ecolift.ui.viewmodel.GhostSetUi
 import com.ayman.ecolift.ui.viewmodel.RecommendationState
+import com.ayman.ecolift.web.util.MONTH_ABBREV
 import com.ayman.ecolift.web.util.formatTrimmedDecimal
-import com.ayman.ecolift.web.util.groupThousands
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.layout.requiredHeight
-import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
-import kotlin.time.TimeSource
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
-import androidx.compose.ui.unit.IntOffset
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
-/**
+/*
  * The log, one exercise per page.
  *
  * The old screen stacked every exercise of the day as a tall card in a vertical list, which meant
@@ -586,7 +572,8 @@ internal fun rotationRegionColor(muscleGroups: String): Color = rotationPrimaryR
 internal fun rotationSummaryEligible(
     exercises: List<ExerciseLog>,
     pendingDeletedSetIds: Set<Long> = emptySet(),
-): Boolean = exercises.isNotEmpty() && exercises.all { exercise ->
+): Boolean = exercises.isNotEmpty() &&
+    exercises.all { exercise ->
     rotationLiftFinished(exercise.sets.filterNot { it.id in pendingDeletedSetIds })
 }
 
@@ -629,7 +616,9 @@ internal fun rotationCardsToFinish(
             it.displayMode != com.ayman.ecolift.data.WorkoutCardDisplayMode.COMPACT &&
                 rotationLiftFinished(it.sets)
         }
-    } else emptyList()
+    } else {
+        emptyList()
+    }
 
 internal data class RotationSetSelection(
     val setId: Long?,
@@ -640,11 +629,14 @@ internal data class RotationSetSelection(
 )
 
 internal val RotationSetSelectionsSaver = listSaver<SnapshotStateMap<String, RotationSetSelection>, Any>(
-    save = { selections -> selections.flatMap { (card, selection) ->
+    save = { selections ->
+        selections.flatMap { (card, selection) ->
         listOf(card, selection.setId?.toString().orEmpty(), selection.setNumber, selection.setSyncId,
             selection.pendingExistingSetIds.toList(), selection.pendingExistingSyncIds.toList())
-    } },
-    restore = { values -> mutableStateMapOf<String, RotationSetSelection>().apply {
+    }
+    },
+    restore = { values ->
+        mutableStateMapOf<String, RotationSetSelection>().apply {
         values.chunked(6).forEach {
             put(it[0] as String, RotationSetSelection(
                 setId = (it[1] as String).toLongOrNull(),
@@ -654,7 +646,8 @@ internal val RotationSetSelectionsSaver = listSaver<SnapshotStateMap<String, Rot
                 pendingExistingSyncIds = (it[5] as List<*>).map { id -> id as String }.toSet(),
             ))
         }
-    } },
+    }
+    },
 )
 
 /** Keep the selected set, and the adjacent add control on the final set, inside the strip. */
@@ -767,10 +760,11 @@ internal fun resolvedRotationSet(
     },
 )
 
-/**
+/*
  * Seed a new row from the row the user is actually working on. If no selection has been retained,
  * the newest completed row is the only safe implicit source; an untouched preloaded tail is not.
  */
+
 /**
  * A new set is seeded from the latest row on the card, full stop: "sets should use the most
  * latest weight as their preloaded weight when adding a set".
@@ -1334,7 +1328,9 @@ internal fun rotationLastLineChips(
 ): RotationLastLineChips? {
     if (lastText == null) return null
     // Wins only: a rise of at least half a step gets a chip; matching or dropping gets none.
-    val delta = if (nowSettled == null || last == null) null else {
+    val delta = if (nowSettled == null || last == null) {
+        null
+    } else {
         val d = nowSettled - last
         if (d >= step / 2f) RotationDeltaChip(RotationDeltaKind.UP, rotationStepAmountText(abs(d), step)) else null
     }
@@ -2035,7 +2031,10 @@ private fun TrendField(
                     val field = placed[0]
                     fun near(slot: Int, padX: Float): Boolean {
                         val target = placed[slot]
-                        return field != null && target != null && field.isAttached && target.isAttached &&
+                        return field != null &&
+                            target != null &&
+                            field.isAttached &&
+                            target.isAttached &&
                             rotationPlateHitRect(field.localBoundingBoxOf(target), padX, 8.dp.toPx()).contains(at)
                     }
                     val plates = latestOnPlates
@@ -2387,7 +2386,8 @@ private fun TrendField(
                             else -> 1f
                         }
                         val isMajor = abs(tickVal / 5f - kotlin.math.round(tickVal / 5f)) < 1e-4f
-                        val isMid = !isMajor && !isReps &&
+                        val isMid = !isMajor &&
+                            !isReps &&
                             abs(tickVal / 2.5f - kotlin.math.round(tickVal / 2.5f)) < 1e-4f
                         val isLast = numericLast != null && abs(tickVal - numericLast) < 1e-4f
                         val tickLength = when {
@@ -2455,8 +2455,11 @@ private fun TrendField(
                     val lastEdge = 16.dp.toPx()
                     val lastOnTape = numericLast != null &&
                         (centerY + (numericLast - shownValue) * pxPerUnit) in lastEdge..(h - lastEdge)
-                    if (numericValue != null && numericLast != null && lastMarkLabel != null &&
-                        numericLast != numericValue && !lastOnTape
+                    if (numericValue != null &&
+                        numericLast != null &&
+                        lastMarkLabel != null &&
+                        numericLast != numericValue &&
+                        !lastOnTape
                     ) {
                         val lastY = rotationTapeLastMarkY(
                             center = centerY,
@@ -3658,7 +3661,8 @@ internal fun RotationCard(
                         Box(Modifier.width(64.dp).height(3.dp).clip(RoundedCornerShape(2.dp)).background(EspressoPalette.hair2)) {
                             Box(Modifier.fillMaxWidth(loggedCount.toFloat() / visibleSets.size).fillMaxHeight().background(palette.complete))
                         }
-                    } else Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
                         visibleSets.forEach { set ->
                             Box(
                                 modifier = Modifier
@@ -3674,6 +3678,7 @@ internal fun RotationCard(
                                     ),
                             )
                         }
+                    }
                     }
                     Spacer(Modifier.width(6.dp))
                     Text(
@@ -3863,7 +3868,9 @@ internal fun RotationCard(
                                     ghost = setGhost,
                                 ),
                                 onClick = { onSelectSet(set) },
-                                onRemove = if (set.id == selectedSetId) { { onRemoveSet(set) } } else null,
+                                onRemove = if (set.id == selectedSetId) { { onRemoveSet(set) } } else {
+                                    null
+                                },
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
@@ -3934,7 +3941,6 @@ internal fun RotationCard(
                     }
                 }
             }
-
             }
             if (foldStrip) {
                 // A scroll child has no max height, so a weight spacer inside it takes nothing
@@ -4900,7 +4906,9 @@ internal fun RotationExercisePager(
         )
     }
     val outOfRotation = remember(exercises, reviewingWholeWorkout) {
-        if (reviewingWholeWorkout) emptyList() else {
+        if (reviewingWholeWorkout) {
+            emptyList()
+        } else {
             rotationExerciseDisplayOrder(
                 exercises.filter {
                     it.displayMode == com.ayman.ecolift.data.WorkoutCardDisplayMode.COMPACT
@@ -4971,7 +4979,6 @@ internal fun RotationExercisePager(
             handledFocusRequest = focusRequest
         }
     }
-
 
     // Selection is keyed by stable exercise identity and logical set number. Both card IDs and set
     // IDs may be replaced while optimistic work is synchronized.

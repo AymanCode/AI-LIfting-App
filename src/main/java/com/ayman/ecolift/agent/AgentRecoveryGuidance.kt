@@ -29,7 +29,8 @@ object AgentRecoveryGuidance {
             Regex("""\b${Regex.escape(it)}\b""").containsMatchIn(t)
         }
         val plateLoad = PLATE_LOAD.containsMatchIn(t) ||
-            (PLATE_WORD.containsMatchIn(t) && NUMBER_WORDS.any { word ->
+            (PLATE_WORD.containsMatchIn(t) &&
+                NUMBER_WORDS.any { word ->
                 Regex("""\b${Regex.escape(word)}\b""").containsMatchIn(t)
             })
 

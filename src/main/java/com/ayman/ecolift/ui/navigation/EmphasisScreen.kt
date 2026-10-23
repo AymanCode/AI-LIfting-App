@@ -15,7 +15,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -23,17 +22,16 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.LastBaseline
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ayman.ecolift.data.BodyPartRegion
 import com.ayman.ecolift.ui.theme.EspressoPalette
 import com.ayman.ecolift.ui.theme.EspressoType
 import com.ayman.ecolift.ui.viewmodel.EmphasisHeadline
@@ -41,7 +39,6 @@ import com.ayman.ecolift.ui.viewmodel.EmphasisUiState
 import com.ayman.ecolift.ui.viewmodel.RegionWeek
 import com.ayman.ecolift.ui.viewmodel.emphasisRegionName
 import com.ayman.ecolift.ui.viewmodel.emphasisWeekSpan
-import com.ayman.ecolift.data.BodyPartRegion
 
 internal const val EMPHASIS_ROUTE = "progress/emphasis"
 
@@ -125,7 +122,9 @@ private fun EmphasisMasthead(state: EmphasisUiState, onBack: () -> Unit) {
                     if (headline.record) {
                         RecordChip()
                         StatChip("PREVIOUS BEST", headline.runnerUpCount, other, "Previous best")
-                    } else StatChip("BEST", headline.runnerUpCount, other, "Best")
+                    } else {
+                        StatChip("BEST", headline.runnerUpCount, other, "Best")
+                    }
                 }
             }
         } else {

@@ -4,11 +4,11 @@ import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.hiddenWithSmartSuggestOff
 import com.ayman.ecolift.data.isCheckedWorking
 import com.ayman.ecolift.data.splits.LearnedInputs
-import com.ayman.ecolift.data.splits.SplitChoicesState
-import com.ayman.ecolift.data.splits.isSettled
 import com.ayman.ecolift.data.splits.LearnedModel
 import com.ayman.ecolift.data.splits.LearnedSplitsEngine
+import com.ayman.ecolift.data.splits.SplitChoicesState
 import com.ayman.ecolift.data.splits.canonicalResolver
+import com.ayman.ecolift.data.splits.isSettled
 import com.ayman.ecolift.web.util.nowMillis
 import com.ayman.ecolift.web.util.todayLocalDate
 import kotlinx.coroutines.CancellationException
@@ -248,7 +248,8 @@ class LearnedSplitsCoordinator(
                         memberIds = upsert.memberIds,
                         anchorUpdatedAt = stamp,
                     )
-                } || landed
+                } ||
+                    landed
             }
             for (slotId in actions.slotArchives) {
                 if (!boardsSettled()) return landed

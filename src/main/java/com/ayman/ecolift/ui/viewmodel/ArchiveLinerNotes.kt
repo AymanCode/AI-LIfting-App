@@ -1,14 +1,13 @@
 package com.ayman.ecolift.ui.viewmodel
 
-import com.ayman.ecolift.data.isCheckedWorking
-import com.ayman.ecolift.web.util.countLabel
-
 import com.ayman.ecolift.data.CycleSnapshot
 import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutSet
+import com.ayman.ecolift.data.isCheckedWorking
 import com.ayman.ecolift.data.progress.ComparisonWindow
 import com.ayman.ecolift.data.progress.CycleComparison
 import com.ayman.ecolift.web.util.MONTH_ABBREV
+import com.ayman.ecolift.web.util.countLabel
 import com.ayman.ecolift.web.util.minusMonths
 import kotlinx.datetime.LocalDate
 
@@ -54,7 +53,9 @@ internal fun archiveTopSetLabel(top: ArchiveTopSet?, bodyweight: Boolean): Strin
     if (top == null) return ""
     val load = if (bodyweight) {
         if (top.loadStored == 0) "BW" else "BW+${WeightLbs.formatStored(top.loadStored)}"
-    } else WeightLbs.formatStored(top.loadStored)
+    } else {
+        WeightLbs.formatStored(top.loadStored)
+    }
     return "$load×${top.reps}"
 }
 
@@ -99,7 +100,9 @@ fun buildArchiveLinerNotes(
         val last = sessions.lastOrNull()?.top
         return if (sessions.size >= 2 && first != null && last != null) {
             "${archiveTopSetLabel(first, bodyweight)} → ${archiveTopSetLabel(last, bodyweight)}"
-        } else archiveTopSetLabel(last ?: first, bodyweight)
+        } else {
+            archiveTopSetLabel(last ?: first, bodyweight)
+        }
     }
     val windowStart = start.minusMonths(window.months.toLong()).toString()
     val firstEver = mutableMapOf<Long, String>()

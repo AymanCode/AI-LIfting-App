@@ -1,6 +1,5 @@
 package com.ayman.ecolift.agent.patches
 
-import com.ayman.ecolift.web.supabase.sync.orThrow
 import com.ayman.ecolift.agent.model.AuditEntity
 import com.ayman.ecolift.agent.model.DbPatch
 import com.ayman.ecolift.agent.model.InMemoryAuditStore
@@ -8,6 +7,7 @@ import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.normalizedBodyweightLoad
 import com.ayman.ecolift.web.AppRepos
 import com.ayman.ecolift.web.supabase.ExerciseRenameResult
+import com.ayman.ecolift.web.supabase.sync.orThrow
 import com.ayman.ecolift.web.util.nowMillis
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json

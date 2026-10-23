@@ -17,8 +17,8 @@ import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -275,7 +275,9 @@ internal fun HandLoop(
 ) {
     Canvas(modifier.size(38.dp)) {
         val path = loopPath(style, this.size.minDimension / 40f)
-        val drawn = if (progress >= 1f) path else {
+        val drawn = if (progress >= 1f) {
+            path
+        } else {
             val measure = PathMeasure().apply { setPath(path, false) }
             Path().also { measure.getSegment(0f, measure.length * progress.coerceIn(0f, 1f), it, true) }
         }
@@ -399,4 +401,3 @@ internal fun rememberOneShot(key: Any?, delayMs: Int, durationMs: Int, play: Boo
     }
     return anim
 }
-

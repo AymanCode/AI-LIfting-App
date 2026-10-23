@@ -66,7 +66,10 @@ internal class PriorHistoryMemo<T : Any> {
         build: (prior: List<WorkoutSet>) -> T,
     ): T {
         val cached = value
-        val sameContext = cached != null && date == this.date && tag == this.tag && others.size == this.others.size &&
+        val sameContext = cached != null &&
+            date == this.date &&
+            tag == this.tag &&
+            others.size == this.others.size &&
             others.indices.all { others[it] === this.others[it] }
         if (sameContext && sets === this.sets) return cached!!
         val prior = sets.filter { it.date < date }

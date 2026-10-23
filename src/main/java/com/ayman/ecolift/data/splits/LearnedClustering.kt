@@ -74,23 +74,27 @@ internal fun clusterLifts(
     val n = ids.size
     val onDay = Array(n) { i -> BooleanArray(days.size) { d -> ids[i] in history.lifts(days[d]) } }
     val aff = Array(n) { DoubleArray(n) }
-    for (i in 0 until n) for (j in i + 1 until n) {
+    for (i in 0 until n) {
+        for (j in i + 1 until n) {
         val a = affinity(ids[i], ids[j], days, history)
         aff[i][j] = a
         aff[j][i] = a
+    }
     }
     fun coverage(members: List<Int>): Int = days.indices.count { d -> members.any { onDay[it][d] } }
 
     val clusters = MutableList(n) { listOf(it) }
     while (clusters.size > 1) {
         val candidates = mutableListOf<MergeCandidate>()
-        for (i in clusters.indices) for (j in i + 1 until clusters.size) {
+        for (i in clusters.indices) {
+            for (j in i + 1 until clusters.size) {
             var sum = 0.0
             for (x in clusters[i]) for (y in clusters[j]) sum += aff[x][y]
             val mean = sum / (clusters[i].size * clusters[j].size)
             if (mean <= tunables.mergeAffinity + EPSILON) continue
             val union = clusters[i] + clusters[j]
             candidates += MergeCandidate(i, j, mean, coverage(union), union.map { ids[it] }.sorted())
+        }
         }
         val merge = pickMerge(candidates) ?: break
         clusters[merge.i] = clusters[merge.i] + clusters[merge.j]

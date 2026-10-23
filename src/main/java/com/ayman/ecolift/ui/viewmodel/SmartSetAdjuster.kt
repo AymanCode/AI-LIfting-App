@@ -158,7 +158,8 @@ internal fun buildSmartAdjustmentsFromSource(
         .filter {
             it.exerciseId == source.exerciseId &&
                 it.id != source.id &&
-                !it.completed && !it.isWarmup &&
+                !it.completed &&
+                !it.isWarmup &&
                 it.setNumber > source.setNumber
         }
         .sortedBy { it.setNumber }

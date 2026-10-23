@@ -11,9 +11,9 @@ import com.ayman.ecolift.data.progress.CycleProgressCalculator
 import com.ayman.ecolift.data.progress.CycleProgressCore
 import com.ayman.ecolift.data.progress.ScoreBreakdown
 import com.ayman.ecolift.data.progress.ScoreWeights
+import com.ayman.ecolift.ui.navigation.weeklySessionCounts
 import com.ayman.ecolift.web.AppRepos
 import com.ayman.ecolift.web.demo.DemoGuard
-import com.ayman.ecolift.ui.navigation.weeklySessionCounts
 import com.ayman.ecolift.web.supabase.SyncErrors
 import com.ayman.ecolift.web.supabase.UserVisibleSyncException
 import com.ayman.ecolift.web.util.todayLocalDate

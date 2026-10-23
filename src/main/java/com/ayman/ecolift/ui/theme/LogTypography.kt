@@ -24,7 +24,8 @@ val LogDisplayFontFamily = FontFamily(
 val PosterFontFamily = FontFamily(Font(R.font.archivo_black, FontWeight.Normal))
 val MarkerFontFamily = FontFamily(Font(R.font.caveat_variable, FontWeight.Normal))
 
-val LogMaterialTypography: Typography by lazy { Typography(
+val LogMaterialTypography: Typography by lazy {
+    Typography(
     headlineLarge = TextStyle(
         fontFamily = LogDisplayFontFamily,
         fontWeight = FontWeight.Bold,
@@ -95,7 +96,8 @@ val LogMaterialTypography: Typography by lazy { Typography(
         lineHeight = 13.sp,
         letterSpacing = 0.sp,
     ),
-) }
+)
+}
 
 object LogType {
     val exerciseTitle = TextStyle(

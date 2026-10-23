@@ -1,12 +1,11 @@
 package com.ayman.ecolift.ai
-import com.ayman.ecolift.data.domain
-
 import android.content.Context
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutDates
 import com.ayman.ecolift.data.WorkoutSet
+import com.ayman.ecolift.data.domain
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File

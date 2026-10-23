@@ -5,22 +5,11 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.rememberTextMeasurer
-import com.ayman.ecolift.ui.theme.EspressoShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -32,9 +21,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -58,7 +49,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -67,40 +57,40 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
-import com.ayman.ecolift.ui.viewmodel.IronMindDeskUi
-import com.ayman.ecolift.ui.viewmodel.DeskDecisionUi
-import com.ayman.ecolift.ui.viewmodel.DeskLiftUi
-import com.ayman.ecolift.ui.viewmodel.SlotSessionUi
-import com.ayman.ecolift.ui.viewmodel.NoticedUi
-import com.ayman.ecolift.ui.viewmodel.NoticedKind
-import com.ayman.ecolift.ui.viewmodel.ChangelogWin
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ayman.ecolift.android.platform.LocalAndroidDeviceActions
 import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.hub.BacklogItem
 import com.ayman.ecolift.data.hub.HubBuild
@@ -111,37 +101,43 @@ import com.ayman.ecolift.data.hub.UncheckedSetsItem
 import com.ayman.ecolift.ui.hub.HubList
 import com.ayman.ecolift.ui.hub.HubSwipe
 import com.ayman.ecolift.ui.hub.HubWorkoutCard
+import com.ayman.ecolift.ui.theme.DataText
+import com.ayman.ecolift.ui.theme.EspressoEyebrow
+import com.ayman.ecolift.ui.theme.EspressoIconButton
+import com.ayman.ecolift.ui.theme.EspressoMasthead
+import com.ayman.ecolift.ui.theme.EspressoPalette
+import com.ayman.ecolift.ui.theme.EspressoShape
+import com.ayman.ecolift.ui.theme.EspressoType
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
 import com.ayman.ecolift.ui.theme.LocalGlassPalette
+import com.ayman.ecolift.ui.theme.LogDisplayFontFamily
+import com.ayman.ecolift.ui.theme.LogUiFontFamily
 import com.ayman.ecolift.ui.theme.TAB_ARRIVAL_FRAMES
 import com.ayman.ecolift.ui.theme.TabArrival
 import com.ayman.ecolift.ui.theme.TabWarmupShell
-import com.ayman.ecolift.ui.theme.EspressoEyebrow
-import com.ayman.ecolift.ui.theme.EspressoIconButton
-import com.ayman.ecolift.ui.theme.DataText
-import com.ayman.ecolift.ui.theme.EspressoMasthead
-import com.ayman.ecolift.ui.theme.EspressoPalette
-import com.ayman.ecolift.ui.theme.EspressoType
-import com.ayman.ecolift.ui.theme.LogDisplayFontFamily
-import com.ayman.ecolift.ui.theme.LogType
-import com.ayman.ecolift.ui.theme.LogUiFontFamily
 import com.ayman.ecolift.ui.theme.glassPanel
+import com.ayman.ecolift.ui.viewmodel.ChangelogWin
 import com.ayman.ecolift.ui.viewmodel.ClaudeChangeUi
 import com.ayman.ecolift.ui.viewmodel.DataPart
+import com.ayman.ecolift.ui.viewmodel.DeskDecisionUi
+import com.ayman.ecolift.ui.viewmodel.DeskLiftUi
+import com.ayman.ecolift.ui.viewmodel.HubTopSets
+import com.ayman.ecolift.ui.viewmodel.IronMindDeskUi
+import com.ayman.ecolift.ui.viewmodel.NoticedKind
+import com.ayman.ecolift.ui.viewmodel.NoticedUi
+import com.ayman.ecolift.ui.viewmodel.SlotSessionUi
 import com.ayman.ecolift.ui.viewmodel.data
 import com.ayman.ecolift.ui.viewmodel.filler
 import com.ayman.ecolift.ui.viewmodel.lastFailureParts
 import com.ayman.ecolift.ui.viewmodel.syncRowParts
-import com.ayman.ecolift.ui.viewmodel.HubTopSets
 import com.ayman.ecolift.web.LocalRepos
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
-import com.ayman.ecolift.web.offline.Resolution
 import com.ayman.ecolift.web.demo.DemoGuard
+import com.ayman.ecolift.web.offline.Resolution
 import com.ayman.ecolift.web.supabase.CloudStamps
 import com.ayman.ecolift.web.supabase.sync.SyncStatus
 import com.ayman.ecolift.web.util.minusDays
 import com.ayman.ecolift.web.util.todayLocalDate
+import kotlinx.coroutines.launch
 
 /**
  * Vertical space the floating dock covers at the bottom of the screen. Any list it floats over has
@@ -669,8 +665,11 @@ fun HubHeader(
                     val measurer = rememberTextMeasurer()
                     val fittedSize = remember(constraints.maxWidth) {
                         var size = 50f
-                        while (size > 26f && measurer.measure("IronMind", style = EspressoType.mastTitle.copy(fontSize = size.sp),
-                                softWrap = false, maxLines = 1).size.width > constraints.maxWidth) size -= 2f
+                        while (size > 26f &&
+                            measurer.measure("IronMind", style = EspressoType.mastTitle.copy(fontSize = size.sp),
+                                softWrap = false, maxLines = 1).size.width > constraints.maxWidth) {
+                                    size -= 2f
+                                }
                         size
                     }
                     Text("IronMind", style = EspressoType.mastTitle.copy(fontSize = fittedSize.sp), color = EspressoPalette.arms, maxLines = 1, softWrap = false)
@@ -716,7 +715,9 @@ fun HubHeader(
                 )
             }
         },
-        line = if (mastParts.isEmpty()) null else {
+        line = if (mastParts.isEmpty()) {
+            null
+        } else {
             {
                 DataText(
                     parts = mastParts,
@@ -1131,6 +1132,17 @@ private fun IronMindSettingsSheet(
             }
         }
 
+        val deviceActions = LocalAndroidDeviceActions.current
+        if (deviceActions != null) {
+            SettingsActionRow(label = "Backup", onClick = deviceActions.backup)
+            SettingsActionRow(label = "Restore", onClick = deviceActions.restore)
+            SettingsActionRow(
+                label = "Health Connect",
+                onClick = deviceActions.importHealth,
+                trailing = deviceActions.healthSessionsAdded?.toString(),
+            )
+        }
+
         // SYNC: the same status as the masthead dot, as a data row, plus the last failure class
         // (spec 2026-10-08 §The sync block in settings). Demo has no cloud, so no block.
         if (!isDemo) {
@@ -1205,6 +1217,38 @@ private fun IronMindSettingsSheet(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SettingsActionRow(label: String, onClick: () -> Unit, trailing: String? = null) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(EspressoShape.card)
+            .background(EspressoPalette.panel)
+            .semantics { role = Role.Button; contentDescription = label }
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            fontFamily = LogUiFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            color = EspressoPalette.ink,
+            modifier = Modifier.weight(1f),
+        )
+        if (trailing != null) {
+            Text(
+                text = trailing,
+                fontFamily = LogUiFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = EspressoPalette.ink,
+            )
         }
     }
 }
@@ -1415,7 +1459,9 @@ fun IronMindScreen(
         topBar = {
             HubHeader(
                 openCount = desk.decisionCount,
-                onDesk = if (showDesk) null else { { showDesk = true } },
+                onDesk = if (showDesk) {
+                    null
+                } else { { showDesk = true } },
                 statusLabel = sessionLabel,
                 onSettings = {
                     isSettingsVisible = true

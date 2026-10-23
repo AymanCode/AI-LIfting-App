@@ -1,14 +1,12 @@
 package com.ayman.ecolift.ui.viewmodel
 
-import com.ayman.ecolift.data.isCheckedWorking
-import com.ayman.ecolift.web.util.countLabel
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayman.ecolift.agent.AgentOrchestrator
 import com.ayman.ecolift.agent.AgentProcessingOptions
 import com.ayman.ecolift.agent.AgentResponseCard
 import com.ayman.ecolift.agent.AgentTurn
+import com.ayman.ecolift.agent.LogSetTextParser
 import com.ayman.ecolift.agent.PendingReviewCleanupParser
 import com.ayman.ecolift.agent.WorkoutImportTextParser
 import com.ayman.ecolift.agent.engine.LocalGenAiEngine
@@ -19,21 +17,19 @@ import com.ayman.ecolift.agent.model.InMemoryTurnLogStore
 import com.ayman.ecolift.agent.patches.PatchResult
 import com.ayman.ecolift.agent.patches.PatchService
 import com.ayman.ecolift.agent.patches.PatchValidator
-import com.ayman.ecolift.agent.router.IntentRouter
 import com.ayman.ecolift.agent.router.Intent
+import com.ayman.ecolift.agent.router.IntentRouter
 import com.ayman.ecolift.agent.router.RuleMatcher
 import com.ayman.ecolift.agent.tools.AgentToolsImpl
-import com.ayman.ecolift.agent.LogSetTextParser
 import com.ayman.ecolift.data.PendingReview
 import com.ayman.ecolift.data.SetQueries
 import com.ayman.ecolift.data.WorkoutDates
+import com.ayman.ecolift.data.isCheckedWorking
 import com.ayman.ecolift.web.AppRepos
 import com.ayman.ecolift.web.demo.DemoGuard
 import com.ayman.ecolift.web.util.MONTH_ABBREV
+import com.ayman.ecolift.web.util.countLabel
 import com.ayman.ecolift.web.util.nowMillis
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
-import kotlinx.datetime.LocalDate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,6 +43,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
  * ViewModel backed by [AgentOrchestrator].

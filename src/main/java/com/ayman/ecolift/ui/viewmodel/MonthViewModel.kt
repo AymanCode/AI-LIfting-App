@@ -1,7 +1,5 @@
 package com.ayman.ecolift.ui.viewmodel
 
-import com.ayman.ecolift.web.util.countLabel
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayman.ecolift.data.CycleSlot
@@ -17,6 +15,7 @@ import com.ayman.ecolift.data.progress.MonthRollup
 import com.ayman.ecolift.data.progress.MonthRollupResult
 import com.ayman.ecolift.web.AppRepos
 import com.ayman.ecolift.web.util.YearMonthW
+import com.ayman.ecolift.web.util.countLabel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow

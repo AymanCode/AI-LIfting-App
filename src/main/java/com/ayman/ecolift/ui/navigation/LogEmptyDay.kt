@@ -1,8 +1,5 @@
 package com.ayman.ecolift.ui.navigation
 
-
-import com.ayman.ecolift.web.util.countLabel
-
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.EaseIn
@@ -120,7 +117,6 @@ import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.ui.theme.DataText
 import com.ayman.ecolift.ui.theme.EspressoPalette
-import com.ayman.ecolift.ui.theme.EspressoType
 import com.ayman.ecolift.ui.theme.LogDisplayFontFamily
 import com.ayman.ecolift.ui.theme.LogUiFontFamily
 import com.ayman.ecolift.ui.theme.SheetSansFontFamily
@@ -136,6 +132,7 @@ import com.ayman.ecolift.ui.viewmodel.TopSetUi
 import com.ayman.ecolift.ui.viewmodel.data
 import com.ayman.ecolift.ui.viewmodel.filler
 import com.ayman.ecolift.ui.viewmodel.stakeParts
+import com.ayman.ecolift.web.util.countLabel
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlin.math.absoluteValue
@@ -275,7 +272,6 @@ internal fun ticketRowDescription(row: TicketRowUi, included: Boolean): String =
     if (row.kind == TicketRowKind.TAIL) add("last time also")
     add(if (included) "included" else "not included")
 }.joinToString(", ")
-
 
 // ---------------------------------------------------------------------------------------------
 // The suggested sheet (board: workshopping ui/suggested-card-paper/board.html, 2026-10-09)
@@ -519,7 +515,9 @@ internal fun LogEmptyDay(
                 }
             }
         }
-    } else null
+    } else {
+        null
+    }
 
     fun putAwayNow() {
         if (busy || lifted) return

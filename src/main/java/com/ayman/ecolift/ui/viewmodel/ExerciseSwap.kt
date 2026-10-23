@@ -102,7 +102,9 @@ internal fun swapCandidates(
         val load = last?.let {
             if (it.isBodyweight) {
                 if ((it.weightLbs ?: 0) > 0) "BW + ${WeightLbs.formatStored(it.weightLbs)} lb" else "BW"
-            } else it.weightLbs?.let { weight -> "${WeightLbs.formatStored(weight)} lb" } ?: "—"
+            } else {
+                it.weightLbs?.let { weight -> "${WeightLbs.formatStored(weight)} lb" } ?: "—"
+            }
         }
         val lastLabel = last?.let { "Last $load × ${it.reps?.toString() ?: "—"}" } ?: "No sets"
         val group = selectableBodyPartParts(exercise.muscleGroups).firstOrNull()

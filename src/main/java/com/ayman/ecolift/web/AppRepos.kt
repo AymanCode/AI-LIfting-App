@@ -1,5 +1,8 @@
 package com.ayman.ecolift.web
 
+import com.ayman.ecolift.web.offline.ConflictChoice
+import com.ayman.ecolift.web.offline.Resolution
+import com.ayman.ecolift.web.offline.SyncReview
 import com.ayman.ecolift.web.supabase.AssistantChangeRepository
 import com.ayman.ecolift.web.supabase.CardioRepository
 import com.ayman.ecolift.web.supabase.CloudStamps
@@ -10,9 +13,6 @@ import com.ayman.ecolift.web.supabase.SetRepository
 import com.ayman.ecolift.web.supabase.SplitReplacementCoordinator
 import com.ayman.ecolift.web.supabase.UserSettingsRepository
 import com.ayman.ecolift.web.supabase.WorkoutRepository
-import com.ayman.ecolift.web.offline.ConflictChoice
-import com.ayman.ecolift.web.offline.Resolution
-import com.ayman.ecolift.web.offline.SyncReview
 import com.ayman.ecolift.web.supabase.sync.QueuedSet
 import com.ayman.ecolift.web.supabase.sync.SyncStatus
 import kotlinx.coroutines.flow.StateFlow

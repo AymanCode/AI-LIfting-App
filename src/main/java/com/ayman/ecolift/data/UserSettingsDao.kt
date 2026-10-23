@@ -1,11 +1,10 @@
 package com.ayman.ecolift.data
 
-import com.ayman.ecolift.data.room.UserSettings as RoomUserSettings
-
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
+import com.ayman.ecolift.data.room.UserSettings as RoomUserSettings
 
 @Dao
 interface UserSettingsDao {

@@ -26,20 +26,21 @@ internal fun ExerciseSwapSheet(
     onDismiss: () -> Unit,
 ) {
     val presentation = if (state != null || undoBusy) ActiveSwapPresentation(state, undoBusy) else null
-    SwapSheetFrame(presentation, busy = state?.busy == true || undoBusy, centered = undoBusy, onDismiss = onDismiss) {
-        shown, interactive, tight, closeFocus, dismiss ->
+    SwapSheetFrame(presentation, busy = state?.busy == true || undoBusy, centered = undoBusy, onDismiss = onDismiss) { shown, interactive, tight, closeFocus, dismiss ->
         if (shown.undo) {
             Row(Modifier.padding(22.dp), verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(20.dp), color = EspressoPalette.ink, strokeWidth = 2.dp)
                 Text("Undoing swap…", Modifier.padding(start = 14.dp), fontSize = 16.sp)
             }
-        } else shown.swap?.let { swap ->
+        } else {
+            shown.swap?.let { swap ->
             val scope = if (swap.date == com.ayman.ecolift.data.WorkoutDates.today()) "today" else "for this workout"
             val ui = swap.context ?: SwapSheetUi("exercise:${swap.sourceId}", swap.sourceId, swap.sourceId,
                 "Swap ${swap.sourceName}", null, emptyList(), emptyList(), false, 0)
             SwapPickerContent(ui, swap.candidates, swap.query, onQuery, onPick, interactive, tight, closeFocus, dismiss,
                 primaryActionLabel = { "Use $it $scope" }, retainedSets = swap.retainedSetCount,
                 busy = swap.busy, error = swap.error)
+        }
         }
     }
 }

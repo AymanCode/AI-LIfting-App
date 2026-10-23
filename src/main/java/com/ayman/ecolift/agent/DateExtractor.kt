@@ -68,8 +68,8 @@ object DateExtractor {
         )
         monthDayRe.find(t)?.let { m ->
             val monthNames = listOf(
-                "january","february","march","april","may","june",
-                "july","august","september","october","november","december"
+                "january", "february", "march", "april", "may", "june",
+                "july", "august", "september", "october", "november", "december"
             )
             val month = monthNames.indexOf(m.groupValues[1]) + 1
             val day   = m.groupValues[2].toIntOrNull() ?: return@let
@@ -77,7 +77,9 @@ object DateExtractor {
                 var d = LocalDate(today.year, month, day)
                 if (d > today) d = d.minus(1, DateTimeUnit.YEAR)
                 d.toString()
-            } catch (_: Exception) { null }
+            } catch (_: Exception) {
+                null
+            }
         }
 
         Regex("""\d{4}-\d{2}-\d{2}""").find(t)?.let { return it.value }

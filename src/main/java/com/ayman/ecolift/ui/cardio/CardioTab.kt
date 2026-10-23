@@ -1,9 +1,6 @@
 package com.ayman.ecolift.ui.cardio
 
-import com.ayman.ecolift.web.util.countLabel
-
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.*
@@ -20,7 +17,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -36,8 +32,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ayman.ecolift.cardio.CardioActivitySpecs
 import com.ayman.ecolift.cardio.CardioFieldRules
 import com.ayman.ecolift.cardio.CardioInsights
-import com.ayman.ecolift.cardio.DayDot
-import com.ayman.ecolift.cardio.RecordKind
 import com.ayman.ecolift.data.CardioActivityType
 import com.ayman.ecolift.data.CardioSession
 import com.ayman.ecolift.ui.theme.DawnBackground
@@ -52,10 +46,11 @@ import com.ayman.ecolift.ui.viewmodel.CardioUiState
 import com.ayman.ecolift.ui.viewmodel.CardioViewModel
 import com.ayman.ecolift.ui.viewmodel.data
 import com.ayman.ecolift.ui.viewmodel.filler
-import com.ayman.ecolift.web.util.noun
 import com.ayman.ecolift.web.util.DAY_ABBREV
 import com.ayman.ecolift.web.util.MONTH_ABBREV
+import com.ayman.ecolift.web.util.countLabel
 import com.ayman.ecolift.web.util.minusDays
+import com.ayman.ecolift.web.util.noun
 import com.ayman.ecolift.web.util.todayLocalDate
 import kotlinx.coroutines.delay
 import kotlinx.datetime.LocalDate
@@ -298,7 +293,9 @@ internal fun CardioTabContent(
                     val distStr = if (totals.metres > 0) {
                         val rounded = (distanceMiles * 10).roundToInt() / 10.0
                         "$rounded mi"
-                    } else null
+                    } else {
+                        null
+                    }
 
                     val calStr = if (totals.calories > 0) "${CardioFieldRules.display(com.ayman.ecolift.cardio.CardioEntryField.CALORIES, CardioActivityType.TREADMILL, totals.calories.toDouble())} cal" else null
                     val countStr = "${totals.count} session${if (totals.count == 1) "" else "s"}"

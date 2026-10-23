@@ -12,20 +12,19 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
-import com.ayman.ecolift.ui.viewmodel.AnalysisState
 import com.ayman.ecolift.ui.viewmodel.ProgressOrganizationMode
-import com.ayman.ecolift.ui.viewmodel.ProgressSortMode
-import com.ayman.ecolift.ui.viewmodel.ProgressViewModel
 import com.ayman.ecolift.ui.viewmodel.ProgressProjection
 import com.ayman.ecolift.ui.viewmodel.ProgressScope
+import com.ayman.ecolift.ui.viewmodel.ProgressSortMode
 import com.ayman.ecolift.ui.viewmodel.ProgressUiState
+import com.ayman.ecolift.ui.viewmodel.ProgressViewModel
 import com.ayman.ecolift.ui.viewmodel.TimeframeFilter
+import com.ayman.ecolift.ui.viewmodel.progressWindowStart
 import com.ayman.ecolift.web.LocalAppServices
 import com.ayman.ecolift.web.LocalRepos
-import kotlinx.datetime.LocalDate
-import com.ayman.ecolift.ui.viewmodel.progressWindowStart
 import com.ayman.ecolift.web.util.countLabel
 import com.ayman.ecolift.web.util.todayLocalDate
+import kotlinx.datetime.LocalDate
 
 @Composable
 fun ProgressScreen(
@@ -98,7 +97,9 @@ fun ProgressScreen(
     var isMonthSelected by rememberSaveable { mutableStateOf(false) }
     val windowStart = if (uiState.timeframe == TimeframeFilter.ALL_TIME) {
         uiState.exercises.mapNotNull { it.firstSessionIsoDate }.minOrNull()?.let(LocalDate::parse) ?: windowEnd
-    } else progressWindowStart(uiState.timeframe, windowEnd)
+    } else {
+        progressWindowStart(uiState.timeframe, windowEnd)
+    }
 
     if (initialExerciseId != null || uiState.selectedExerciseId != null) {
         val dataPoints = uiState.chartPoints.map { pt ->

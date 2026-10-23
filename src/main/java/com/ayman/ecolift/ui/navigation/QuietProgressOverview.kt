@@ -5,19 +5,18 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -34,10 +33,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.key.*
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -45,9 +40,12 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,28 +57,28 @@ import com.ayman.ecolift.ui.month.SheetInk
 import com.ayman.ecolift.ui.month.SheetProgressTabs
 import com.ayman.ecolift.ui.month.sheetSerif
 import com.ayman.ecolift.ui.theme.*
+import com.ayman.ecolift.ui.viewmodel.ChangelogKind
+import com.ayman.ecolift.ui.viewmodel.GroupWallSource
+import com.ayman.ecolift.ui.viewmodel.GroupWallUi
 import com.ayman.ecolift.ui.viewmodel.HeldLiftRowUi
 import com.ayman.ecolift.ui.viewmodel.HeldSectionKind
 import com.ayman.ecolift.ui.viewmodel.HeldSectionUi
-import com.ayman.ecolift.ui.viewmodel.GroupWallUi
-import com.ayman.ecolift.ui.viewmodel.GroupWallSource
-import com.ayman.ecolift.ui.viewmodel.buildGroupWall
 import com.ayman.ecolift.ui.viewmodel.QuietProgressOverview
 import com.ayman.ecolift.ui.viewmodel.QuietProgressPoint
 import com.ayman.ecolift.ui.viewmodel.StakeUi
 import com.ayman.ecolift.ui.viewmodel.TimeframeFilter
-import com.ayman.ecolift.ui.viewmodel.stakeText
-import com.ayman.ecolift.ui.viewmodel.ChangelogKind
-import com.ayman.ecolift.ui.viewmodel.otherSets
-import com.ayman.ecolift.ui.viewmodel.supportingSetLabel
-import com.ayman.ecolift.ui.viewmodel.formatTopSet
-import com.ayman.ecolift.ui.viewmodel.formatLoad
-import com.ayman.ecolift.ui.viewmodel.shortDate
+import com.ayman.ecolift.ui.viewmodel.buildGroupWall
 import com.ayman.ecolift.ui.viewmodel.data
 import com.ayman.ecolift.ui.viewmodel.filler
+import com.ayman.ecolift.ui.viewmodel.formatLoad
+import com.ayman.ecolift.ui.viewmodel.formatTopSet
+import com.ayman.ecolift.ui.viewmodel.otherSets
 import com.ayman.ecolift.ui.viewmodel.progressWindowStart
-import com.ayman.ecolift.web.util.YearMonthW
+import com.ayman.ecolift.ui.viewmodel.shortDate
+import com.ayman.ecolift.ui.viewmodel.stakeText
+import com.ayman.ecolift.ui.viewmodel.supportingSetLabel
 import com.ayman.ecolift.web.util.MONTH_ABBREV
+import com.ayman.ecolift.web.util.YearMonthW
 import com.ayman.ecolift.web.util.minusDays
 import com.ayman.ecolift.web.util.todayLocalDate
 import kotlinx.datetime.DatePeriod
@@ -310,7 +308,11 @@ private fun BoxScope.QuietSortMenu(
     if (open) {
         Box(Modifier.matchParentSize()
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss)
-            .onPreviewKeyEvent { if (it.key == Key.Escape && it.type == KeyEventType.KeyDown) { onDismiss(); true } else false }
+            .onPreviewKeyEvent {
+                if (it.key == Key.Escape && it.type == KeyEventType.KeyDown) { onDismiss(); true } else {
+                false
+            }
+            }
             .focusRequester(focus).focusable())
         LaunchedEffect(Unit) { focus.requestFocus() }
     }
@@ -404,7 +406,11 @@ private fun BoxScope.QuietPeriodSheet(
                 .clip(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
                 .background(EspressoPalette.panel)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
-                .onPreviewKeyEvent { if (it.key == Key.Escape && it.type == KeyEventType.KeyDown) { onDismiss(); true } else false }
+                .onPreviewKeyEvent {
+                    if (it.key == Key.Escape && it.type == KeyEventType.KeyDown) { onDismiss(); true } else {
+                    false
+                }
+                }
                 .focusRequester(focus).focusable()
                 .draggable(dragState, androidx.compose.foundation.gestures.Orientation.Vertical,
                     onDragStopped = { if (drag > dismissAt) onDismiss() else drag = 0f }),
@@ -466,10 +472,13 @@ private fun QuietPeriodPicker(initialDate: LocalDate, range: TimeRangeV2, onDism
         }
         val offset = month.atDay(1).dayOfWeek.ordinal
         // Always six weeks, so the sheet keeps its height while you page months.
-        repeat(6) { week -> Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        repeat(6) { week ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
             repeat(7) { weekday ->
                 val day = week * 7 + weekday - offset + 1
-                if (day !in 1..month.lengthOfMonth()) Spacer(Modifier.weight(1f).height(40.dp)) else {
+                if (day !in 1..month.lengthOfMonth()) {
+                    Spacer(Modifier.weight(1f).height(40.dp))
+                } else {
                     val date = month.atDay(day)
                     val active = date == selected
                     val inWindow = windowStart != null && date >= windowStart && date < selected
@@ -498,7 +507,8 @@ private fun QuietPeriodPicker(initialDate: LocalDate, range: TimeRangeV2, onDism
                     }
                 }
             }
-        } }
+        }
+        }
         Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.weight(0.42f).height(48.dp).clip(RoundedCornerShape(14.dp))
                 .border(1.dp, EspressoPalette.hair2, RoundedCornerShape(14.dp))

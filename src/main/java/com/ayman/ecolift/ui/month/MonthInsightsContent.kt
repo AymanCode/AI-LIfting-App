@@ -7,21 +7,19 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.semantics.*
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -32,16 +30,13 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ayman.ecolift.data.BodyPartRegion
 import com.ayman.ecolift.data.progress.EquivalenceUnits
-import com.ayman.ecolift.ui.theme.EspressoPalette
 import com.ayman.ecolift.ui.theme.EspressoType
 import com.ayman.ecolift.ui.theme.SheetSansFontFamily
 import com.ayman.ecolift.ui.theme.SheetSerifFontFamily
 import com.ayman.ecolift.ui.viewmodel.*
 import com.ayman.ecolift.web.util.groupThousands
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToLong
 
 private val storySerif get() = TextStyle(
@@ -936,4 +931,3 @@ internal fun fitSingleLabelSp(
     }
     return minSp
 }
-

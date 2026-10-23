@@ -7,16 +7,16 @@ import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.data.SplitExercise
 import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.splits.DayInfo
+import com.ayman.ecolift.data.splits.DayMarks
 import com.ayman.ecolift.data.splits.EffectiveSplitMembers
 import com.ayman.ecolift.data.splits.SplitChoicesState
 import com.ayman.ecolift.data.splits.SplitMemberEdit
 import com.ayman.ecolift.data.splits.applyEdit
-import com.ayman.ecolift.data.splits.effectiveSplitMembers
-import com.ayman.ecolift.data.splits.workoutLiftsFor
 import com.ayman.ecolift.data.splits.buildDayInfoMap
-import com.ayman.ecolift.data.splits.learnedGroupLabel
 import com.ayman.ecolift.data.splits.buildDayMarks
-import com.ayman.ecolift.data.splits.DayMarks
+import com.ayman.ecolift.data.splits.effectiveSplitMembers
+import com.ayman.ecolift.data.splits.learnedGroupLabel
+import com.ayman.ecolift.data.splits.workoutLiftsFor
 import com.ayman.ecolift.web.AppRepos
 import com.ayman.ecolift.web.demo.DemoGuard
 import com.ayman.ecolift.web.supabase.SyncErrors
@@ -253,8 +253,7 @@ class SplitViewModel(private val repos: AppRepos) : ViewModel() {
 
 private const val SAVE_FAILED = "Couldn't save the split."
 
-/** Shared by Splits and the desk; preserves the same write, failure message and relearn path. */
-/** Runs a split write; a failure says [failureMessage] in the app's snackbar. True when it landed. */
+/** Runs a split write. A failure says [failureMessage] in the app's snackbar. True when it landed. */
 internal suspend fun writeOrSay(failureMessage: String, write: suspend () -> Unit): Boolean = try {
     write()
     true

@@ -3,12 +3,9 @@ package com.ayman.ecolift.ui.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.ayman.ecolift.ui.viewmodel.DeskDecisionUi
-import com.ayman.ecolift.web.demo.DemoGuard
-import kotlinx.coroutines.flow.collect
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -16,10 +13,13 @@ import com.ayman.ecolift.ui.hub.HubSwipe
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
 import com.ayman.ecolift.ui.viewmodel.AiChangesCardUi
 import com.ayman.ecolift.ui.viewmodel.AiHistoryCardUi
+import com.ayman.ecolift.ui.viewmodel.DeskDecisionUi
 import com.ayman.ecolift.ui.viewmodel.HubViewModel
 import com.ayman.ecolift.ui.viewmodel.OrchestratorViewModel
 import com.ayman.ecolift.web.LocalAppServices
 import com.ayman.ecolift.web.LocalRepos
+import com.ayman.ecolift.web.demo.DemoGuard
+import kotlinx.coroutines.flow.collect
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -88,7 +88,9 @@ fun AiScreen(
                         lastSession = uiState.pendingAction?.title,
                         sessionCount = null
                     )
-                } else null,
+                } else {
+                    null
+                },
                 recovery = msg.recovery?.let {
                     RecoveryPayload(
                         title = it.title,

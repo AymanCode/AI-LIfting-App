@@ -1,13 +1,12 @@
 package com.ayman.ecolift.ui.viewmodel
 
-import com.ayman.ecolift.web.util.countLabel
-
 import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.hub.HubBuild
 import com.ayman.ecolift.data.hub.UncheckedSetsItem
 import com.ayman.ecolift.data.splits.LearnedModel
 import com.ayman.ecolift.data.splits.learnedGroupLabel
+import com.ayman.ecolift.web.util.countLabel
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -95,14 +94,17 @@ internal fun projectNoticed(
         val last = sessions.lastOrNull() ?: continue
         val previous = sessions.getOrNull(sessions.lastIndex - 1)
         val load = formatLoad(last.top.loadStored, exercise.isBodyweight) + if (exercise.isBodyweight && last.top.loadStored == 0) "" else " lb"
-        if (previous != null && (last.top.loadStored > previous.top.loadStored ||
+        if (previous != null &&
+            (last.top.loadStored > previous.top.loadStored ||
                 (last.top.loadStored == previous.top.loadStored && last.top.reps > previous.top.reps))) {
             val shown = sessions.takeLast(5)
             val report = buildExerciseReport(history, exercise.isBodyweight, LocalDate.parse(shown.first().date), asOf)
             val first = shown.first().top
             val comparison = if (last.top.loadStored != first.loadStored) {
                 "${formatLoad(first.loadStored, exercise.isBodyweight)} → $load"
-            } else "${formatTopSet(first, exercise.isBodyweight)} → ${formatTopSet(last.top, exercise.isBodyweight)}"
+            } else {
+                "${formatTopSet(first, exercise.isBodyweight)} → ${formatTopSet(last.top, exercise.isBodyweight)}"
+            }
             beats += last.date to NoticedUi(id, exercise.name, exercise.muscleGroups, NoticedKind.BeatPrevious, load,
                 "$comparison · ${countLabel(shown.size, "session")} · ${deskRange(shown.map { it.date })}",
                 shown.map { it.top.loadStored }, report.events.firstOrNull()?.win)

@@ -1,7 +1,5 @@
 package com.ayman.ecolift.ui.highlights
 
-import com.ayman.ecolift.web.util.countLabel
-
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -13,15 +11,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ayman.ecolift.R
 import com.ayman.ecolift.data.progress.highlights.ProgressHighlightFrame
 import com.ayman.ecolift.ui.theme.HighlightsCondensedImpactFontFamily
-import com.ayman.ecolift.ui.theme.HighlightsImpactFontFamily
 import com.ayman.ecolift.ui.theme.PosterFontFamily
-import androidx.compose.ui.res.painterResource
-import com.ayman.ecolift.R
+import com.ayman.ecolift.web.util.countLabel
 
 @Composable
 internal fun RunningTotalPoster(

@@ -9,19 +9,19 @@ sealed interface HubItem {
 
 /** One exercise on one day that has unchecked sets. */
 data class UncheckedSetsItem(
-    override val id: String,      // "unchecked:<date>:<exerciseId>"
+    override val id: String, // "unchecked:<date>:<exerciseId>"
     val date: String,
     val exerciseId: Long,
     val exerciseName: String,
     val muscleGroups: String,
     val isBodyweight: Boolean,
-    val openSets: List<WorkoutSet>,      // unchecked, ordered by setNumber
+    val openSets: List<WorkoutSet>, // unchecked, ordered by setNumber
     val referenceSets: List<WorkoutSet>, // checked sets for the SAME exercise+date, ordered by setNumber
 ) : HubItem
 
 /** Unchecked sets too old to recall, collapsed into one bulk decision. */
 data class BacklogItem(
-    override val id: String,      // "backlog"
+    override val id: String, // "backlog"
     val fromDate: String,
     val toDate: String,
     val setCount: Int,
@@ -37,7 +37,7 @@ data class HubDay(
 )
 
 data class HubBuild(
-    val days: List<HubDay>,   // newest date first
+    val days: List<HubDay>, // newest date first
     val backlog: BacklogItem?,
     val count: Int,           // total resolvable notifications = all items across days, + 1 if backlog != null
 )

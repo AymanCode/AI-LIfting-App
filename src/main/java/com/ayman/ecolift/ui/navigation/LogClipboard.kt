@@ -12,6 +12,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,7 +30,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.GenericShape
@@ -70,18 +70,17 @@ import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.PathMeasure
-import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -140,13 +139,13 @@ import com.ayman.ecolift.ui.viewmodel.ClipboardPickRequest
 import com.ayman.ecolift.ui.viewmodel.ClipboardProgramUi
 import com.ayman.ecolift.web.supabase.simpleNameKey
 import com.ayman.ecolift.web.util.keyboardOverlap
-
-import kotlin.math.min
-import kotlin.random.Random
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
+import kotlin.math.min
+import kotlin.random.Random
+import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 
 // ---------------------------------------------------------------------------------------------
 // The rules, kept pure so they are tested without a screen.
@@ -411,7 +410,8 @@ private class ClipboardState {
 
     /** A lift reads as ticked when it is itself ticked, or a written line was answered "Same" for it. */
     fun liftTicked(exerciseId: Long): Boolean =
-        isTicked("id:$exerciseId") || ticks.any { pick ->
+        isTicked("id:$exerciseId") ||
+        ticks.any { pick ->
             answers[pick.key] == ClipboardAnswer.Same &&
                 (checks[pick.key] as? ClipboardCheck.LookAlike)?.exerciseId == exerciseId
         }
@@ -920,7 +920,9 @@ private fun BoxScope.ClipSheet(
             programsOpen = state.programsOpen,
             onTogglePrograms = if (!typing && pocket.isNotEmpty()) {
                 { state.programsOpen = !state.programsOpen }
-            } else null,
+            } else {
+                null
+            },
         )
         if (!typing) {
             ClipTabs(selected = state.tab, tabs = clipboardTabs(lifts), openClock = openClock, onSelect = { state.tab = it })
@@ -973,7 +975,8 @@ private fun BoxScope.ClipSheet(
             }
             // A note whose line is on another page docks above the strip, so it can't be missed.
             val noteKey = state.noteKey
-            val noteVisibleInline = noteKey != null && (
+            val noteVisibleInline = noteKey != null &&
+                (
                 (typing && noteKey.startsWith("new:")) ||
                     (noteKey.startsWith("id:") && isOnPage(noteKey, typing, query, results, lifts, state.tab))
                 )

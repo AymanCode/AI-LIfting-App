@@ -35,7 +35,8 @@ internal fun buildQuietProgressOverview(
     end: LocalDate,
 ): QuietProgressOverview {
     val eligible = history.filter {
-        WorkoutMetrics.isStrengthEligible(it) && it.date <= end.toString() &&
+        WorkoutMetrics.isStrengthEligible(it) &&
+            it.date <= end.toString() &&
             (isBodyweight || WorkoutMetrics.estimatedOneRepMax(it) != null)
     }
     val sessions = eligible.groupBy { it.date }.entries.sortedBy { it.key }.mapNotNull { (_, sets) ->
@@ -48,19 +49,25 @@ internal fun buildQuietProgressOverview(
     val load = latestSet.weightLbs ?: 0
     val atLoad = if (isBodyweight) {
         if (load == 0) "at BW" else "at BW +${WeightLbs.formatStored(load)} lb"
-    } else "at ${WeightLbs.formatStored(load)} lb"
+    } else {
+        "at ${WeightLbs.formatStored(load)} lb"
+    }
     val comparable = if (sameLoad) eligible.filter { (it.weightLbs ?: 0) == load }
         .groupBy { it.date }.entries.sortedBy { it.key }.mapNotNull { (_, sets) -> sets.maxByOrNull { it.reps ?: 0 } }
     else sessions
     fun evidence(set: WorkoutSet): String =
         (if (isBodyweight) {
             if ((set.weightLbs ?: 0) == 0) "BW" else "BW +${WeightLbs.formatStored(set.weightLbs)} lb"
-        } else "${WeightLbs.formatStored(set.weightLbs)} lb") + " × ${set.reps}"
-    val allPoints = comparable.map { set -> QuietProgressPoint(
+        } else {
+            "${WeightLbs.formatStored(set.weightLbs)} lb"
+        }) + " × ${set.reps}"
+    val allPoints = comparable.map { set ->
+        QuietProgressPoint(
         date = set.date,
         value = if (sameLoad) (set.reps ?: 0).toFloat() else (WorkoutMetrics.estimatedOneRepMax(set) ?: 0.0).toFloat(),
         evidence = evidence(set),
-    ) }
+    )
+    }
     val points = allPoints.filter { it.date >= start.toString() }
     val latest = points.lastOrNull() ?: return QuietProgressOverview()
     val first = points.first()

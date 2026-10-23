@@ -1,13 +1,12 @@
 package com.ayman.ecolift.data
 
-import com.ayman.ecolift.data.room.SplitExercise as RoomSplitExercise
-
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
+import com.ayman.ecolift.data.room.SplitExercise as RoomSplitExercise
 
 @Dao
 interface SplitExerciseDao {

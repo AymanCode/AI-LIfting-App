@@ -2,8 +2,8 @@ package com.ayman.ecolift.ui.viewmodel
 
 import androidx.compose.runtime.Immutable
 import com.ayman.ecolift.data.Exercise
-import com.ayman.ecolift.data.UNCLASSIFIED_MUSCLE_GROUPS
 import com.ayman.ecolift.data.PendingReview
+import com.ayman.ecolift.data.UNCLASSIFIED_MUSCLE_GROUPS
 import com.ayman.ecolift.data.WorkoutCardDisplayMode
 import kotlinx.datetime.LocalDate
 

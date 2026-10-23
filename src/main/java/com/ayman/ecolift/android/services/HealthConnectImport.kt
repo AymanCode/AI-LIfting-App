@@ -2,12 +2,12 @@ package com.ayman.ecolift.android.services
 
 import android.os.RemoteException
 import androidx.health.connect.client.permission.HealthPermission
-import kotlinx.coroutines.CancellationException
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import com.ayman.ecolift.cardio.health.CardioHealthConnectReader
 import com.ayman.ecolift.data.CardioSession
+import kotlinx.coroutines.CancellationException
 import java.time.Clock
 import java.time.Instant
 import java.time.temporal.ChronoUnit

@@ -1,11 +1,10 @@
 package com.ayman.ecolift.data
 
-import com.ayman.ecolift.data.room.ExerciseAlias as RoomExerciseAlias
-
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.ayman.ecolift.data.room.ExerciseAlias as RoomExerciseAlias
 
 @Dao
 interface ExerciseAliasDao {

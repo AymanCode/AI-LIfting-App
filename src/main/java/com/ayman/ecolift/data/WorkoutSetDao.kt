@@ -1,13 +1,12 @@
 package com.ayman.ecolift.data
 
-import com.ayman.ecolift.data.room.WorkoutSet as RoomWorkoutSet
-
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
+import com.ayman.ecolift.data.room.WorkoutSet as RoomWorkoutSet
 
 @Dao
 interface WorkoutSetDao {
@@ -37,6 +36,9 @@ interface WorkoutSetDao {
 
     @Query("SELECT * FROM workout_set")
     suspend fun getAll(): List<RoomWorkoutSet>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM workout_set LIMIT 1)")
+    suspend fun hasAny(): Boolean
 
     @Query("SELECT * FROM workout_set WHERE date = :date ORDER BY exerciseId ASC, setNumber ASC")
     fun observeForDate(date: String): Flow<List<RoomWorkoutSet>>

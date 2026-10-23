@@ -1,12 +1,11 @@
 package com.ayman.ecolift.ui.viewmodel
 
-import com.ayman.ecolift.web.util.noun
-
 import androidx.compose.runtime.Immutable
 import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutMetrics
 import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.web.util.MONTH_ABBREV
+import com.ayman.ecolift.web.util.noun
 import kotlinx.datetime.LocalDate
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -404,7 +403,9 @@ fun buildExerciseReport(history: List<WorkoutSet>, isBodyweight: Boolean, window
         sessions = window.size,
         daysBetweenSessions = if (window.size >= 2 && latest != null && first != null) {
             (LocalDate.parse(latest.date).toEpochDays() - LocalDate.parse(first.date).toEpochDays()).toFloat() / (window.size - 1)
-        } else null,
+        } else {
+            null
+        },
         unbeatenSince = unbeatenSince,
         pace = if (isBodyweight) null else paceFor(window),
         newHeaviest = newHeaviestMarks(sessions, startIso),

@@ -1,10 +1,7 @@
 package com.ayman.ecolift.ui.navigation
 
-import com.ayman.ecolift.web.util.noun
-
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -31,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayman.ecolift.ui.theme.*
 import com.ayman.ecolift.ui.viewmodel.*
+import com.ayman.ecolift.web.util.noun
 
 /** Opus's slot-history presentation, shared with the atomic active-workout flow. */
 @Composable
@@ -83,7 +81,9 @@ internal fun ColumnScope.SwapPickerContent(
         ?: extraRows.firstOrNull { it.exerciseId == selectedId }?.name
     fun choose(id: Long) {
         if (!interactive) return
-        if (primaryActionLabel == null) { focus.clearFocus(); onPick(id) } else selectedId = id
+        if (primaryActionLabel == null) { focus.clearFocus(); onPick(id) } else {
+            selectedId = id
+        }
     }
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         DataText(parts = if (ui.sessions.isEmpty()) listOf(filler("CHOOSE A LIFT")) else
@@ -113,10 +113,12 @@ internal fun ColumnScope.SwapPickerContent(
             cursorBrush = SolidColor(accent), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
             modifier = Modifier.weight(1f).padding(vertical = 12.dp).semantics { contentDescription = "Find an exercise to swap" },
-            decorationBox = { field -> Box {
+            decorationBox = { field ->
+                Box {
                 if (editor.isEmpty()) Text("Any other lift · search all", fontFamily = LogUiFontFamily, fontSize = 14.sp, color = EspressoPalette.dim)
                 field()
-            } })
+            }
+            })
         if (editor.isNotEmpty()) IconButton(onClick = { editor = ""; onQuery("") }, enabled = interactive, modifier = Modifier.size(44.dp)) {
             Icon(Icons.Default.Close, "Clear swap search", Modifier.size(18.dp), tint = EspressoPalette.dim)
         } else Spacer(Modifier.width(12.dp))
@@ -135,10 +137,12 @@ internal fun ColumnScope.SwapPickerContent(
                     Row(Modifier.width((ui.sessions.size * 20).dp).semantics {
                         contentDescription = "Slot sessions, ${ui.sessions.joinToString(" ") { "${it.month} ${it.day}" }}"
                     }) {
-                        ui.sessions.forEachIndexed { index, session -> Column(Modifier.width(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        ui.sessions.forEachIndexed { index, session ->
+                            Column(Modifier.width(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(if (index == 0 || ui.sessions[index - 1].month != session.month) session.month else "", fontSize = 8.sp, color = EspressoPalette.dim)
                             DataText(listOf(data(session.day)), size = 10.sp, dataSize = 11.sp, data = EspressoPalette.ink)
-                        } }
+                        }
+                        }
                     }
                     Text("LAST TOP SET", style = EspressoType.eyebrow.copy(fontSize = 9.sp), color = EspressoPalette.dim, textAlign = TextAlign.End, modifier = Modifier.width(84.dp))
                 }
@@ -191,8 +195,10 @@ private fun SwapChoiceRow(id: Long, name: String, selectedId: Long, ui: SwapShee
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(14.dp)).background(EspressoPalette.panel2)
         .then(if (confirm && selectedId == id) Modifier.border(1.5.dp, accent, RoundedCornerShape(14.dp)) else Modifier)
         .clickable(enabled = interactive, role = Role.Button, onClick = onClick)
-        .semantics { contentDescription = "${if (confirm) "Choose" else "Swap to"} $name, $detail" +
-            if (current) ", ${if (confirm) "this card" else "today's pick"}" else if (already) ", already in this workout, reuse existing sets" else "" }
+        .semantics {
+            contentDescription = "${if (confirm) "Choose" else "Swap to"} $name, $detail" +
+            if (current) ", ${if (confirm) "this card" else "today's pick"}" else if (already) ", already in this workout, reuse existing sets" else ""
+        }
         .padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f).padding(end = 8.dp)) {
             Text(name, fontFamily = LogDisplayFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 17.sp)

@@ -551,24 +551,32 @@ object CardioInsights {
                 CardioActivityType.TREADMILL, CardioActivityType.RUN, CardioActivityType.WALK -> {
                     if (session.avgSpeed != null && previous.avgSpeed != null && previous.avgSpeed > 0.0) {
                         abs(session.avgSpeed - previous.avgSpeed) / previous.avgSpeed <= 0.05
-                    } else false
+                    } else {
+                        false
+                    }
                 }
                 CardioActivityType.ROW -> {
                     val curSplit = (session.paceSecPer500m ?: derivedPaceSec(session))?.toDouble()
                     val prevSplit = (previous.paceSecPer500m ?: derivedPaceSec(previous))?.toDouble()
                     if (curSplit != null && prevSplit != null && prevSplit > 0.0) {
                         abs(curSplit - prevSplit) / prevSplit <= 0.05
-                    } else false
+                    } else {
+                        false
+                    }
                 }
                 CardioActivityType.BIKE, CardioActivityType.ELLIPTICAL -> {
                     if (session.avgPowerWatts != null && previous.avgPowerWatts != null && previous.avgPowerWatts > 0) {
                         abs((session.avgPowerWatts - previous.avgPowerWatts).toDouble()) / previous.avgPowerWatts.toDouble() <= 0.05
-                    } else false
+                    } else {
+                        false
+                    }
                 }
                 CardioActivityType.STAIR_CLIMBER -> {
                     if (session.floors != null && previous.floors != null && previous.floors > 0) {
                         abs((session.floors - previous.floors).toDouble()) / previous.floors.toDouble() <= 0.05
-                    } else false
+                    } else {
+                        false
+                    }
                 }
                 else -> false
             }

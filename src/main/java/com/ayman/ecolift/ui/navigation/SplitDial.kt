@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -52,12 +51,12 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -66,7 +65,6 @@ import com.ayman.ecolift.ui.theme.EspressoPalette
 import com.ayman.ecolift.ui.theme.splitAccentColor
 import kotlinx.coroutines.launch
 import kotlin.math.PI
-import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.max
@@ -241,13 +239,16 @@ fun SplitDial(
                 // The whole name, shrunk to fit beside the disc rather than cut at a word.
                 val nameSize = remember(shown.name, nameWidthPx) {
                     var size = 22f
-                    while (size > 13f && nameMeasurer.measure(
+                    while (size > 13f &&
+                        nameMeasurer.measure(
                             shown.name,
                             style = StickerType.display(size.sp, EspressoPalette.ink, (-0.4).sp),
                             softWrap = false,
                             maxLines = 1,
                         ).size.width > nameWidthPx
-                    ) size -= 0.5f
+                    ) {
+                        size -= 0.5f
+                    }
                     size
                 }
                 Column(Modifier.align(Alignment.BottomStart).padding(bottom = 16.dp).alpha(if (cycleEnabled) 1f else 0.25f)) {

@@ -8,7 +8,6 @@ import com.ayman.ecolift.web.util.todayLocalDate
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
 
-
 // Web port of the Android WorkoutDates (java.time -> kotlinx-datetime).
 object WorkoutDates {
     fun today(): String = todayLocalDate().toString()

@@ -44,7 +44,9 @@ internal fun buildProgressRouteForExercise(
     "log" -> if (origin.logDate != null) {
         "progress/$exerciseId?origin=log&date=${origin.logDate}" +
             (origin.exerciseNumber?.takeIf { it > 0 }?.let { "&ex=$it" } ?: "")
-    } else "progress/$exerciseId"
+    } else {
+        "progress/$exerciseId"
+    }
     "split" -> "progress/$exerciseId?origin=split"
     "month" -> "progress/$exerciseId?origin=month"
     "ironmind" -> "progress/$exerciseId?origin=ironmind"

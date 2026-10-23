@@ -1,9 +1,6 @@
 package com.ayman.ecolift.ui.cardio
 
-import com.ayman.ecolift.web.util.countLabel
-
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,20 +15,18 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ayman.ecolift.cardio.*
 import com.ayman.ecolift.data.CardioActivityType
-import com.ayman.ecolift.data.CardioSession
 import com.ayman.ecolift.ui.theme.DawnPalette
 import com.ayman.ecolift.ui.theme.LogUiFontFamily
 import com.ayman.ecolift.ui.theme.SheetSerifFontFamily
 import com.ayman.ecolift.ui.viewmodel.CardioViewModel
-import com.ayman.ecolift.web.util.DAY_ABBREV
 import com.ayman.ecolift.web.util.MONTH_ABBREV
+import com.ayman.ecolift.web.util.countLabel
 import com.ayman.ecolift.web.util.minusDays
 import com.ayman.ecolift.web.util.todayLocalDate
 import kotlinx.datetime.LocalDate

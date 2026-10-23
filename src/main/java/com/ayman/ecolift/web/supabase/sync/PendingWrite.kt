@@ -1,9 +1,9 @@
 package com.ayman.ecolift.web.supabase.sync
 
-import com.ayman.ecolift.data.WorkoutSet
-import com.ayman.ecolift.data.WorkoutExerciseCard
 import com.ayman.ecolift.data.WorkoutCardDisplayMode
 import com.ayman.ecolift.data.WorkoutCardOrigin
+import com.ayman.ecolift.data.WorkoutExerciseCard
+import com.ayman.ecolift.data.WorkoutSet
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -80,16 +80,20 @@ sealed class PendingWrite {
         abstract val localId: Long
     }
 
-    @Serializable @SerialName("insert")
+    @Serializable
+    @SerialName("insert")
     data class Insert(override val localId: Long, val set: QueuedSet) : IdBased()
 
-    @Serializable @SerialName("update")
+    @Serializable
+    @SerialName("update")
     data class Update(override val localId: Long, val set: QueuedSet) : IdBased()
 
-    @Serializable @SerialName("delete")
+    @Serializable
+    @SerialName("delete")
     data class Delete(override val localId: Long) : IdBased()
 
-    @Serializable @SerialName("delete_natural_key")
+    @Serializable
+    @SerialName("delete_natural_key")
     data class DeleteNaturalKey(
         val date: String,
         val exerciseId: Long,
@@ -108,7 +112,8 @@ sealed class PendingWrite {
      * A non-null [blockedCode] preserves a rejected local edit for explicit
      * reconciliation instead of retrying forever or silently discarding it.
      */
-    @Serializable @SerialName("mutation_v1")
+    @Serializable
+    @SerialName("mutation_v1")
     data class MutationV1(
         override val localId: Long,
         val params: MutateWorkoutSetV1Params,
@@ -118,7 +123,8 @@ sealed class PendingWrite {
     ) : IdBased()
 
     /** Immutable, idempotent compact/expanded card mutation. */
-    @Serializable @SerialName("card_display_mutation_v1")
+    @Serializable
+    @SerialName("card_display_mutation_v1")
     data class CardDisplayMutationV1(
         val params: MutateWorkoutCardDisplayV1Params,
         val desiredCard: QueuedWorkoutCard,
@@ -126,7 +132,8 @@ sealed class PendingWrite {
     ) : PendingWrite()
 
     /** Immutable, idempotent provenance transition authored by split replacement. */
-    @Serializable @SerialName("card_split_origin_mutation_v1")
+    @Serializable
+    @SerialName("card_split_origin_mutation_v1")
     data class CardSplitOriginMutationV1(
         val params: MarkWorkoutCardSplitV1Params,
         val desiredCard: QueuedWorkoutCard,

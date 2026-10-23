@@ -1,7 +1,5 @@
 package com.ayman.ecolift.ui.hub
 
-import com.ayman.ecolift.ui.navigation.formatMonthDay
-
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -55,19 +53,18 @@ import com.ayman.ecolift.data.hub.HubDay
 import com.ayman.ecolift.data.hub.HubDayKind
 import com.ayman.ecolift.data.hub.HubItem
 import com.ayman.ecolift.data.hub.UncheckedSetsItem
+import com.ayman.ecolift.ui.navigation.formatMonthDay
+import com.ayman.ecolift.ui.navigation.rotationRegionColor
 import com.ayman.ecolift.ui.theme.DataText
+import com.ayman.ecolift.ui.theme.EspressoPalette
 import com.ayman.ecolift.ui.theme.GlassPalette
+import com.ayman.ecolift.ui.theme.LocalGlassPalette
+import com.ayman.ecolift.ui.theme.LogDisplayFontFamily
+import com.ayman.ecolift.ui.theme.LogType
+import com.ayman.ecolift.ui.theme.SheetSansFontFamily
 import com.ayman.ecolift.ui.viewmodel.DataPart
 import com.ayman.ecolift.ui.viewmodel.data
 import com.ayman.ecolift.ui.viewmodel.filler
-import com.ayman.ecolift.ui.theme.EspressoPalette
-import com.ayman.ecolift.ui.theme.LocalGlassPalette
-import com.ayman.ecolift.ui.theme.SheetSansFontFamily
-import com.ayman.ecolift.ui.navigation.rotationRegionColor
-import com.ayman.ecolift.ui.theme.LogDisplayFontFamily
-import com.ayman.ecolift.ui.theme.LogType
-import com.ayman.ecolift.ui.theme.LogUiFontFamily
-import com.ayman.ecolift.ui.theme.glassPanel
 import com.ayman.ecolift.web.util.MONTH_ABBREV
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate

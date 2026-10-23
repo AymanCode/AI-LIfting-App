@@ -110,7 +110,9 @@ internal fun finishGroups(
         val learned = slot == null || slot.learned || evidence >= 2
         val seed = slot != null && !learned
         val createdAt = slot?.createdAt ?: 0L
-        val fresh = seed && sessions.isEmpty() && createdAt > 0L &&
+        val fresh = seed &&
+            sessions.isEmpty() &&
+            createdAt > 0L &&
             epochDayOfMillis(createdAt) >= asOf - tunables.freshSplitDays
         LearnedGroup(
             key = unit.key,

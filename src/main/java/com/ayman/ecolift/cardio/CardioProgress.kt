@@ -78,7 +78,9 @@ object CardioProgress {
             session.avgSpeed?.let { it * 2.23694 }
                 ?: if ((session.durationSec ?: 0) > 0 && (session.distanceM ?: 0.0) > 0.0) {
                     (session.distanceM!! / session.durationSec!!) * 2.23694
-                } else null
+                } else {
+                    null
+                }
         }
         ProgressMetric.PACE -> CardioInsights.derivedPaceSec(session)?.toDouble()
         ProgressMetric.DISTANCE -> {
@@ -101,7 +103,9 @@ object CardioProgress {
             val dur = session.durationSec
             if (f != null && dur != null && dur > 0) {
                 f.toDouble() / (dur / 60.0)
-            } else null
+            } else {
+                null
+            }
         }
         ProgressMetric.FLOORS -> session.floors?.toDouble()
         ProgressMetric.DURATION -> session.durationSec?.let { it / 60.0 }

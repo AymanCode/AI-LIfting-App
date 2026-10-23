@@ -38,7 +38,9 @@ class ExerciseEmbeddingIndex {
                         sharedPattern = candidatePattern.name,
                         transferRatioToQuery = transferRatioToQuery,
                     )
-                } else null
+                } else {
+                    null
+                }
             }
             .sortedByDescending { it.similarityScore }
             .take(k)

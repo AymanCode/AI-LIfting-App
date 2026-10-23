@@ -1,7 +1,5 @@
 package com.ayman.ecolift.agent
 
-import com.ayman.ecolift.web.util.countLabel
-
 import com.ayman.ecolift.agent.engine.LocalGenAiEngine
 import com.ayman.ecolift.agent.engine.Prompts
 import com.ayman.ecolift.agent.model.DbPatch
@@ -20,12 +18,10 @@ import com.ayman.ecolift.agent.tools.SetSummary
 import com.ayman.ecolift.agent.tools.WeightSuggestion
 import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.web.util.MONTH_ABBREV
+import com.ayman.ecolift.web.util.countLabel
 import com.ayman.ecolift.web.util.formatFixed
-import com.ayman.ecolift.web.util.minusDays
 import com.ayman.ecolift.web.util.plusDays
 import com.ayman.ecolift.web.util.todayLocalDate
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.Json
@@ -34,6 +30,8 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.doubleOrNull
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 data class AgentProcessingOptions(
     val allowModelFallback: Boolean = true

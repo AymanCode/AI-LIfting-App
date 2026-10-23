@@ -6,7 +6,6 @@ import com.ayman.ecolift.data.SessionPoint
 import com.ayman.ecolift.data.SplitBucketKind
 import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.epleyEstimate
-import com.ayman.ecolift.data.normalizedUserBodyweightLbs
 import com.ayman.ecolift.web.util.minusMonths
 import kotlinx.datetime.LocalDate
 import kotlin.math.roundToInt

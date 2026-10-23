@@ -103,12 +103,14 @@ internal fun groupWallYAxis(min: Double, max: Double, exactFlat: Boolean): Group
     val span = maxOf(max - min, abs(max) * 0.04, 1.0)
     val lo = min - span * 0.08
     val hi = max + span * 0.08
-    for (k in -1..6) for (m in listOf(1.0, 2.0, 2.5, 5.0)) {
+    for (k in -1..6) {
+        for (m in listOf(1.0, 2.0, 2.5, 5.0)) {
         val step = m * 10.0.pow(k)
         val first = ceil(lo / step).toLong()
         val ticks = generateSequence(first) { it + 1 }.map { it * step }.takeWhile { it <= hi + 1e-9 }
             .map(::round2).take(4).toList()
         if (ticks.size in 1..3) return GroupWallYAxis(ticks, lo, hi)
+    }
     }
     return GroupWallYAxis(emptyList(), lo, hi)
 }
@@ -201,7 +203,9 @@ internal fun groupWallTile(
         GroupWallPoint(LocalDate.parse(event.date), groupWallScore(event.to, exercise.isBodyweight, bodyweightLbs, unit))
     }, start, end)
     val xTicks = groupWallXTicks(start, end)
-    val chart = if (points.isEmpty()) GroupWallChartUi(unit = unit.label, xTicks = xTicks) else {
+    val chart = if (points.isEmpty()) {
+        GroupWallChartUi(unit = unit.label, xTicks = xTicks)
+    } else {
         val axis = groupWallYAxis(points.minOf { it.value }, points.maxOf { it.value }, exactFlat = unit != GroupWallUnit.ONE_RM)
         val range = axis.hi - axis.lo
         GroupWallChartUi(

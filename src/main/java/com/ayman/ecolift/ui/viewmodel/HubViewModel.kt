@@ -1,10 +1,9 @@
 package com.ayman.ecolift.ui.viewmodel
 
-import com.ayman.ecolift.web.supabase.sync.orThrow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.Exercise
+import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.hub.BacklogItem
 import com.ayman.ecolift.data.hub.HubBuild
@@ -16,14 +15,14 @@ import com.ayman.ecolift.data.hub.withoutItems
 import com.ayman.ecolift.ui.hub.HubSwipe
 import com.ayman.ecolift.web.AppRepos
 import com.ayman.ecolift.web.supabase.AssistantChangeRow
+import com.ayman.ecolift.web.supabase.sync.orThrow
 import com.ayman.ecolift.web.util.todayLocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update

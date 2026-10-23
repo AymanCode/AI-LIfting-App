@@ -14,17 +14,17 @@ data class CycleProgressCore(
     val startDate: String,
     val endDate: String,
     val spanDays: Int,
-    val sessions: Int,                  // distinct workout dates on slot days
+    val sessions: Int, // distinct workout dates on slot days
     val sessionsPerWeek: Float,
-    val sessionDates: List<String>,     // for the heatmap
+    val sessionDates: List<String>, // for the heatmap
     val totalSets: Int,
-    val repBuckets: List<RepBucket>,    // Strength/Hypertrophy/Endurance/Metabolic
-    val liftsBySplit: List<LiftTrend>,  // per-exercise, per-split within-cycle trend
+    val repBuckets: List<RepBucket>, // Strength/Hypertrophy/Endurance/Metabolic
+    val liftsBySplit: List<LiftTrend>, // per-exercise, per-split within-cycle trend
     val lifts: List<ExerciseLiftTrend>, // one rolled-up trend per exercise
 )
 
 data class RepBucket(
-    val label: String,                  // "Strength" etc.
+    val label: String, // "Strength" etc.
     val minReps: Int, val maxReps: Int, // maxReps = Int.MAX_VALUE for open bucket
     val sets: Int, val pctOfSets: Float,
 )
@@ -36,9 +36,9 @@ data class LiftTrend(
     val splitName: String,
     val metric: LiftMetric,
     val isBodyweight: Boolean,
-    val points: List<TrendPoint>,       // within-cycle session series, date-sorted
-    val slopePerWeek: Float?,           // null if <2 points or zero variance
-    val r2: Float?,                     // null if undefined
+    val points: List<TrendPoint>, // within-cycle session series, date-sorted
+    val slopePerWeek: Float?, // null if <2 points or zero variance
+    val r2: Float?, // null if undefined
     val unitLabel: String,              // "lb/wk" or "reps/wk"
 )
 
@@ -57,9 +57,9 @@ data class ExerciseLiftTrend(
 data class CycleComparison(
     val window: ComparisonWindow,
     val lifts: List<LiftComparison>,
-    val progression: Float,             // 0..100
-    val momentum: Float,                // 0..100
-    val consistency: Float,             // 0..100
+    val progression: Float, // 0..100
+    val momentum: Float, // 0..100
+    val consistency: Float, // 0..100
     val improvedCount: Int, val heldCount: Int, val regressedCount: Int,
     val comparedCount: Int,             // lifts with a usable prior baseline
 )
@@ -69,13 +69,13 @@ data class LiftComparison(
     val name: String,
     val metric: LiftMetric,
     val isBodyweight: Boolean,
-    val isNew: Boolean,                 // no prior data -> excluded from aggregates
-    val baselineValue: Float?,          // projected/point prior baseline at cycle end
-    val endValue: Float?,               // actual end value
-    val vsPct: Float?,                  // (end - baseline)/baseline * 100
+    val isNew: Boolean, // no prior data -> excluded from aggregates
+    val baselineValue: Float?, // projected/point prior baseline at cycle end
+    val endValue: Float?, // actual end value
+    val vsPct: Float?, // (end - baseline)/baseline * 100
     val currentRatePctPerMonth: Float?, // within-cycle % rate
-    val priorRatePctPerMonth: Float?,   // prior-window % rate (null if point fallback)
-    val momentumScore: Float?,          // 0..100, null if no prior rate
+    val priorRatePctPerMonth: Float?, // prior-window % rate (null if point fallback)
+    val momentumScore: Float?, // 0..100, null if no prior rate
     val movement: Movement,
     val totalSets: Int,
 )
@@ -87,6 +87,6 @@ data class ScoreWeights(
 ) { companion object { val PRESET = ScoreWeights() } }
 
 data class ScoreBreakdown(
-    val composite: Int,                 // 0..100
+    val composite: Int, // 0..100
     val progression: Float, val momentum: Float, val consistency: Float,
 )

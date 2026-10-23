@@ -17,6 +17,16 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.AllInclusive
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Pool
+import androidx.compose.material.icons.filled.Rowing
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Stairs
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -31,6 +41,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -40,8 +51,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
@@ -60,19 +73,6 @@ import com.ayman.ecolift.ui.theme.DawnPalette
 import com.ayman.ecolift.ui.theme.LogUiFontFamily
 import com.ayman.ecolift.ui.theme.SheetSerifFontFamily
 import com.ayman.ecolift.ui.viewmodel.DataPart
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.DirectionsBike
-import androidx.compose.material.icons.automirrored.filled.DirectionsRun
-import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
-import androidx.compose.material.icons.filled.AllInclusive
-import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.Pool
-import androidx.compose.material.icons.filled.Rowing
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Stairs
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.rememberTextMeasurer
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlin.math.*
@@ -115,7 +115,9 @@ fun sessionMetaLine(session: CardioSession): String {
                     val m = pace / 60
                     val s = pace % 60
                     "$m:${s.toString().padStart(2, '0')} /mi"
-                } else null
+                } else {
+                    null
+                }
             }
         }
         CardioActivityType.ROW -> {
@@ -126,7 +128,9 @@ fun sessionMetaLine(session: CardioSession): String {
                 "$m:${s.toString().padStart(2, '0')} /500m"
             } else if (session.strokeRateSpm != null) {
                 "${session.strokeRateSpm} spm"
-            } else null
+            } else {
+                null
+            }
         }
         CardioActivityType.BIKE -> {
             if (session.avgPowerWatts != null) {
@@ -136,7 +140,9 @@ fun sessionMetaLine(session: CardioSession): String {
             } else if (session.avgSpeed != null) {
                 val mph = CardioFieldRules.fromStorage(CardioEntryField.AVG_SPEED_MPH, type, session.avgSpeed)
                 "${CardioFieldRules.display(CardioEntryField.AVG_SPEED_MPH, type, mph)} mph"
-            } else null
+            } else {
+                null
+            }
         }
         CardioActivityType.ELLIPTICAL -> {
             if (session.avgPowerWatts != null) {
@@ -145,7 +151,9 @@ fun sessionMetaLine(session: CardioSession): String {
                 "${session.cadenceRpm} rpm"
             } else if (session.resistanceLevel != null) {
                 "lvl ${CardioFieldRules.display(CardioEntryField.RESISTANCE_LEVEL, type, session.resistanceLevel)}"
-            } else null
+            } else {
+                null
+            }
         }
         CardioActivityType.STAIR_CLIMBER -> {
             if (session.floors != null) "${session.floors} floors" else null
@@ -156,13 +164,17 @@ fun sessionMetaLine(session: CardioSession): String {
                 val m = pace / 60
                 val s = pace % 60
                 "$m:${s.toString().padStart(2, '0')} /100m"
-            } else null
+            } else {
+                null
+            }
         }
         CardioActivityType.OTHER -> {
             if (session.avgSpeed != null) {
                 val mph = CardioFieldRules.fromStorage(CardioEntryField.AVG_SPEED_MPH, type, session.avgSpeed)
                 "${CardioFieldRules.display(CardioEntryField.AVG_SPEED_MPH, type, mph)} mph"
-            } else null
+            } else {
+                null
+            }
         }
     }
 

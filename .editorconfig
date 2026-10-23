@@ -62,3 +62,15 @@ ktlint_standard_value-parameter-comment = disabled
 # `org.junit.Assert.*` and `org.mockito.kotlin.*` are the conventional way to
 # pull in assertion and stubbing DSLs. Production code stays explicit.
 ktlint_standard_no-wildcard-imports = disabled
+
+# Copied from the web snapshot. Leaving the imports as copied keeps a later snapshot diffable.
+[src/main/java/com/ayman/ecolift/ui/**.kt]
+ktlint_standard_no-wildcard-imports = disabled
+ktlint_standard_filename = disabled
+
+[src/main/java/com/ayman/ecolift/web/**.kt]
+ktlint_standard_no-wildcard-imports = disabled
+ktlint_standard_filename = disabled
+
+[src/main/java/com/ayman/ecolift/data/splits/YearEras.kt]
+ktlint_standard_filename = disabled

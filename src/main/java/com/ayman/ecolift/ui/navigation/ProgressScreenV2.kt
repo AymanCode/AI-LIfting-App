@@ -1,9 +1,5 @@
 package com.ayman.ecolift.ui.navigation
 
-import com.ayman.ecolift.web.util.noun
-import com.ayman.ecolift.web.util.countLabel
-
-import kotlin.math.roundToInt
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -17,12 +13,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -31,7 +26,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -39,12 +34,9 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -52,95 +44,44 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.TrendingDown
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.outlined.LocalShipping
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.listSaver
-import androidx.compose.runtime.snapshots.SnapshotStateMap
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.SubcomposeLayout
-import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.TextUnit
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Refresh
-import com.ayman.ecolift.ui.theme.EspressoMuscleDot
-import com.ayman.ecolift.ui.theme.EspressoShape
-import com.ayman.ecolift.ui.viewmodel.ChangelogChapter
-import com.ayman.ecolift.ui.viewmodel.TimeframeFilter
-import com.ayman.ecolift.ui.viewmodel.TopSet
-import com.ayman.ecolift.ui.viewmodel.progressWindowStart
-import com.ayman.ecolift.agent.assist.AnalysisSource
-import com.ayman.ecolift.ui.viewmodel.AnalysisState
-import com.ayman.ecolift.ui.viewmodel.ChangelogEvent
-import com.ayman.ecolift.ui.viewmodel.ChangelogKind
-import com.ayman.ecolift.ui.viewmodel.ExerciseReport
-import com.ayman.ecolift.ui.viewmodel.FullMonthNames
-import com.ayman.ecolift.ui.viewmodel.LadderRung
-import com.ayman.ecolift.ui.viewmodel.NextStep
-import com.ayman.ecolift.ui.viewmodel.Pace
-import com.ayman.ecolift.ui.viewmodel.data
-import com.ayman.ecolift.ui.viewmodel.formatLoad
-import com.ayman.ecolift.ui.viewmodel.otherSets
-import com.ayman.ecolift.ui.viewmodel.supportingSetLabel
-import com.ayman.ecolift.ui.viewmodel.formatTopSet
-import com.ayman.ecolift.ui.viewmodel.kindLabel
-import com.ayman.ecolift.ui.viewmodel.shortDate
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.ayman.ecolift.data.WeightLbs
-import com.ayman.ecolift.ui.theme.EspressoDeltaChip
-import com.ayman.ecolift.ui.theme.EspressoEyebrow
-import com.ayman.ecolift.ui.theme.EspressoIconButton
-import com.ayman.ecolift.ui.theme.EspressoMasthead
-import com.ayman.ecolift.ui.theme.EspressoPalette
-import com.ayman.ecolift.ui.theme.EspressoRangeTrack
-import com.ayman.ecolift.ui.theme.EspressoSectionHeader
-import com.ayman.ecolift.ui.theme.EspressoTabPills
-import com.ayman.ecolift.ui.theme.EspressoTile
-import com.ayman.ecolift.ui.theme.EspressoTone
-import com.ayman.ecolift.ui.theme.EspressoType
-import com.ayman.ecolift.ui.theme.LogDisplayFontFamily
-import com.ayman.ecolift.ui.theme.QuietIcon
-import com.ayman.ecolift.ui.theme.QuietIconName
-import com.ayman.ecolift.ui.theme.SheetSansFontFamily
-import androidx.compose.foundation.layout.offset
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -150,52 +91,81 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ayman.ecolift.ui.theme.GlassPaletteChoice
-import com.ayman.ecolift.ui.theme.LocalGlassPalette
-import com.ayman.ecolift.ui.theme.LogType
-import com.ayman.ecolift.ui.theme.LogUiFontFamily
-import com.ayman.ecolift.ui.theme.glassPanel
-import com.ayman.ecolift.data.progress.volumeEquivalence
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ayman.ecolift.R
+import com.ayman.ecolift.agent.assist.AnalysisSource
+import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.selectableBodyPartGroups
 import com.ayman.ecolift.data.selectableBodyPartParts
-import com.ayman.ecolift.ui.viewmodel.ProgressHeroUi
-import com.ayman.ecolift.ui.viewmodel.MonthViewModel
 import com.ayman.ecolift.ui.month.MonthSheetScreen
-import com.ayman.ecolift.web.util.DAY_ABBREV
+import com.ayman.ecolift.ui.theme.EspressoEyebrow
+import com.ayman.ecolift.ui.theme.EspressoMuscleDot
+import com.ayman.ecolift.ui.theme.EspressoPalette
+import com.ayman.ecolift.ui.theme.EspressoRangeTrack
+import com.ayman.ecolift.ui.theme.EspressoShape
+import com.ayman.ecolift.ui.theme.EspressoType
+import com.ayman.ecolift.ui.theme.GlassPaletteChoice
+import com.ayman.ecolift.ui.theme.LocalGlassPalette
+import com.ayman.ecolift.ui.theme.LogDisplayFontFamily
+import com.ayman.ecolift.ui.theme.LogType
+import com.ayman.ecolift.ui.theme.LogUiFontFamily
+import com.ayman.ecolift.ui.theme.QuietIcon
+import com.ayman.ecolift.ui.theme.QuietIconName
+import com.ayman.ecolift.ui.theme.SheetSansFontFamily
+import com.ayman.ecolift.ui.theme.glassPanel
+import com.ayman.ecolift.ui.viewmodel.AnalysisState
+import com.ayman.ecolift.ui.viewmodel.ChangelogChapter
+import com.ayman.ecolift.ui.viewmodel.ChangelogEvent
+import com.ayman.ecolift.ui.viewmodel.ExerciseReport
+import com.ayman.ecolift.ui.viewmodel.MonthViewModel
+import com.ayman.ecolift.ui.viewmodel.Pace
+import com.ayman.ecolift.ui.viewmodel.ProgressHeroUi
+import com.ayman.ecolift.ui.viewmodel.TimeframeFilter
+import com.ayman.ecolift.ui.viewmodel.TopSet
+import com.ayman.ecolift.ui.viewmodel.data
+import com.ayman.ecolift.ui.viewmodel.formatLoad
+import com.ayman.ecolift.ui.viewmodel.formatTopSet
+import com.ayman.ecolift.ui.viewmodel.progressWindowStart
+import com.ayman.ecolift.ui.viewmodel.shortDate
+import com.ayman.ecolift.ui.viewmodel.supportingSetLabel
+import com.ayman.ecolift.web.LocalRepos
 import com.ayman.ecolift.web.util.MONTH_ABBREV
+import com.ayman.ecolift.web.util.countLabel
 import com.ayman.ecolift.web.util.formatFixed
 import com.ayman.ecolift.web.util.formatWholeGrouped
+import com.ayman.ecolift.web.util.noun
 import com.ayman.ecolift.web.util.shareProgressRecap
-import com.ayman.ecolift.web.LocalRepos
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.plus
-import androidx.compose.ui.res.painterResource
-import com.ayman.ecolift.R
-import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.sin
+import kotlin.math.roundToInt
 
 enum class TimeRangeV2(val label: String) { TWO_WEEKS("2W"), ONE_MONTH("1M"), THREE_MONTHS("3M"), SIX_MONTHS("6M"), ONE_YEAR("1Y"), ALL("All") }
 enum class ProgressMetricV2 { ESTIMATED_1RM, WEIGHT, VOLUME, REPS }
@@ -1070,7 +1040,9 @@ private fun ReportMuscleChip(
                     leadingIcon = { EspressoMuscleDot(color = rotationRegionColor(choice), size = 10) },
                     trailingIcon = if (isSelected) {
                         { Icon(Icons.Default.Check, contentDescription = null, tint = EspressoPalette.ink, modifier = Modifier.size(16.dp)) }
-                    } else null,
+                    } else {
+                        null
+                    },
                     onClick = {
                         expanded = false
                         onMuscleGroupChange(choice)
@@ -1140,7 +1112,9 @@ private fun ReportChartCard(
                 prDate = report.unbeatenSince?.let(LocalDate::parse),
                 pace = pace,
             )
-        } else null
+        } else {
+            null
+        }
         val events = report.events
         SketchProgressChart(
             dataPoints = dataPoints,
@@ -1384,7 +1358,9 @@ private fun ReportScoreRow(report: ExerciseReport, modifier: Modifier = Modifier
             val reps = top.reps - first.reps
             Triple((if (reps > 0) "+" else if (reps < 0) "−" else "") + abs(reps), if (abs(reps) == 1) "rep" else "reps", reps > 0)
         }
-    } else null
+    } else {
+        null
+    }
     val perWeek = if (report.setsPerWeek < 10f) formatFixed(report.setsPerWeek.toDouble(), 1) else "${report.setsPerWeek.roundToInt()}"
     Row(
         modifier = modifier
@@ -3241,7 +3217,7 @@ private fun buildProgressShareText(
     val month = sessionsThisMonthLabel?.let { " $it." }.orEmpty()
     return "My EcoLift recap: ${hero.lifetimeVolumeLabel} lb moved across " +
         "${countLabel(hero.sessionCount, "session")}, ${countLabel(hero.completedSetCount, "completed set")}, and " +
-        "${formatWholeGrouped(hero.totalRepCount.toDouble())} ${noun(hero.totalRepCount, "rep")}.${month}${leadWin}"
+        "${formatWholeGrouped(hero.totalRepCount.toDouble())} ${noun(hero.totalRepCount, "rep")}.${month}$leadWin"
 }
 
 @Composable

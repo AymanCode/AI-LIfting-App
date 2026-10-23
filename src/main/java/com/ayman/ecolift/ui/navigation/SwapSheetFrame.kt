@@ -30,7 +30,6 @@ import com.ayman.ecolift.ui.theme.EspressoPalette
 import com.ayman.ecolift.ui.theme.rememberReducedMotion
 import com.ayman.ecolift.web.util.keyboardOverlap
 
-
 /** One retained app-scene surface for the ledger and active-card swap flows. */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable

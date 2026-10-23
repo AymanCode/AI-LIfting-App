@@ -1,6 +1,5 @@
 package com.ayman.ecolift.ui.navigation
 
-import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -10,19 +9,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ayman.ecolift.ui.viewmodel.LogViewModel
 import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.splits.SplitSwitchIntent
 import com.ayman.ecolift.data.splits.SplitSwitchOutcome
-import androidx.compose.ui.Modifier
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
 import com.ayman.ecolift.ui.theme.LogGlassPalette
 import com.ayman.ecolift.ui.theme.palette
+import com.ayman.ecolift.ui.viewmodel.LogViewModel
 import com.ayman.ecolift.web.LocalRepos
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onSubscription
+import kotlin.math.roundToInt
 
 @Composable
 fun TodayScreen(
@@ -66,7 +66,9 @@ fun TodayScreen(
     // The new history projection has no collector (and no work) on a Log with cards.
     val emptyDayLedger = if (uiState.exercises.isEmpty()) {
         viewModel.emptyDayLedger.collectAsStateWithLifecycle().value
-    } else com.ayman.ecolift.ui.viewmodel.EmptyDayLedgerUi()
+    } else {
+        com.ayman.ecolift.ui.viewmodel.EmptyDayLedgerUi()
+    }
     val attributedSlotId by viewModel.attributedSlotId.collectAsStateWithLifecycle()
     val dayUndo by viewModel.dayUndo.collectAsStateWithLifecycle()
     val exerciseSwap by viewModel.exerciseSwap.collectAsStateWithLifecycle()

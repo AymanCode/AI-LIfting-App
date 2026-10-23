@@ -29,6 +29,7 @@ internal object ShaderWarmup {
 
 internal fun Modifier.watchTouchesForWarmup(): Modifier = this
 
+internal const val TAB_ARRIVAL_FRAMES = 4
 internal const val TAB_TRANSITION_MS = 230
 internal const val TAB_SHIFT_DP = 17
 internal val TabTransitionEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)

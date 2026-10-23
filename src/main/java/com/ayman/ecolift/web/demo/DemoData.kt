@@ -332,7 +332,6 @@ object DemoData {
             CardioSpec(10, CardioActivityType.TREADMILL, 30, calories = 365, notes = "Strong finish", avgSpeed = 2.58, avgHeartRate = 149, avgInclinePercent = 2.0),
             CardioSpec(6, CardioActivityType.TREADMILL, 30, calories = 370, notes = "Legs felt fresh", avgSpeed = 2.59, avgHeartRate = 148, avgInclinePercent = 2.0),
             CardioSpec(2, CardioActivityType.TREADMILL, 30, calories = 375, notes = "Quick tempo", avgSpeed = 2.60, avgHeartRate = 148, avgInclinePercent = 2.0),
-
             // Bike (8 sessions weekly, watts 170 -> 192)
             CardioSpec(85, CardioActivityType.BIKE, 40, calories = 380, notes = "Base ride", avgPowerWatts = 170, cadenceRpm = 84, resistanceLevel = 7.0, avgHeartRate = 136),
             CardioSpec(78, CardioActivityType.BIKE, 40, calories = 385, notes = "Zone 2 spin", avgPowerWatts = 173, cadenceRpm = 85, resistanceLevel = 7.0, avgHeartRate = 137),
@@ -342,7 +341,6 @@ object DemoData {
             CardioSpec(31, CardioActivityType.BIKE, 50, calories = 460, notes = "Long weekend ride", avgPowerWatts = 185, cadenceRpm = 88, resistanceLevel = 9.0, avgHeartRate = 142),
             CardioSpec(19, CardioActivityType.BIKE, 40, calories = 415, notes = "Fast leg turnover", avgPowerWatts = 188, cadenceRpm = 88, resistanceLevel = 9.0, avgHeartRate = 141),
             CardioSpec(8, CardioActivityType.BIKE, 42, calories = 435, notes = "Power intervals", avgPowerWatts = 192, cadenceRpm = 89, resistanceLevel = 9.0, avgHeartRate = 143),
-
             // Rower (7 sessions every ~10 days, pace 134 -> 124 s/500m)
             CardioSpec(80, CardioActivityType.ROW, 20, calories = 220, notes = "Technique warmup", paceSecPer500m = 134, strokeRateSpm = 24, avgHeartRate = 145),
             CardioSpec(69, CardioActivityType.ROW, 20, calories = 225, notes = "Power stroke", paceSecPer500m = 132, strokeRateSpm = 24, avgHeartRate = 146),
@@ -351,7 +349,6 @@ object DemoData {
             CardioSpec(37, CardioActivityType.ROW, 20, calories = 240, notes = "Mid-distance row", paceSecPer500m = 127, strokeRateSpm = 26, avgHeartRate = 148),
             CardioSpec(16, CardioActivityType.ROW, 15, calories = 190, notes = "Post-run cooldown", paceSecPer500m = 126, strokeRateSpm = 26, avgHeartRate = 148),
             CardioSpec(5, CardioActivityType.ROW, 18, calories = 245, notes = "Pace PR attempt", paceSecPer500m = 124, strokeRateSpm = 27, avgHeartRate = 149),
-
             // Stairs (2 sessions)
             CardioSpec(60, CardioActivityType.STAIR_CLIMBER, 15, calories = 140, notes = "Stair interval", floors = 64, avgHeartRate = 152),
             CardioSpec(14, CardioActivityType.STAIR_CLIMBER, 15, calories = 155, notes = "Steep climb", floors = 72, avgHeartRate = 155),

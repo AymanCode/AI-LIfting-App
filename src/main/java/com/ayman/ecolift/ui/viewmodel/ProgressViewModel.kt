@@ -1,23 +1,21 @@
 package com.ayman.ecolift.ui.viewmodel
 
-import com.ayman.ecolift.data.isCheckedWorking
-import com.ayman.ecolift.web.util.countLabel
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ayman.ecolift.ai.ExerciseMuscleClassifier
 import com.ayman.ecolift.agent.assist.AssistService
 import com.ayman.ecolift.agent.engine.LocalGenAiEngine
 import com.ayman.ecolift.agent.tools.AgentToolsImpl
+import com.ayman.ecolift.ai.ExerciseMuscleClassifier
 import com.ayman.ecolift.data.Exercise
+import com.ayman.ecolift.data.UNCLASSIFIED_MUSCLE_GROUPS
 import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutDates
 import com.ayman.ecolift.data.WorkoutSet
-import com.ayman.ecolift.data.progress.volumeEquivalence
+import com.ayman.ecolift.data.isCheckedWorking
+import com.ayman.ecolift.data.normalizeBodyPartGroup
 import com.ayman.ecolift.data.progress.highlights.HighlightReelSnapshot
 import com.ayman.ecolift.data.progress.highlights.buildHighlightReelSnapshot
-import com.ayman.ecolift.data.UNCLASSIFIED_MUSCLE_GROUPS
-import com.ayman.ecolift.data.normalizeBodyPartGroup
+import com.ayman.ecolift.data.progress.volumeEquivalence
 import com.ayman.ecolift.data.selectableBodyPartParts
 import com.ayman.ecolift.data.suggestMuscleGroup
 import com.ayman.ecolift.web.AppRepos
@@ -25,6 +23,7 @@ import com.ayman.ecolift.web.Diagnostics
 import com.ayman.ecolift.web.demo.DemoGuard
 import com.ayman.ecolift.web.supabase.SyncErrors
 import com.ayman.ecolift.web.supabase.UserVisibleSyncException
+import com.ayman.ecolift.web.util.countLabel
 import com.ayman.ecolift.web.util.formatFixed
 import com.ayman.ecolift.web.util.groupThousands
 import com.ayman.ecolift.web.util.minusDays
@@ -35,18 +34,18 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
@@ -125,7 +124,9 @@ class ProgressViewModel(
         val start = if (filter == TimeframeFilter.ALL_TIME) {
             source.sets.filter { com.ayman.ecolift.data.WorkoutMetrics.isStrengthEligible(it) && it.date <= end.toString() }
                 .minOfOrNull { it.date }?.let(LocalDate::parse) ?: end
-        } else progressWindowStart(filter, end)
+        } else {
+            progressWindowStart(filter, end)
+        }
         buildGroupWall(source, start, end, ::safeCanonicalId, bodyweight)
     }
 
@@ -169,7 +170,9 @@ class ProgressViewModel(
             val report = buildExerciseReport(historySets, summary.isBodyweight, progressWindowStart(filter, now), now)
             val change = if (overview.points.size > 1 && overview.points.first().value > 0f) {
                 (overview.points.last().value / overview.points.first().value - 1f) * 100f
-            } else 0f
+            } else {
+                0f
+            }
             val rangeDelta = calculateProgressWindowStat(rangePoints, summary.isBodyweight, userBodyweight)
             val monthDelta = calculatePastMonthDeltaLabel(
                 points = chartPoints,
@@ -204,7 +207,6 @@ class ProgressViewModel(
                 rangeStatSign = rangeDelta?.sign ?: 0,
                 rangeStatContext = rangeDelta?.subLabel,
                 firstSessionIsoDate = chartPoints.firstOrNull()?.date,
-
                 monthDeltaLabel = monthDelta?.label,
                 monthDeltaSign = monthDelta?.sign ?: 0,
                 monthDeltaSubLabel = monthDelta?.subLabel,
@@ -282,7 +284,9 @@ class ProgressViewModel(
                         suggestMuscleGroup(exercise.name, exercises.filter {
                             selectableBodyPartParts(it.muscleGroups).isNotEmpty()
                         })?.group
-                    } else null,
+                    } else {
+                        null
+                    },
                     isBodyweight = isBodyweight,
                     userBodyweightLbs = userBodyweight,
                     chartPoints = chartPoints,
@@ -899,7 +903,9 @@ internal fun calculateProgressWindowStat(points: List<ProgressPointUi>, isBodywe
         if (isBodyweight) {
             val added = last.maxWeight
             if (added == 0) "at BW" else "at BW ${if (added > 0) "+" else "−"}${WeightLbs.formatStored(kotlin.math.abs(added))} lb"
-        } else "at ${WeightLbs.formatStored(last.maxWeight)} lb",
+        } else {
+            "at ${WeightLbs.formatStored(last.maxWeight)} lb"
+        },
     )
     if (weight != 0 && first.repsAtTopWeight == last.repsAtTopWeight) return PastMonthDelta(
         signedWeightLabel(weight), weight.compareTo(0), "at ${countLabel(last.repsAtTopWeight, "rep")}",

@@ -59,6 +59,7 @@ data class YearMonthW(val year: Int, val month: Int) {
 
     companion object {
         fun from(date: LocalDate): YearMonthW = YearMonthW(date.year, date.month.ordinal + 1)
+
         @OptIn(ExperimentalTime::class)
         fun now(): YearMonthW = from(todayLocalDate())
     }

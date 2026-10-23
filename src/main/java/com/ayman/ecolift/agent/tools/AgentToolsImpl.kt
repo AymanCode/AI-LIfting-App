@@ -172,7 +172,7 @@ class AgentToolsImpl(
             confidence = WeightSuggestion.Confidence.LOW,
             reasoning = "Transfer from ${sourced.name} (${WeightLbs.formatStored(sourceWeight)} lb, ratio ${
                 formatTwoDecimals(ratio)
-            }). Estimated: ${roundedLbs} lb for ${countLabel(targetReps, "rep")}. Log ${target.name} to calibrate."
+            }). Estimated: $roundedLbs lb for ${countLabel(targetReps, "rep")}. Log ${target.name} to calibrate."
         )
     }
 

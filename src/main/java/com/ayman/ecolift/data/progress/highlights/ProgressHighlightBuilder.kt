@@ -1,10 +1,9 @@
 package com.ayman.ecolift.data.progress.highlights
 
-import com.ayman.ecolift.web.util.countLabel
-
 import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutSet
+import com.ayman.ecolift.web.util.countLabel
 import com.ayman.ecolift.web.util.minusDays
 import com.ayman.ecolift.web.util.plusDays
 import kotlinx.datetime.LocalDate
@@ -80,10 +79,14 @@ fun buildHighlightReelSnapshot(
     }
     beats.forEach { frame ->
         // One fact once: the canonical Match Cut owns an identical eligible comparison.
-        if (cards.any { (it.frame as? ProgressHighlightFrame.MatchCut)?.let { match ->
-                match.canonicalExerciseId == frame.canonicalExerciseId && match.reps == frame.now.reps &&
-                    match.beforeDate == frame.then.date && match.nowDate == frame.now.date
-            } == true }) return@forEach
+        if (cards.any {
+            (it.frame as? ProgressHighlightFrame.MatchCut)?.let { match ->
+                match.canonicalExerciseId == frame.canonicalExerciseId &&
+                    match.reps == frame.now.reps &&
+                    match.beforeDate == frame.then.date &&
+                    match.nowDate == frame.now.date
+            } == true
+        }) return@forEach
         val monthBeats = monthJumps.filter { it.now.date.monthNumber == frame.now.date.monthNumber && it.now.date.year == frame.now.date.year }
         val largest = monthBeats.maxOf { it.deltaWeightLbsStored }
         val joint = monthBeats.filter { it.deltaWeightLbsStored == largest }.map { it.now.canonicalExerciseId }.distinct().size > 1
@@ -209,7 +212,7 @@ private fun buildBeats(observations: List<MatchObservation>, start: LocalDate): 
     }
 
 private fun buildRepeatableBests(observations: List<MatchObservation>, start: LocalDate): List<ProgressHighlightFrame.RepeatableBest> =
-    observations.groupBy { it.canonicalExerciseId }.values.mapNotNull liftLoop@ { lift ->
+    observations.groupBy { it.canonicalExerciseId }.values.mapNotNull liftLoop@{ lift ->
         val candidates = lift.groupBy { it.reps }.values.flatMap { sameReps ->
             var recordWeight = 0
             val records = sameReps.groupBy { it.date }.values.map { it.maxBy { set -> set.weightLbsStored } }
@@ -218,7 +221,7 @@ private fun buildRepeatableBests(observations: List<MatchObservation>, start: Lo
                     recordWeight = maxOf(recordWeight, set.weightLbsStored)
                     record
                 }
-            records.mapNotNull recordLoop@ { best ->
+            records.mapNotNull recordLoop@{ best ->
                 if (lift.any { it.date <= best.date && it.reps >= best.reps && it.weightLbsStored > best.weightLbsStored }) return@recordLoop null
                 val later = lift.filter { it.date > best.date && it.reps >= best.reps }.groupBy { it.date }.values
                     .map { day -> day.maxBy { it.weightLbsStored } }.sortedBy { it.date }
@@ -236,8 +239,10 @@ private fun buildRepeatableBests(observations: List<MatchObservation>, start: Lo
                 fun y(weight: Int) = (high - weight) / (high - low)
                 val span = (sessions.last().date.toEpochDays() - best.date.toEpochDays()).toFloat().coerceAtLeast(1f)
                 ProgressHighlightFrame.RepeatableBest(best.exerciseName, best.canonicalExerciseId, best.evidence(), held.toInt(),
-                    sessions, count, chartSessions.map { HighlightChartPoint((it.date.toEpochDays() - best.date.toEpochDays()) / span,
-                        y(it.weightLbsStored), it.weightLbsStored >= best.weightLbsStored) }, y(best.weightLbsStored))
+                    sessions, count, chartSessions.map {
+                        HighlightChartPoint((it.date.toEpochDays() - best.date.toEpochDays()) / span,
+                        y(it.weightLbsStored), it.weightLbsStored >= best.weightLbsStored)
+                    }, y(best.weightLbsStored))
             }
         }
         candidates.sortedWith(compareByDescending<ProgressHighlightFrame.RepeatableBest> { it.best.date }

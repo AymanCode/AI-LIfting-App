@@ -1,13 +1,9 @@
 package com.ayman.ecolift.android.room
 
-import com.ayman.ecolift.data.ExerciseAlias as DomainExerciseAlias
-import com.ayman.ecolift.data.ExerciseDistinctPair as DomainExerciseDistinctPair
 import com.ayman.ecolift.data.UnitSystem
 import com.ayman.ecolift.data.UserDataBackup
-import com.ayman.ecolift.data.UserSettings as DomainUserSettings
 import com.ayman.ecolift.data.WorkoutCardDisplayMode
 import com.ayman.ecolift.data.WorkoutCardOrigin
-import com.ayman.ecolift.data.WorkoutExerciseCard as DomainWorkoutExerciseCard
 import com.ayman.ecolift.data.room.CycleSlot
 import com.ayman.ecolift.data.room.Exercise
 import com.ayman.ecolift.data.room.USER_SETTINGS_ID
@@ -19,6 +15,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.ayman.ecolift.data.ExerciseAlias as DomainExerciseAlias
+import com.ayman.ecolift.data.ExerciseDistinctPair as DomainExerciseDistinctPair
+import com.ayman.ecolift.data.UserSettings as DomainUserSettings
+import com.ayman.ecolift.data.WorkoutExerciseCard as DomainWorkoutExerciseCard
 
 class RoomMappersTest {
     @Test

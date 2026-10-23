@@ -1,6 +1,5 @@
 package com.ayman.ecolift.ui.hub
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -62,8 +61,8 @@ import androidx.compose.ui.unit.sp
 import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.hub.UncheckedSetsItem
-import com.ayman.ecolift.ui.theme.GlassPalette
 import com.ayman.ecolift.ui.theme.EspressoPalette
+import com.ayman.ecolift.ui.theme.GlassPalette
 import com.ayman.ecolift.ui.theme.LocalGlassPalette
 import com.ayman.ecolift.ui.theme.LogDisplayFontFamily
 import com.ayman.ecolift.ui.theme.LogUiFontFamily
@@ -128,7 +127,6 @@ fun HubWorkoutCard(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-
         // What the exercise looked like the last time it was checked, as a target.
         if (lastTopSet != null || bestTopSet != null) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -185,7 +183,6 @@ fun HubWorkoutCard(
             nextSetNumber = nextSetNumber,
             onAddSet = onAddSet,
         )
-
 
         ActionButtonsRow(
             onConfirm = onConfirm,

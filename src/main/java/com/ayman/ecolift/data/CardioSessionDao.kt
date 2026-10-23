@@ -1,7 +1,5 @@
 package com.ayman.ecolift.data
 
-import com.ayman.ecolift.data.room.CardioSession as RoomCardioSession
-
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -9,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Update
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
+import com.ayman.ecolift.data.room.CardioSession as RoomCardioSession
 
 @Dao
 interface CardioSessionDao {

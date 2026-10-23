@@ -15,25 +15,22 @@ import com.ayman.ecolift.data.PendingReview
 import com.ayman.ecolift.data.SetQueries
 import com.ayman.ecolift.data.SplitExercise
 import com.ayman.ecolift.data.WeightLbs
+import com.ayman.ecolift.data.WorkoutCardDisplayMode
 import com.ayman.ecolift.data.WorkoutDates
 import com.ayman.ecolift.data.WorkoutDay
-import com.ayman.ecolift.data.WorkoutCardDisplayMode
 import com.ayman.ecolift.data.WorkoutExerciseCard
 import com.ayman.ecolift.data.WorkoutMetrics
 import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.epleyEstimate
-import com.ayman.ecolift.data.hasCycleSlotAssignment
 import com.ayman.ecolift.data.isCheckedWorking
 import com.ayman.ecolift.data.normalizeBodyPartGroup
 import com.ayman.ecolift.data.normalizedBodyweightLoad
 import com.ayman.ecolift.data.resolvedCycleSlotId
-import com.ayman.ecolift.data.visibleCycleSlots
 import com.ayman.ecolift.data.selectableBodyPartParts
+import com.ayman.ecolift.data.splits.LearnedModel
 import com.ayman.ecolift.data.splits.SplitChoicesState
 import com.ayman.ecolift.data.splits.SplitMemberChoice
 import com.ayman.ecolift.data.splits.SplitSeedBuilder
-import com.ayman.ecolift.data.splits.effectiveSplitMembers
-import com.ayman.ecolift.data.splits.learnedGroupLabel
 import com.ayman.ecolift.data.splits.SplitSwitch
 import com.ayman.ecolift.data.splits.SplitSwitchIntent
 import com.ayman.ecolift.data.splits.SplitSwitchOutcome
@@ -41,30 +38,32 @@ import com.ayman.ecolift.data.splits.SplitSwitchPlan
 import com.ayman.ecolift.data.splits.SplitSwitchPrecondition
 import com.ayman.ecolift.data.splits.SplitSwitchRequest
 import com.ayman.ecolift.data.splits.SplitSwitchTarget
+import com.ayman.ecolift.data.splits.effectiveSplitMembers
+import com.ayman.ecolift.data.splits.learnedGroupLabel
 import com.ayman.ecolift.data.suggestMuscleGroup
 import com.ayman.ecolift.data.suggestMuscleGroupFromKeywords
+import com.ayman.ecolift.data.visibleCycleSlots
 import com.ayman.ecolift.web.AppRepos
 import com.ayman.ecolift.web.demo.DemoGuard
 import com.ayman.ecolift.web.logDateFromLocation
-import com.ayman.ecolift.data.splits.LearnedModel
-import com.ayman.ecolift.web.supabase.ResolvedSplitReplacement
 import com.ayman.ecolift.web.supabase.ExerciseMergePreparationResult
 import com.ayman.ecolift.web.supabase.ExerciseMergeResult
 import com.ayman.ecolift.web.supabase.ExerciseRenameResult
+import com.ayman.ecolift.web.supabase.ResolvedSplitReplacement
 import com.ayman.ecolift.web.supabase.SplitReplacementResult
 import com.ayman.ecolift.web.supabase.SyncErrors
 import com.ayman.ecolift.web.supabase.UserVisibleSyncException
+import com.ayman.ecolift.web.supabase.sync.DayPendingWrite
 import com.ayman.ecolift.web.supabase.sync.LocalCommit
 import com.ayman.ecolift.web.supabase.sync.NotCommittedException
 import com.ayman.ecolift.web.supabase.sync.NotCommittedReason
 import com.ayman.ecolift.web.supabase.sync.orThrow
-import com.ayman.ecolift.web.supabase.sync.DayPendingWrite
 import com.ayman.ecolift.web.supabase.sync.toPendingWrite
 import com.ayman.ecolift.web.util.nowMillis
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
@@ -331,8 +330,9 @@ class LogViewModel(
             combine(currentDate, setRepository.sets, setRepository.cards) { _, _, _ -> Unit }.collect {
                 _exerciseSwapUndo.value?.let { swap ->
                     swapInvalidationJob?.cancel()
-                    if (swap.date != currentDate.value) _exerciseSwapUndo.value = null
-                    else if (swapAfterSignature != currentSignature(swap.date)) {
+                    if (swap.date != currentDate.value) {
+                        _exerciseSwapUndo.value = null
+                    } else if (swapAfterSignature != currentSignature(swap.date)) {
                         // Sets and cards publish separately during a snapshot refresh. Check
                         // settled content so a momentary mixed snapshot cannot erase Undo.
                         swapInvalidationJob = viewModelScope.launch {
@@ -434,8 +434,9 @@ class LogViewModel(
                         else ExerciseSwapUndoUi(request.requestId, state.date, state.sourceId, id)
                     onReady(id, first?.syncId)
                 }
-            } catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Throwable) {
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
                 _exerciseSwap.value = if (currentDate.value == state.date)
                     state.copy(error = com.ayman.ecolift.web.supabase.exerciseSwapError("FAILED")) else null
             }
@@ -458,10 +459,16 @@ class LogViewModel(
                         updateHistoricalTopSets(undo.date, fresh)
                         onReady(undo.sourceId, fresh.filter { it.exerciseId == undo.sourceId }.minByOrNull { it.setNumber }?.syncId)
                     }
-                } else _uiMessage.value = com.ayman.ecolift.web.supabase.exerciseSwapError(result.code)
-            } catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Throwable) { _uiMessage.value = "Couldn't undo the swap. Try again." }
-            finally { _swapUndoBusy.value = false }
+                } else {
+                    _uiMessage.value = com.ayman.ecolift.web.supabase.exerciseSwapError(result.code)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                _uiMessage.value = "Couldn't undo the swap. Try again."
+            } finally {
+                _swapUndoBusy.value = false
+            }
         }
     }
 
@@ -724,7 +731,8 @@ class LogViewModel(
             }
         }
         val takenGroups = schedule.currentSets.groupBy { it.exerciseId }.mapNotNull { (id, rows) ->
-            if (group != null && canUseTakenChip(group.slotId,
+            if (group != null &&
+                canUseTakenChip(group.slotId,
                     alternatives?.let { slotAlternatives(it, group.key, id).size } ?: 0, rows.any { it.completed }))
                 id to group.key else null
         }.toMap()
@@ -845,8 +853,9 @@ class LogViewModel(
 
     private val emptyDayLedgerSnapshot = learnedProposalSnapshot.map { source ->
         // The card Log must acquire no history work, including while a collector is stopping.
-        if (source.date.isBlank() || source.sets.any { it.date == source.date }) EmptyDayLedgerSnapshot.EMPTY
-        else {
+        if (source.date.isBlank() || source.sets.any { it.date == source.date }) {
+            EmptyDayLedgerSnapshot.EMPTY
+        } else {
             ledgerBuilds++
             buildEmptyDayLedgerSnapshot(source.date, source.programs, source.model, source.exercises, source.sets, ::safeCanonicalId)
         }
@@ -966,16 +975,22 @@ class LogViewModel(
     private fun appendChoices(choices: List<com.ayman.ecolift.data.splits.SplitAlternative>) {
         if (choices.isEmpty()) return
         try {
-            repos.exerciseSwaps.queueAlternatives(choices.map { it.copy(
-                sourceId = safeCanonicalId(it.sourceId), alternativeId = safeCanonicalId(it.alternativeId)) })
+            repos.exerciseSwaps.queueAlternatives(choices.map {
+                it.copy(
+                sourceId = safeCanonicalId(it.sourceId), alternativeId = safeCanonicalId(it.alternativeId))
+            })
         } catch (_: Throwable) {
             _uiMessage.value = "Workout saved. Split choices will retry."
             return
         }
         viewModelScope.launch {
-            try { repos.exerciseSwaps.flushAlternatives() }
-            catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Throwable) { _uiMessage.value = "Your workout is saved. Split choices will retry when connected." }
+            try {
+                repos.exerciseSwaps.flushAlternatives()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                _uiMessage.value = "Your workout is saved. Split choices will retry when connected."
+            }
         }
     }
 
@@ -2176,7 +2191,9 @@ class LogViewModel(
                 if (_dayUndo.value == DayUndoState.Restoring(offer)) {
                     _dayUndo.value = if (currentDate.value == offer.date && currentSignature(offer.date) == offer.afterSignature) {
                         DayUndoState.Offered(offer)
-                    } else null
+                    } else {
+                        null
+                    }
                 }
                 _uiMessage.value = "Couldn't undo. Try again."
             }
@@ -2613,7 +2630,9 @@ class LogViewModel(
                         retainUnsavedSetInput(row, observed, saved.reason)
                     }
                 }
-            } finally { stepCommitsInFlight-- }
+            } finally {
+                stepCommitsInFlight--
+            }
         }
     }
 
@@ -2632,8 +2651,11 @@ class LogViewModel(
                 ?: current.firstOrNull { it.id == old.id }
                 // A remapped legacy row keeps its natural key; it is the one row there that is new.
                 ?: current.singleOrNull {
-                    old.syncId.isBlank() && it.id !in previousIds && it.date == old.date &&
-                        it.exerciseId == old.exerciseId && it.setNumber == old.setNumber
+                    old.syncId.isBlank() &&
+                        it.id !in previousIds &&
+                        it.date == old.date &&
+                        it.exerciseId == old.exerciseId &&
+                        it.setNumber == old.setNumber
                 }
                 ?: return@forEach
             val newKey = SetCommitBuffer.keyOf(counterpart)
@@ -2729,13 +2751,18 @@ class LogViewModel(
 
     private fun restoreUnsavedSet(before: WorkoutSet, attempted: WorkoutSet) {
         val key = SetCommitBuffer.keyOf(attempted)
-        editSessionSets { list -> list.map { current ->
-            if (SetCommitBuffer.keyOf(current) == key && current.copy(
+        editSessionSets { list ->
+            list.map { current ->
+            if (SetCommitBuffer.keyOf(current) == key &&
+                current.copy(
                     id = attempted.id, syncId = attempted.syncId, rowRevision = attempted.rowRevision, cardId = attempted.cardId,
                 ) == attempted) {
                 before.copy(id = current.id, syncId = current.syncId, rowRevision = current.rowRevision, cardId = current.cardId)
-            } else current
-        } }
+            } else {
+                current
+            }
+        }
+        }
         clearSmartAdjustmentsFromSource(attempted.id)
     }
 

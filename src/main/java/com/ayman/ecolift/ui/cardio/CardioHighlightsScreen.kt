@@ -1,7 +1,5 @@
 package com.ayman.ecolift.ui.cardio
 
-import com.ayman.ecolift.web.util.countLabel
-
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -27,12 +25,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -44,8 +39,8 @@ import com.ayman.ecolift.ui.theme.SheetSerifFontFamily
 import com.ayman.ecolift.ui.viewmodel.CardioViewModel
 import com.ayman.ecolift.ui.viewmodel.data
 import com.ayman.ecolift.ui.viewmodel.filler
-import com.ayman.ecolift.web.util.DAY_ABBREV
 import com.ayman.ecolift.web.util.MONTH_ABBREV
+import com.ayman.ecolift.web.util.countLabel
 import com.ayman.ecolift.web.util.todayLocalDate
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
@@ -251,7 +246,9 @@ fun CardioHighlightsScreen(
                         val start = daysRuns.currentRunStart
                         if (start != null && start.month == today.month && start.year == today.year) {
                             (start.dayOfMonth..today.dayOfMonth).toSet()
-                        } else emptySet<Int>()
+                        } else {
+                            emptySet<Int>()
+                        }
                     }
 
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -628,7 +625,9 @@ fun CardioHighlightsScreen(
                                             val sign = if (delta >= 0) "+" else "−"
                                             val rounded = (abs(delta) * 10).roundToInt() / 10.0
                                             "$sign$rounded"
-                                        } else "—"
+                                        } else {
+                                            "—"
+                                        }
                                         val improved = if (defaultMetric.higherIsBetter) (delta ?: 0.0) > 0 else (delta ?: 0.0) < 0
 
                                         Text(

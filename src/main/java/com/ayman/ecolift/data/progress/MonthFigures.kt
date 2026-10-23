@@ -2,8 +2,6 @@ package com.ayman.ecolift.data.progress
 
 import com.ayman.ecolift.web.util.countLabel
 import com.ayman.ecolift.web.util.formatRecordedVolumeLbs
-import com.ayman.ecolift.web.util.groupThousands
-import kotlin.math.roundToLong
 
 /** One closing figure: a large value and a small caption. */
 data class MonthFigure(
@@ -49,7 +47,6 @@ object MonthFigures {
                 others.joinToString(" · ") { "${it.name.uppercase()} ×${it.runs}" },
         )
     }
-
 
     private val MONTH_NAMES = listOf(
         "JAN", "FEB", "MAR", "APR", "MAY", "JUN",

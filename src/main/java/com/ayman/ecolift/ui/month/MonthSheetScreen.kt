@@ -1,11 +1,5 @@
 package com.ayman.ecolift.ui.month
 
-import com.ayman.ecolift.web.util.noun
-import com.ayman.ecolift.web.util.countLabel
-
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -15,7 +9,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,6 +22,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -40,8 +36,10 @@ import com.ayman.ecolift.data.progress.RegionShare
 import com.ayman.ecolift.ui.theme.SheetSansFontFamily
 import com.ayman.ecolift.ui.viewmodel.MonthSheetUiState
 import com.ayman.ecolift.web.util.MONTH_ABBREV
+import com.ayman.ecolift.web.util.countLabel
 import com.ayman.ecolift.web.util.formatRecordedVolumeLbs
 import com.ayman.ecolift.web.util.groupThousands
+import com.ayman.ecolift.web.util.noun
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
 import kotlin.math.floor
@@ -191,7 +189,9 @@ internal fun monthSheetData(rollup: MonthRollupResult): MonthSheetData {
     val sessions = trainedDays.map { day ->
         val fillFraction = if (heaviestLoad > 0.0) {
             max(0.08f, (day.loadLbs / heaviestLoad).toFloat())
-        } else 0f
+        } else {
+            0f
+        }
         val muscleNames = if (day.topMuscles.isNotEmpty()) {
             day.topMuscles.joinToString(" + ") { it.displayName.uppercase() }
         } else {

@@ -1,47 +1,21 @@
 package com.ayman.ecolift.ui.navigation
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.selected
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
-import androidx.core.view.WindowInsetsControllerCompat
-import com.ayman.ecolift.android.platform.AndroidHost
-import com.ayman.ecolift.ui.theme.DawnBackground
-import com.ayman.ecolift.web.util.applyBrowserChrome
-import com.ayman.ecolift.ui.theme.DawnPalette
-import com.ayman.ecolift.ui.theme.QuietDepth
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.geometry.CornerRadius
-import com.ayman.ecolift.ui.theme.EspressoPalette
-import com.ayman.ecolift.ui.theme.espressoTabColor
-import com.ayman.ecolift.ui.theme.QuietDepthBackground
-import com.ayman.ecolift.ui.theme.QuietIcon
-import com.ayman.ecolift.ui.theme.QuietIconName
-import com.ayman.ecolift.ui.theme.QuietUiFontFamily
-import com.ayman.ecolift.ui.theme.rememberReducedMotion
-import com.ayman.ecolift.ui.theme.TAB_SHIFT_DP
-import com.ayman.ecolift.ui.theme.TAB_TRANSITION_MS
-import com.ayman.ecolift.ui.theme.TabTransitionEasing
-import com.ayman.ecolift.ui.theme.watchTouchesForWarmup
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -71,29 +45,34 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.NavType
 import androidx.navigation.navArgument
-import com.ayman.ecolift.ui.theme.GlassPalette
-import com.ayman.ecolift.ui.theme.GlassTheme
-import com.ayman.ecolift.ui.theme.palette
-import com.ayman.ecolift.ui.viewmodel.GlassSettingsViewModel
-import com.ayman.ecolift.ui.viewmodel.HubViewModel
-import com.ayman.ecolift.web.LocalRepos
+import com.ayman.ecolift.android.platform.AndroidHost
+import com.ayman.ecolift.data.CardioActivityType
 import com.ayman.ecolift.ui.cardio.CardioHighlightsScreen
 import com.ayman.ecolift.ui.cardio.CardioLogScreen
 import com.ayman.ecolift.ui.cardio.CardioMachineScreen
@@ -101,11 +80,29 @@ import com.ayman.ecolift.ui.cardio.CardioScanScreen
 import com.ayman.ecolift.ui.cardio.CardioSessionsScreen
 import com.ayman.ecolift.ui.cardio.CardioTab
 import com.ayman.ecolift.ui.cardio.CardioTabWarmup
+import com.ayman.ecolift.ui.theme.DawnBackground
+import com.ayman.ecolift.ui.theme.DawnPalette
 import com.ayman.ecolift.ui.theme.DawnTheme
+import com.ayman.ecolift.ui.theme.EspressoPalette
+import com.ayman.ecolift.ui.theme.GlassPalette
+import com.ayman.ecolift.ui.theme.GlassTheme
+import com.ayman.ecolift.ui.theme.QuietDepthBackground
+import com.ayman.ecolift.ui.theme.QuietIcon
+import com.ayman.ecolift.ui.theme.QuietIconName
+import com.ayman.ecolift.ui.theme.QuietUiFontFamily
+import com.ayman.ecolift.ui.theme.TAB_SHIFT_DP
+import com.ayman.ecolift.ui.theme.TAB_TRANSITION_MS
+import com.ayman.ecolift.ui.theme.TabTransitionEasing
+import com.ayman.ecolift.ui.theme.espressoTabColor
+import com.ayman.ecolift.ui.theme.palette
+import com.ayman.ecolift.ui.theme.rememberReducedMotion
+import com.ayman.ecolift.ui.theme.watchTouchesForWarmup
 import com.ayman.ecolift.ui.viewmodel.CardioViewModel
-import com.ayman.ecolift.data.CardioActivityType
+import com.ayman.ecolift.ui.viewmodel.GlassSettingsViewModel
+import com.ayman.ecolift.ui.viewmodel.HubViewModel
 import com.ayman.ecolift.web.LocalAppServices
-
+import com.ayman.ecolift.web.LocalRepos
+import com.ayman.ecolift.web.util.applyBrowserChrome
 
 private data class AppDestination(
     val route: String,
@@ -222,7 +219,7 @@ fun AppNavigation(
     val hubCount by hubViewModel.count.collectAsStateWithLifecycle()
     val hasUnseenClaudeChange by hubViewModel.hasUnseenClaudeChange.collectAsStateWithLifecycle()
     val palette = paletteChoice.palette()
-    
+
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val isExerciseReport = currentRoute == EXERCISE_REPORT_ROUTE
@@ -236,7 +233,9 @@ fun AppNavigation(
     ) else ExerciseReportOrigin()
     val selectedTabRoute = if (isExerciseReport) {
         when (reportOrigin.tab) { "month" -> "progress"; "ironmind" -> "ai"; else -> reportOrigin.tab }
-    } else currentRoute
+    } else {
+        currentRoute
+    }
     // Set synchronously before navigate: the push pauses the Log before recomposition.
     val reportCoveringLog = remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
@@ -773,7 +772,6 @@ fun AppNavigation(
                         onOpenLiftReport = { openExerciseReport(it, ExerciseReportOrigin("split")) },
                     )
                 }
-
             }
 
             // The bar leaves composition for the immersive reel and is removed from layout for
