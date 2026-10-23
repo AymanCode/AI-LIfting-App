@@ -90,9 +90,11 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
+import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.coroutines.coroutineContext
 
 data class PendingSplitSwitchConfirmation(
     val request: SplitSwitchRequest,
@@ -325,6 +327,12 @@ class LogViewModel(
                         latestSplitSwitchRequestId = ++nextSplitSwitchRequestId
                         clearPendingSplitSwitch()
                         clearExerciseSearch()
+                        stepCommitJobs.values.forEach { it.cancel() }
+                        stepCommitJobs.clear()
+                        stepCommits.discard()
+                        _unsavedSetInputs.value = emptyMap()
+                        val date = currentDate.value
+                        publishSessionSets(date, SetQueries.forDate(setRepository.sets.value, date))
                     }
                 }
             }
@@ -389,7 +397,14 @@ class LogViewModel(
 
     private suspend fun <T : Any> withDataGeneration(expected: Long, block: suspend () -> T): T? {
         val generation = repos.dataGeneration ?: return block()
-        return generation.withCurrent(expected, block)
+        // A clipboard add already holds this lock. Locking again on the same call deadlocks.
+        val held = coroutineContext[HeldGeneration]
+        if (held != null) {
+            return if (held.expected == expected && generation.changes.value == expected) block() else null
+        }
+        return generation.withCurrent(expected) {
+            withContext(HeldGeneration(expected)) { block() }
+        }
     }
 
     fun openExerciseSwap(sourceId: Long) {
@@ -2317,10 +2332,14 @@ class LogViewModel(
     fun addSet(exerciseId: Long) {
         flushPendingSetCommits()
         if (DemoGuard.blockIfDemo()) return
+        val generation = dataGeneration()
         viewModelScope.launch {
             val date = currentDate.value
             val dateGeneration = dateSelectionGeneration
-            val newSet = when (val saved = setRepository.addSet(date, exerciseRepository.canonicalId(exerciseId))) {
+            val saved = withDataGeneration(generation) {
+                setRepository.addSet(date, exerciseRepository.canonicalId(exerciseId))
+            } ?: return@launch
+            val newSet = when (saved) {
                 is LocalCommit.Committed -> saved.value
                 is LocalCommit.NotCommitted -> { reportSetNotSaved(saved.reason); return@launch }
             }
@@ -2334,6 +2353,7 @@ class LogViewModel(
     fun addSetFrom(exerciseId: Long, sourceSetId: Long) {
         flushPendingSetCommits()
         if (DemoGuard.blockIfDemo()) return
+        val generation = dataGeneration()
         viewModelScope.launch {
             val date = currentDate.value
             val dateGeneration = dateSelectionGeneration
@@ -2348,7 +2368,10 @@ class LogViewModel(
             } ?: setRepository.getById(sourceSetId)?.takeIf {
                 exerciseRepository.canonicalId(it.exerciseId) == canonicalExerciseId && it.date == date
             }
-            val newSet = when (val saved = setRepository.addSet(date, canonicalExerciseId, copyFrom = source)) {
+            val saved = withDataGeneration(generation) {
+                setRepository.addSet(date, canonicalExerciseId, copyFrom = source)
+            } ?: return@launch
+            val newSet = when (saved) {
                 is LocalCommit.Committed -> saved.value
                 is LocalCommit.NotCommitted -> { reportSetNotSaved(saved.reason); return@launch }
             }
@@ -2581,9 +2604,13 @@ class LogViewModel(
     fun updateCardDisplayMode(cardId: String, displayMode: WorkoutCardDisplayMode) {
         flushPendingSetCommits()
         if (cardId.isBlank()) return
+        val generation = dataGeneration()
         viewModelScope.launch {
             runCatching {
-                setRepository.updateCardDisplayMode(cardId, displayMode).orThrow()
+                val saved = withDataGeneration(generation) {
+                    setRepository.updateCardDisplayMode(cardId, displayMode)
+                } ?: return@launch
+                saved.orThrow()
             }.onFailure {
                 _uiMessage.value = "Couldn't save the card. Try again."
             }
@@ -2679,7 +2706,7 @@ class LogViewModel(
             commitStep(SetCommit(row, before), write = false)
             return
         }
-        val key = stepCommits.stage(row, before)
+        val key = stepCommits.stage(row, before, dataGeneration())
         stepCommitJobs.remove(key)?.cancel()
         stepCommitJobs[key] = viewModelScope.launch(stepCommitContext) {
             delay(STEP_COMMIT_DELAY_MS)
@@ -2707,14 +2734,18 @@ class LogViewModel(
         stepCommitsInFlight++
         commitScope.launch {
             try {
-                when (val saved = withContext(NonCancellable) { setRepository.updateSet(row, observed = observed) }) {
+                val saved = withDataGeneration(commit.generation) {
+                    withContext(NonCancellable) { setRepository.updateSet(row, observed = observed) }
+                }
+                when (saved) {
+                    null -> Unit
                     is LocalCommit.Committed -> {
                         clearUnsavedSetInput(row)
                         afterCommit()
                     }
                     is LocalCommit.NotCommitted -> {
                         restoreUnsavedSet(commit.beforeFirstStep ?: current, commit.row)
-                        retainUnsavedSetInput(row, observed, saved.reason)
+                        retainUnsavedSetInput(row, observed, saved.reason, generation = commit.generation)
                     }
                 }
             } finally {
@@ -2761,7 +2792,10 @@ class LogViewModel(
         if (stepCommits.isEmpty) return
         stepCommitJobs.values.forEach { it.cancel() }
         stepCommitJobs.clear()
-        stepCommits.flush().forEach { commitStep(it) }
+        val generation = dataGeneration()
+        stepCommits.flush().forEach { commit ->
+            if (commit.generation == generation) commitStep(commit)
+        }
     }
 
     override fun onCleared() {
@@ -2781,8 +2815,13 @@ class LogViewModel(
         val attempted = transform(before)
         editSessionSets { list -> list.map { if (it.id == setId) attempted else it } }
         if (attempted.id == 0L) return
+        val generation = dataGeneration()
         viewModelScope.launch {
-            when (val saved = setRepository.updateSet(attempted, observed = before)) {
+            val saved = withDataGeneration(generation) {
+                setRepository.updateSet(attempted, observed = before)
+            }
+            when (saved) {
+                null -> Unit
                 is LocalCommit.Committed -> {
                     clearUnsavedSetInput(attempted)
                     refreshHistoricalTopSets()
@@ -2790,7 +2829,7 @@ class LogViewModel(
                 }
                 is LocalCommit.NotCommitted -> {
                     restoreUnsavedSet(before, attempted)
-                    retainUnsavedSetInput(attempted, before, saved.reason, onCommitted)
+                    retainUnsavedSetInput(attempted, before, saved.reason, onCommitted, generation)
                 }
             }
         }
@@ -2801,8 +2840,11 @@ class LogViewModel(
         observed: WorkoutSet,
         reason: NotCommittedReason,
         afterSave: (WorkoutSet) -> Unit = {},
+        generation: Long = dataGeneration(),
     ) {
-        _unsavedSetInputs.update { it + (SetCommitBuffer.keyOf(attempted) to UnsavedSetInput(attempted, observed, reason, afterSave)) }
+        _unsavedSetInputs.update {
+            it + (SetCommitBuffer.keyOf(attempted) to UnsavedSetInput(attempted, observed, reason, afterSave, generation))
+        }
     }
 
     private fun clearUnsavedSetInput(row: WorkoutSet) {
@@ -2818,7 +2860,11 @@ class LogViewModel(
         val input = _unsavedSetInputs.value[key] ?: return
         flushPendingSetCommits()
         viewModelScope.launch {
-            when (val saved = setRepository.updateSet(input.attempted, observed = input.observed)) {
+            val saved = withDataGeneration(input.generation) {
+                setRepository.updateSet(input.attempted, observed = input.observed)
+            }
+            when (saved) {
+                null -> _unsavedSetInputs.update { if (it[key] === input) it - key else it }
                 is LocalCommit.Committed -> {
                     _unsavedSetInputs.update { if (it[key] === input) it - key else it }
                     refreshHistoricalTopSets()
@@ -3081,8 +3127,11 @@ class LogViewModel(
     }
 
     private suspend fun addExerciseSession(exerciseId: Long, context: ExerciseAddContext) {
+        val generation = dataGeneration()
         val canonicalExerciseId = exerciseRepository.canonicalId(exerciseId)
-        val result = setRepository.addExerciseSession(context.date, canonicalExerciseId)
+        val result = withDataGeneration(generation) {
+            setRepository.addExerciseSession(context.date, canonicalExerciseId)
+        } ?: return
         if (result is LocalCommit.NotCommitted) reportSetNotSaved(result.reason)
         val newSets = result.orThrow()
         if (
@@ -3551,7 +3600,14 @@ data class UnsavedSetInput(
     val reason: NotCommittedReason,
     /** The completion step the original edit would have run once saved, such as moving to the next set. */
     val afterSave: (WorkoutSet) -> Unit = {},
+    /** Generation captured when the edit was refused. A restore makes a retry of this input a no-op. */
+    val generation: Long = 0L,
 )
+
+/** Present only while [LogViewModel.withDataGeneration] holds the generation lock. */
+private class HeldGeneration(val expected: Long) : AbstractCoroutineContextElement(HeldGeneration) {
+    companion object Key : CoroutineContext.Key<HeldGeneration>
+}
 
 /** A split's Start runs only on boards that are read, and never while its own board is saving. */
 internal fun canStartSlot(state: SplitChoicesState, slotId: Long): Boolean =

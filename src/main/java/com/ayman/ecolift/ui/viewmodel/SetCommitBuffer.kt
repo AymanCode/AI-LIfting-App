@@ -6,6 +6,8 @@ import com.ayman.ecolift.data.WorkoutSet
 internal data class SetCommit(
     val row: WorkoutSet,
     val beforeFirstStep: WorkoutSet?,
+    /** Generation captured on the first step of this burst. A later step does not move it. */
+    val generation: Long = 0L,
 ) {
     /** Steps moved weight. Without the pre-scrub row both stepped fields count as moved. */
     val weightMoved: Boolean get() = beforeFirstStep == null || row.weightLbs != beforeFirstStep.weightLbs
@@ -49,10 +51,14 @@ internal class SetCommitBuffer {
     fun has(key: String): Boolean = key in pending
 
     /** Records [row] as the latest value for its set and returns the set's key. */
-    fun stage(row: WorkoutSet, before: WorkoutSet?): String {
+    fun stage(row: WorkoutSet, before: WorkoutSet?, generation: Long = 0L): String {
         val key = keyOf(row)
         val earlier = pending[key]
-        pending[key] = SetCommit(row = row, beforeFirstStep = earlier?.beforeFirstStep ?: before)
+        pending[key] = SetCommit(
+            row = row,
+            beforeFirstStep = earlier?.beforeFirstStep ?: before,
+            generation = earlier?.generation ?: generation,
+        )
         return key
     }
 
@@ -82,6 +88,12 @@ internal class SetCommitBuffer {
         pending = moved
         forwards[oldKey] = newKey
         return true
+    }
+
+    /** Drops every pending step and its key remap. Nothing is written. */
+    fun discard() {
+        pending.clear()
+        forwards.clear()
     }
 
     /** Removes and returns every pending commit, in the order the sets were first stepped. */
