@@ -261,7 +261,7 @@ class RoomDraft(
         val choices = db.splitMemberChoiceDao().getAll()
         var changed = false
         for (row in choices) {
-            val choice = row.toChoice()
+            val choice = row.toChoiceOrNull() ?: continue
             val board = EffectiveSplitMembers.of(
                 choice.board.inSplit.filterNot { it in removing },
                 choice.board.otherOptions.filterNot { it in removing },
