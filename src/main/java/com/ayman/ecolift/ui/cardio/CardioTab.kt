@@ -148,6 +148,7 @@ internal fun CardioTabContent(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp),

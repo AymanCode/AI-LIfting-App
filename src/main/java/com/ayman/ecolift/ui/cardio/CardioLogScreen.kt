@@ -220,6 +220,7 @@ fun CardioLogScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(top = 16.dp, bottom = 48.dp),

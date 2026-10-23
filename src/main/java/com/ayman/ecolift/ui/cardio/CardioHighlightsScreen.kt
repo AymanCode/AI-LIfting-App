@@ -150,7 +150,7 @@ fun CardioHighlightsScreen(
             .fillMaxSize()
             .background(skyGradient),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             // Top App Bar
             Row(
                 modifier = Modifier

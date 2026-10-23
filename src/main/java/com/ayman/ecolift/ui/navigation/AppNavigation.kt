@@ -14,7 +14,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.core.view.WindowInsetsControllerCompat
+import com.ayman.ecolift.android.platform.AndroidHost
 import com.ayman.ecolift.ui.theme.DawnBackground
+import com.ayman.ecolift.web.util.applyBrowserChrome
 import com.ayman.ecolift.ui.theme.DawnPalette
 import com.ayman.ecolift.ui.theme.QuietDepth
 import androidx.compose.ui.geometry.Size
@@ -60,6 +63,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -244,6 +248,18 @@ fun AppNavigation(
     val isLogRoute = isRouteSelected(currentRoute, "log")
     val isHighlightsReelRoute = isProgressHighlightsReelRoute(currentRoute)
     val chromeReveal = remember { ChromeRevealState() }
+    val chromeTop = if (isCardioRoute) DawnPalette.skyTop else EspressoPalette.bg
+    val chromeBottom = if (isCardioRoute) DawnPalette.navBackground else EspressoPalette.mast
+    if (!isHighlightsReelRoute) {
+        SideEffect {
+            applyBrowserChrome(chromeTop, chromeBottom)
+            if (!isCardioRoute) return@SideEffect
+            val host = AndroidHost.current() ?: return@SideEffect
+            val controller = WindowInsetsControllerCompat(host.window, host.window.decorView)
+            controller.isAppearanceLightStatusBars = true
+            controller.isAppearanceLightNavigationBars = true
+        }
+    }
 
     // Check if keyboard is visible to hide the BottomBar
     val isKeyboardVisible = WindowInsets.ime.asPaddingValues().calculateBottomPadding() > 0.dp

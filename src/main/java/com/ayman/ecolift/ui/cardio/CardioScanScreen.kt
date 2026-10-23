@@ -114,6 +114,7 @@ fun CardioScanScreen(
         modifier = modifier
             .fillMaxSize()
             .background(skyGradient)
+            .statusBarsPadding()
             .padding(horizontal = 20.dp),
     ) {
         if (state.scanning) {

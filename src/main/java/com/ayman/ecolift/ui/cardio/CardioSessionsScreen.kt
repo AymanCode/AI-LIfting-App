@@ -77,7 +77,7 @@ fun CardioSessionsScreen(
             .fillMaxSize()
             .background(skyGradient),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             // Top Bar
             Row(
                 modifier = Modifier
