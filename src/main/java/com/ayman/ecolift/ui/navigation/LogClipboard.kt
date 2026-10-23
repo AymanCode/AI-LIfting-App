@@ -435,7 +435,6 @@ private class ClipboardState {
 internal fun clipboardCloseNotifiesQuery(
     queryDraft: String,
     query: String,
-    @Suppress("UNUSED_PARAMETER") afterAdd: Boolean,
 ): Boolean = queryDraft.isNotEmpty() || query.isNotEmpty()
 
 @Composable
@@ -534,7 +533,7 @@ internal fun LogClipboard(
     fun close(afterAdd: Boolean = false) {
         closing = true
         focusManager.clearFocus()
-        val notify = clipboardCloseNotifiesQuery(state.queryDraft, query, afterAdd)
+        val notify = clipboardCloseNotifiesQuery(state.queryDraft, query)
         state.queryDraft = ""
         if (notify) onQueryChange("")
         scope.launch {
