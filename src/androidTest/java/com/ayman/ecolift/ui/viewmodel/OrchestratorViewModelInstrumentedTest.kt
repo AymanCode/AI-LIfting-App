@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.data.PendingReview
+import com.ayman.ecolift.data.domain
 import com.ayman.ecolift.data.WeightLbs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -62,7 +63,7 @@ class OrchestratorViewModelInstrumentedTest {
         val initialHipSets = db.workoutSetDao().getForDateAndExercise("2026-05-10", hipId)
         val initialHipCount = initialHipSets.size
         val nextSetNumber = (initialHipSets.maxOfOrNull { it.setNumber } ?: 0) + 1
-        val pendingDao = db.pendingReviewDao()
+        val pendingDao = db.pendingReviewDao().domain()
         pendingDao.getUnresolved().forEach { pendingDao.markResolved(it.id) }
         val pendingId = pendingDao.insert(
             PendingReview(
@@ -91,10 +92,10 @@ class OrchestratorViewModelInstrumentedTest {
     }
 
     private suspend fun getOrCreateExercise(db: AppDatabase, name: String): Long {
-        val existing = db.exerciseDao().getByExactName(name)
+        val existing = db.exerciseDao().domain().getByExactName(name)
         if (existing != null) return existing.id
-        db.exerciseDao().insert(Exercise(name = name, muscleGroups = "QA"))
-        return requireNotNull(db.exerciseDao().getByExactName(name)).id
+        db.exerciseDao().domain().insert(Exercise(name = name, muscleGroups = "QA"))
+        return requireNotNull(db.exerciseDao().domain().getByExactName(name)).id
     }
 
     private suspend fun waitUntil(condition: suspend () -> Boolean) {

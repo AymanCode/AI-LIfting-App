@@ -1,5 +1,6 @@
 package com.ayman.ecolift.data.room
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -35,4 +36,12 @@ data class WorkoutSet(
     val isBodyweight: Boolean = false,
     val completed: Boolean = false,
     val restTimeSeconds: Int? = null, // Track how long you rested BEFORE this set
+    @ColumnInfo(defaultValue = "''")
+    val syncId: String = "",
+    @ColumnInfo(defaultValue = "0")
+    val rowRevision: Long = 0,
+    @ColumnInfo(defaultValue = "''")
+    val cardId: String = "",
+    @ColumnInfo(defaultValue = "0")
+    val isWarmup: Boolean = false,
 )

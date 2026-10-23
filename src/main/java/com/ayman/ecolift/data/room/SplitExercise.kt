@@ -1,5 +1,6 @@
 package com.ayman.ecolift.data.room
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -34,4 +35,6 @@ data class SplitExercise(
     val splitId: Long,
     val exerciseId: Long,
     val orderIndex: Int = 0,
+    @ColumnInfo(defaultValue = "0")
+    val userAdded: Boolean = false,
 )

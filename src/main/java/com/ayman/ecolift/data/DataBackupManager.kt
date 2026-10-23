@@ -5,10 +5,13 @@ import com.ayman.ecolift.data.room.CardioSession as RoomCardioSession
 import com.ayman.ecolift.data.room.Cycle as RoomCycle
 import com.ayman.ecolift.data.room.CycleSlot as RoomCycleSlot
 import com.ayman.ecolift.data.room.Exercise as RoomExercise
+import com.ayman.ecolift.data.room.ExerciseAlias as RoomExerciseAlias
+import com.ayman.ecolift.data.room.ExerciseDistinctPair as RoomExerciseDistinctPair
 import com.ayman.ecolift.data.room.PendingReview as RoomPendingReview
 import com.ayman.ecolift.data.room.SplitExercise as RoomSplitExercise
 import com.ayman.ecolift.data.room.UserSettings as RoomUserSettings
 import com.ayman.ecolift.data.room.WorkoutDay as RoomWorkoutDay
+import com.ayman.ecolift.data.room.WorkoutExerciseCard as RoomWorkoutExerciseCard
 import com.ayman.ecolift.data.room.WorkoutSet as RoomWorkoutSet
 import com.ayman.ecolift.data.room.TempSessionSwap as RoomTempSessionSwap
 
@@ -56,6 +59,9 @@ data class UserDataBackup(
     val archivedCycles: List<RoomArchivedCycle> = emptyList(),
     val userSettings: RoomUserSettings? = null,
     val cardioSessions: List<RoomCardioSession> = emptyList(),
+    val workoutExerciseCards: List<RoomWorkoutExerciseCard> = emptyList(),
+    val exerciseAliases: List<RoomExerciseAlias> = emptyList(),
+    val exerciseDistinctPairs: List<RoomExerciseDistinctPair> = emptyList(),
 )
 
 data class LocalBackupInfo(
@@ -202,6 +208,9 @@ object DataBackupManager {
             val archivedCycles = db.archivedCycleDao().getAll()
             val userSettings = db.userSettingsDao().get()
             val cardioSessions = db.cardioSessionDao().getAll()
+            val workoutExerciseCards = db.workoutExerciseCardDao().getAll()
+            val exerciseAliases = db.exerciseAliasDao().getAll()
+            val exerciseDistinctPairs = db.exerciseDistinctPairDao().getAll()
             val cycle = db.cycleDao().getCycle()
             UserDataBackup(
                 metadata = BackupMetadata(
@@ -222,6 +231,9 @@ object DataBackupManager {
                 archivedCycles = archivedCycles,
                 userSettings = userSettings,
                 cardioSessions = cardioSessions,
+                workoutExerciseCards = workoutExerciseCards,
+                exerciseAliases = exerciseAliases,
+                exerciseDistinctPairs = exerciseDistinctPairs,
             )
         }
 
@@ -233,6 +245,13 @@ object DataBackupManager {
             snapshot.cycle?.let { db.cycleDao().upsert(it) }
             if (snapshot.cycleSlots.isNotEmpty()) db.cycleSlotDao().insertAll(snapshot.cycleSlots)
             if (snapshot.workoutDays.isNotEmpty()) db.workoutDayDao().insertAll(snapshot.workoutDays)
+            if (snapshot.exerciseAliases.isNotEmpty()) db.exerciseAliasDao().insertAll(snapshot.exerciseAliases)
+            if (snapshot.exerciseDistinctPairs.isNotEmpty()) {
+                db.exerciseDistinctPairDao().insertAll(snapshot.exerciseDistinctPairs)
+            }
+            if (snapshot.workoutExerciseCards.isNotEmpty()) {
+                db.workoutExerciseCardDao().insertAll(snapshot.workoutExerciseCards)
+            }
             if (snapshot.workoutSets.isNotEmpty()) db.workoutSetDao().insertAll(snapshot.workoutSets)
             if (snapshot.pendingReviews.isNotEmpty()) db.pendingReviewDao().insertAll(snapshot.pendingReviews)
             if (snapshot.splitExercises.isNotEmpty()) db.splitExerciseDao().insertAll(snapshot.splitExercises)
@@ -242,11 +261,15 @@ object DataBackupManager {
             if (snapshot.archivedCycles.isNotEmpty()) db.archivedCycleDao().insertAll(snapshot.archivedCycles)
             snapshot.userSettings?.let { db.userSettingsDao().upsert(it) }
             if (snapshot.cardioSessions.isNotEmpty()) db.cardioSessionDao().insertAll(snapshot.cardioSessions)
+            Migrations.backfillLegacyCards(db.openHelper.writableDatabase)
         }
     }
 
     private fun clearUserTables(db: AppDatabase) {
         val writableDb = db.openHelper.writableDatabase
+        writableDb.execSQL("DELETE FROM `exercise_alias`")
+        writableDb.execSQL("DELETE FROM `exercise_distinct_pair`")
+        writableDb.execSQL("DELETE FROM `workout_exercise_card`")
         writableDb.execSQL("DELETE FROM `split_exercise`")
         writableDb.execSQL("DELETE FROM `temp_session_swap`")
         writableDb.execSQL("DELETE FROM `workout_set`")
@@ -304,6 +327,9 @@ object DataBackupManager {
             agentTurns.size +
             archivedCycles.size +
             cardioSessions.size +
+            workoutExerciseCards.size +
+            exerciseAliases.size +
+            exerciseDistinctPairs.size +
             (if (userSettings != null) 1 else 0) +
             (if (cycle != null) 1 else 0)
         return BackupResult(

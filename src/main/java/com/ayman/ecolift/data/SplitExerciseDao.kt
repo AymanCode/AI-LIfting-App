@@ -23,6 +23,9 @@ interface SplitExerciseDao {
     @Query("SELECT * FROM split_exercise ORDER BY splitId, orderIndex")
     suspend fun getAll(): List<RoomSplitExercise>
 
+    @Insert
+    suspend fun insert(row: RoomSplitExercise): Long
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(rows: List<RoomSplitExercise>)
 

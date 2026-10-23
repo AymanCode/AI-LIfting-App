@@ -2,6 +2,7 @@ package com.ayman.ecolift.data
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import java.time.ZoneId
 
 object Migrations {
     val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -271,6 +272,151 @@ object Migrations {
         }
     }
 
+    val MIGRATION_19_20 = object : Migration(19, 20) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `exercise` ADD COLUMN `mergedIntoId` INTEGER")
+            db.execSQL("ALTER TABLE `workout_set` ADD COLUMN `syncId` TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE `workout_set` ADD COLUMN `rowRevision` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE `workout_set` ADD COLUMN `cardId` TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE `workout_set` ADD COLUMN `isWarmup` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE `cycle_slot` ADD COLUMN `archivedAt` INTEGER")
+            db.execSQL("ALTER TABLE `cycle_slot` ADD COLUMN `learned` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE `cycle_slot` ADD COLUMN `createdAt` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE `cycle_slot` ADD COLUMN `seedRevision` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE `cycle_slot` ADD COLUMN `anchorUpdatedAt` INTEGER")
+            db.execSQL("ALTER TABLE `cycle_slot` ADD COLUMN `suppressedAt` INTEGER")
+            db.execSQL("ALTER TABLE `cycle_slot` ADD COLUMN `colorIndex` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE `split_exercise` ADD COLUMN `userAdded` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE `user_settings` ADD COLUMN `time_zone` TEXT NOT NULL DEFAULT 'UTC'")
+            db.execSQL("ALTER TABLE `user_settings` ADD COLUMN `unit_system` TEXT NOT NULL DEFAULT 'LB'")
+            db.execSQL("ALTER TABLE `user_settings` ADD COLUMN `smart_suggest` INTEGER NOT NULL DEFAULT 1")
+            val zone = ZoneId.systemDefault().id
+            if (zone != "UTC") {
+                db.execSQL(
+                    """
+                    UPDATE `user_settings`
+                       SET `time_zone` = ?
+                     WHERE `time_zone` = 'UTC'
+                       AND `user_bodyweight_lbs` IS NULL
+                       AND `glass_palette_choice` IS NULL
+                       AND `unit_system` = 'LB'
+                       AND `smart_suggest` = 1
+                    """.trimIndent(),
+                    arrayOf(zone),
+                )
+            }
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `workout_exercise_card` (
+                    `id` TEXT NOT NULL,
+                    `date` TEXT NOT NULL,
+                    `exerciseId` INTEGER NOT NULL,
+                    `position` INTEGER NOT NULL,
+                    `displayMode` TEXT NOT NULL,
+                    `origin` TEXT NOT NULL,
+                    `sourcePlanId` TEXT,
+                    `rowRevision` INTEGER NOT NULL DEFAULT 1,
+                    `createdAt` TEXT NOT NULL DEFAULT '',
+                    `updatedAt` TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY(`id`),
+                    FOREIGN KEY(`exerciseId`) REFERENCES `exercise`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_workout_exercise_card_date_exerciseId` " +
+                    "ON `workout_exercise_card` (`date`, `exerciseId`)",
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_workout_exercise_card_date_position` " +
+                    "ON `workout_exercise_card` (`date`, `position`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_workout_exercise_card_exerciseId` " +
+                    "ON `workout_exercise_card` (`exerciseId`)",
+            )
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `exercise_alias` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `exerciseId` INTEGER NOT NULL,
+                    `alias` TEXT NOT NULL,
+                    `normalizedKey` TEXT NOT NULL,
+                    FOREIGN KEY(`exerciseId`) REFERENCES `exercise`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_exercise_alias_normalizedKey` " +
+                    "ON `exercise_alias` (`normalizedKey`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_exercise_alias_exerciseId` ON `exercise_alias` (`exerciseId`)",
+            )
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `exercise_distinct_pair` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `exerciseIdA` INTEGER NOT NULL,
+                    `exerciseIdB` INTEGER NOT NULL,
+                    FOREIGN KEY(`exerciseIdA`) REFERENCES `exercise`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                    FOREIGN KEY(`exerciseIdB`) REFERENCES `exercise`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_exercise_distinct_pair_exerciseIdA_exerciseIdB` " +
+                    "ON `exercise_distinct_pair` (`exerciseIdA`, `exerciseIdB`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_exercise_distinct_pair_exerciseIdB` " +
+                    "ON `exercise_distinct_pair` (`exerciseIdB`)",
+            )
+            backfillLegacyCards(db)
+        }
+    }
+
+    /** One LEGACY card per distinct set group that still has an empty cardId. */
+    fun backfillLegacyCards(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            INSERT OR IGNORE INTO `workout_exercise_card` (
+                `id`, `date`, `exerciseId`, `position`, `displayMode`, `origin`,
+                `sourcePlanId`, `rowRevision`, `createdAt`, `updatedAt`
+            )
+            SELECT
+                'legacy-' || `date` || '-' || `exerciseId`,
+                `date`,
+                `exerciseId`,
+                (
+                    SELECT COUNT(DISTINCT w2.`exerciseId`)
+                    FROM `workout_set` w2
+                    WHERE w2.`date` = grouped.`date` AND w2.`exerciseId` < grouped.`exerciseId`
+                ),
+                CASE WHEN MIN(`completed`) = 1 THEN 'COMPACT' ELSE 'EXPANDED' END,
+                'LEGACY',
+                NULL,
+                1,
+                '',
+                ''
+            FROM `workout_set` AS grouped
+            WHERE `cardId` = ''
+            GROUP BY `date`, `exerciseId`
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            UPDATE `workout_set`
+               SET `cardId` = 'legacy-' || `date` || '-' || `exerciseId`
+             WHERE `cardId` = ''
+               AND EXISTS (
+                    SELECT 1 FROM `workout_exercise_card` c
+                    WHERE c.`id` = 'legacy-' || `workout_set`.`date` || '-' || `workout_set`.`exerciseId`
+               )
+            """.trimIndent(),
+        )
+    }
+
     val ALL_MIGRATIONS = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
@@ -290,6 +436,7 @@ object Migrations {
         MIGRATION_16_17,
         MIGRATION_17_18,
         MIGRATION_18_19,
+        MIGRATION_19_20,
     )
 
     private fun migrateLegacyWorkoutSchemaToV3Shape(db: SupportSQLiteDatabase) {

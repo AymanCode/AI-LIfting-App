@@ -19,4 +19,5 @@ data class Exercise(
     val muscleGroups: String = UNCLASSIFIED_MUSCLE_GROUPS,
     val isBodyweight: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
+    val mergedIntoId: Long? = null,
 )
