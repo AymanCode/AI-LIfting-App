@@ -271,9 +271,9 @@ class OrchestratorViewModel(
 
     fun applyShortcut(prompt: String) { currentSession(); _input.value = prompt }
 
-    fun sendMessage() {
+    fun sendMessage(visibleText: String = _input.value) {
         val session = currentSession()
-        val text = _input.value.trim().ifEmpty { return }
+        val text = visibleText.trim().ifEmpty { return }
         _input.value = ""
         push(isUser = true, text = text)
 
