@@ -93,6 +93,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayman.ecolift.android.platform.LocalAndroidDeviceActions
+import com.ayman.ecolift.data.PendingReview
 import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.hub.BacklogItem
 import com.ayman.ecolift.data.hub.HubBuild
@@ -118,6 +119,7 @@ import com.ayman.ecolift.ui.theme.TAB_ARRIVAL_FRAMES
 import com.ayman.ecolift.ui.theme.TabArrival
 import com.ayman.ecolift.ui.theme.TabWarmupShell
 import com.ayman.ecolift.ui.theme.glassPanel
+import com.ayman.ecolift.ui.viewmodel.AiPendingActionUi
 import com.ayman.ecolift.ui.viewmodel.ChangelogWin
 import com.ayman.ecolift.ui.viewmodel.ClaudeChangeUi
 import com.ayman.ecolift.ui.viewmodel.DataPart
@@ -1362,6 +1364,13 @@ fun IronMindScreen(
     smartSuggestEnabled: Boolean = true,
     onSmartSuggestChange: (Boolean) -> Unit = {},
     desk: IronMindDeskUi = IronMindDeskUi(),
+    pendingAction: AiPendingActionUi? = null,
+    onApplyPending: () -> Unit = {},
+    onCancelPending: () -> Unit = {},
+    onResolveReview: (PendingReview) -> Unit = {},
+    onDismissReview: (Long) -> Unit = {},
+    reviewError: String? = null,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     onKeepGroup: (DeskDecisionUi) -> Unit = {},
     onRetireGroup: (DeskDecisionUi) -> Unit = {},
     onOpenGroup: (Long) -> Unit = {},
@@ -1391,7 +1400,6 @@ fun IronMindScreen(
         if (openSettingsOnStart) onSettingsOpenedOnStart()
     }
     val settingsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(hubMessage) {
         val message = hubMessage ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message = message)
@@ -1443,7 +1451,7 @@ fun IronMindScreen(
     val conversationListState = rememberLazyListState()
     val listState = if (showDesk) deskListState else conversationListState
     var viewportHeightPx by remember { mutableStateOf(0) }
-    LaunchedEffect(showDesk, conversationTarget, listItems.size, isThinking, viewportHeightPx) {
+    LaunchedEffect(showDesk, conversationTarget, listItems.size, pendingAction, isThinking, viewportHeightPx) {
         if (showDesk) return@LaunchedEffect
         val target = conversationTarget
         if (target != null) {
@@ -1454,7 +1462,7 @@ fun IronMindScreen(
                 conversationListState.scrollToItem(index)
             }
         } else if (listItems.isNotEmpty()) {
-            conversationListState.animateScrollToItem((listItems.size + if (isThinking) 1 else 0) - 1)
+            conversationListState.animateScrollToItem(listItems.size + (if (pendingAction != null) 1 else 0) + (if (isThinking) 1 else 0) - 1)
         }
     }
 
@@ -1526,6 +1534,20 @@ fun IronMindScreen(
                             )
                         }
                     }
+                    pendingAction?.let { action ->
+                        item(key = "pending-action") {
+                            PendingActionCard(action, busy = isThinking, onApply = onApplyPending, onCancel = onCancelPending)
+                        }
+                    }
+                    if (desk.pendingReviews.isNotEmpty()) {
+                        item(key = "saved-reviews") { DeskSection("NEEDS REVIEW", accent = true) }
+                        items(desk.pendingReviews, key = { "saved-review:${it.id}" }) { review ->
+                            SavedReviewRow(review, isThinking, { onResolveReview(review) }, { onDismissReview(review.id) })
+                        }
+                    }
+                    if (reviewError != null) {
+                        item(key = "review-error") { Text(reviewError, style = EspressoType.body, color = EspressoPalette.ink) }
+                    }
                     item(key = "needs-you") { DeskSection("NEEDS YOU", accent = true, trailing = if (desk.decisions.isEmpty()) "NONE" else null) }
                     items(desk.decisions, key = { it.id }) { decision ->
                         DeskDecisionCard(decision, { onKeepGroup(decision) }, { onRetireGroup(decision) }, { onOpenGroup(decision.slotId) })
@@ -1591,6 +1613,11 @@ fun IronMindScreen(
                             )
                             is IronMindMessage.AiThinking -> AiThinkingBubble()
                         }
+                    }
+                }
+                if (!showDesk && pendingAction != null) {
+                    item(key = "pending-action") {
+                        PendingActionCard(pendingAction, busy = isThinking, onApply = onApplyPending, onCancel = onCancelPending)
                     }
                 }
                 if (!showDesk && isThinking) {
