@@ -65,6 +65,9 @@ class AgentOrchestrator(
         userText: String,
         options: AgentProcessingOptions = AgentProcessingOptions()
     ): AgentTurn {
+        if (AgentWeightInput.hasInvalidLoad(userText) && AgentRecoveryGuidance.looksLikeWorkoutLog(userText)) {
+            return recoverLogSetFailure(userText)
+        }
         handleWorkoutImport(userText)?.let { return it }
 
         val routing = router.route(userText, allowModelFallback = options.allowModelFallback)
@@ -325,6 +328,8 @@ class AgentOrchestrator(
             }
         }
 
+        if (Regex("""\d+\s*x\s*\d+\s*x\s*\d+""", RegexOption.IGNORE_CASE).containsMatchIn(userText)) return null
+
         if (AgentRecoveryGuidance.shouldAvoidModelLogMutation(userText)) return null
 
         val legacy = generateLegacyLogSetPatch(userText, targetDate)
@@ -337,7 +342,7 @@ class AgentOrchestrator(
         AgentRecoveryGuidance.logSetFailure(
             originalText = userText,
             saveDate = today(),
-            canTryModel = engine != null
+            canTryModel = engine?.isReady == true
         )
 
     private suspend fun generateLegacyLogSetPatch(userText: String, targetDate: String): List<DbPatch>? {
@@ -419,19 +424,31 @@ class AgentOrchestrator(
     }
 
     private suspend fun generateEditSet(userText: String): DbPatch? {
-        val ex = extractAndFindExercise(userText)
-        val recentSets = if (ex != null) tools.getRecentSets(ex.exerciseId, limit = 1) else emptyList()
-        val setId = recentSets.firstOrNull()?.setId ?: return null
+        val setId = mutationTarget(userText)?.setId ?: return null
         val (weight, reps) = extractWeightAndReps(userText) ?: Pair(null, null)
         if (weight == null && reps == null) return null
         return DbPatch.EditSet(setId = setId, weightLbs = weight, reps = reps)
     }
 
     private suspend fun generateDeleteSet(userText: String): DbPatch? {
-        val ex = extractAndFindExercise(userText)
-        val recentSets = if (ex != null) tools.getRecentSets(ex.exerciseId, limit = 1) else emptyList()
-        val setId = recentSets.firstOrNull()?.setId ?: return null
+        val setId = mutationTarget(userText)?.setId ?: return null
         return DbPatch.DeleteSet(setId = setId)
+    }
+
+    private suspend fun mutationTarget(userText: String): SetSummary? {
+        val ex = extractAndFindExercise(userText) ?: return null
+        val date = extractDate(userText, today())
+        val setNumber = Regex("""(?i)\bset\s+(\d+)\b""").find(userText)?.groupValues?.get(1)?.toIntOrNull()
+            ?: when {
+                Regex("""(?i)\bfirst\b""").containsMatchIn(userText) -> 1
+                Regex("""(?i)\bsecond\b""").containsMatchIn(userText) -> 2
+                Regex("""(?i)\bthird\b""").containsMatchIn(userText) -> 3
+                else -> null
+            }
+        if (date == null && setNumber == null) return tools.getRecentSets(ex.exerciseId, limit = 1).firstOrNull()
+        val sets = tools.getSessionByDate(date ?: today()).exercises
+            .firstOrNull { it.exerciseId == ex.exerciseId }?.sets.orEmpty()
+        return if (setNumber != null) sets.firstOrNull { it.setNumber == setNumber } else sets.maxByOrNull { it.setNumber }
     }
 
     private fun generateMoveWorkoutDay(userText: String): DbPatch? {
@@ -458,6 +475,8 @@ class AgentOrchestrator(
 
         // 2. Heuristic fallback
         val candidate = text
+            .replace(Regex("""(?i)\b(rename\s+.+?)\s+to\s+.+"""), "$1")
+            .replace(Regex("""(?i)\b(?:set\s+\d+|sets?|first|second|third|extra|twice|accidental|should|use|weight)\b"""), " ")
             .replace(Regex("""@[^@\s]+(?: [^@\s]+)*"""), " ") // Remove @mention if it failed above
             .replace(Regex("""\d+\s*(?:lbs?|kg|pounds?|kilos?|reps?|sets?)?"""), " ")
             .replace(
@@ -481,8 +500,8 @@ class AgentOrchestrator(
         if (setNotation != null) {
             val aRaw = setNotation.groupValues[1]
             val a = aRaw.toDoubleOrNull() ?: return null
-            val b = setNotation.groupValues[2].toInt()
-            return if (a > 20) Pair(WeightLbs.parseInputToStorage(aRaw), b) else Pair(null, b)
+            val b = setNotation.groupValues[2].toIntOrNull() ?: return null
+            return if (a > 20) Pair(AgentWeightInput.parse(aRaw), b) else Pair(null, b)
         }
 
         val weight = Regex("""(\d+(?:\.\d+)?)\s*(?:lbs?|kg|pounds?)""")
@@ -847,7 +866,7 @@ class AgentOrchestrator(
             "No history for $name yet. Start light and work up."
         else -> {
             val w = s.suggestedWeightLbs?.let { "${WeightLbs.formatStored(it)} lb" } ?: "bodyweight"
-            "$name: try $w for ${countLabel(s.targetReps, "rep")}. ${s.reasoning}"
+            "$name: try $w for ${countLabel(s.suggestedReps ?: s.targetReps, "rep")}. ${s.reasoning}"
         }
     }
 

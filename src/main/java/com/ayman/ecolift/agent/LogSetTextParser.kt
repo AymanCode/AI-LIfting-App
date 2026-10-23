@@ -1,7 +1,5 @@
 package com.ayman.ecolift.agent
 
-import com.ayman.ecolift.data.WeightLbs
-
 /**
  * Deterministic parser for one-exercise workout log messages.
  *
@@ -24,9 +22,17 @@ object LogSetTextParser {
 
     fun parseOneExercise(text: String): ParsedLog? {
         val normalized = normalize(text)
+        if (AgentWeightInput.hasInvalidLoad(normalized)) return null
         val consumed = mutableListOf<IntRange>()
         val sets = mutableListOf<ParsedSet>()
 
+        for (match in WEIGHT_REPS_COUNT.findAll(normalized)) {
+            val weight = match.groupValues[1].toStorageWeightOrNull() ?: return null
+            val reps = match.groupValues[2].toIntOrNull()?.takeIf { it in 1..100 } ?: return null
+            val count = match.groupValues[3].toIntOrNull()?.takeIf { it in 1..10 } ?: return null
+            repeat(count) { sets.add(ParsedSet(weight, reps)) }
+            consumed.add(match.range)
+        }
         parseWeightRepLists(normalized, consumed, sets)
         parseBareWeightRepLists(normalized, consumed, sets)
         parseBareWeightRepPairs(normalized, consumed, sets)
@@ -161,18 +167,14 @@ object LogSetTextParser {
 
     /** Storage is pounds, so a kilogram weight ([unit] "kg" or "kilo(s)") is converted first. */
     private fun String.toStorageWeightOrNull(unit: String = ""): Int? {
-        val value = trim().trimStart('.')
-        if (value.isBlank()) return null
-        if (!unit.startsWith("k", ignoreCase = true)) return WeightLbs.parseInputToStorage(value)
-        val kilograms = value.toDoubleOrNull() ?: return null
-        return WeightLbs.fromLbs(kilograms * LBS_PER_KG)
+        return AgentWeightInput.parse(trim().trimStart('.'), unit)
     }
 
     private fun IntRange.overlaps(ranges: List<IntRange>): Boolean {
         return ranges.any { first <= it.last && it.first <= last }
     }
 
-    private const val LBS_PER_KG = 2.20462
+    private val WEIGHT_REPS_COUNT = Regex("""(?i)(?<![\d.])(\d+(?:\.\d+)?)\s*x\s*(\d+)\s*x\s*(\d+)(?!\d)""")
     private val WEIGHT_REP_LIST = Regex(
         """(?i)(\d+(?:\.\d+)?)\s*(lbs?|pounds?|pound|kg|kilos?)\b(?:\s+or\s+(?:lbs?|pounds?|pound|kg|kilos?))?\s*(?:for|x|by)\s+(\d{1,3}(?:\s*reps?)?(?:(?:\s*,\s*|\s+and\s+|\s+)\d{1,3}(?:\s*reps?)?)*)"""
     )

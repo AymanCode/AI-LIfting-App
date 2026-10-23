@@ -42,3 +42,8 @@ Resource calls change at the copy. `Res.drawable.name` becomes `R.drawable.name`
 - [Resources](web-port/resources.md)
 - [Tests](web-port/tests.md)
 - [How RoomRepos loads](web-port/room-how.md)
+
+## Android divergences
+
+- `PatchService` uses the optional `AtomicPatchRepository` hook on `RoomSetRepository`. A batch shares one Room draft, and its memory-only audit publishes after commit. Delete Undo restores the affected exercise-day group, including row identity and card metadata, and rejects changed groups.
+- `AgentOrchestrator` filters explicit correction and delete dates before choosing a set, reads explicit set ordinals, checks model readiness before offering Try AI, and displays the recommender's suggested reps. `LogSetTextParser` expands weight-by-reps-by-count input. Agent input parsing rejects invalid or overflowing loads, and exercise matching requires every query word to fit the selected exercise. Unknown workout notation remains an editable draft.

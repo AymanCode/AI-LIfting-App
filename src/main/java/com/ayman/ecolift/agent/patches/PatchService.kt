@@ -9,6 +9,7 @@ import com.ayman.ecolift.web.AppRepos
 import com.ayman.ecolift.web.supabase.ExerciseRenameResult
 import com.ayman.ecolift.web.supabase.sync.orThrow
 import com.ayman.ecolift.web.util.nowMillis
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -27,9 +28,7 @@ interface PatchApplier {
 /**
  * Single entry point for all agent-proposed mutations.
  *
- * Flow: validate -> (read pre-state -> compute inverse -> apply) per patch
- *       -> write audit -> commit. Sequential writes; no DB transaction needed
- *       for single-user browser context.
+ * Android repositories commit each batch before publishing its audit and set state.
  */
 class PatchService(
     private val repos: AppRepos,
@@ -37,6 +36,9 @@ class PatchService(
     private val auditStore: InMemoryAuditStore
 ) : PatchApplier {
     private val json = Json { prettyPrint = false }
+    private val atomicRepository = repos.sets as? AtomicPatchRepository
+    private data class UndoStep(val patch: DbPatch, val restore: PatchUndo? = null)
+    private val undoActions = mutableMapOf<Long, List<UndoStep>>()
     private val inverseComputer by lazy {
         InverseComputer(repos.sets, repos.exercises)
     }
@@ -45,44 +47,64 @@ class PatchService(
         requestId: String,
         patches: List<DbPatch>,
         userConfirmed: Boolean
+    ): PatchResult = applyBatch(requestId, patches, userConfirmed)
+
+    private suspend fun applyBatch(
+        requestId: String,
+        patches: List<DbPatch>,
+        userConfirmed: Boolean,
+        restores: List<UndoStep> = emptyList(),
     ): PatchResult {
-        // 1. Validate all patches up front - no DB access yet
-        val validation = validator.validateAll(patches)
+        val validation = validator.validateAll(patches.filterIndexed { index, _ -> restores.getOrNull(index)?.restore == null })
         if (validation is ValidationResult.Rejected) {
             return PatchResult.Rejected(validation.reason)
         }
 
-        // 2. Gate destructive ops on user confirmation
         if (!userConfirmed && patches.any { DbPatch.isDestructive(it) }) {
             return PatchResult.Rejected("Destructive patches require user confirmation")
         }
 
-        // 3. Apply sequentially (single-user, no real transaction needed for web v1)
         return try {
-            val inversePatches = mutableListOf<DbPatch>()
-
-            for (patch in patches) {
-                if (patch is DbPatch.LogSet) {
-                    // LogSet: apply first to get inserted ID, then build inverse
-                    val insertedId = applyPatch(patch)
-                    inversePatches.add(inverseComputer.computeInverse(patch, insertedId))
-                } else {
-                    // All others: read pre-state for inverse BEFORE applying
-                    val inverse = inverseComputer.computeInverse(patch)
-                    applyPatch(patch)
-                    inversePatches.add(inverse)
+            var applied: PatchResult.Applied? = null
+            val prepare: suspend () -> (() -> Unit) = {
+                val inverses = mutableListOf<UndoStep>()
+                for ((index, patch) in patches.withIndex()) {
+                    val restore = restores.getOrNull(index)?.restore
+                    if (restore != null) {
+                        inverses.add(UndoStep(patch, restore.restore()))
+                    } else if (patch is DbPatch.LogSet) {
+                        val insertedId = applyPatch(patch)
+                        inverses.add(UndoStep(inverseComputer.computeInverse(patch, insertedId)))
+                    } else {
+                        val inverse = inverseComputer.computeInverse(patch)
+                        val action = if (patch is DbPatch.DeleteSet && atomicRepository != null) {
+                            atomicRepository.deleteWithUndo(patch.setId)
+                        } else {
+                            applyPatch(patch)
+                            null
+                        }
+                        inverses.add(UndoStep(inverse, action))
+                    }
                 }
+                val undo = inverses.reversed()
+                val audit = AuditEntity(
+                    requestId = requestId,
+                    timestamp = nowMillis(),
+                    serializedPatches = json.encodeToString(patches),
+                    serializedInverse = json.encodeToString(undo.map { it.patch }),
+                    userConfirmed = userConfirmed,
+                )
+                val commit: () -> Unit = {
+                    val auditId = auditStore.insert(audit)
+                    synchronized(undoActions) { undoActions[auditId] = undo }
+                    applied = PatchResult.Applied(auditId = auditId, patchCount = patches.size)
+                }
+                commit
             }
-
-            val audit = AuditEntity(
-                requestId = requestId,
-                timestamp = nowMillis(),
-                serializedPatches = json.encodeToString(patches),
-                serializedInverse = json.encodeToString(inversePatches),
-                userConfirmed = userConfirmed
-            )
-            val auditId = auditStore.insert(audit)
-            PatchResult.Applied(auditId = auditId, patchCount = patches.size)
+            if (atomicRepository != null) atomicRepository.applyAtomically(repos.exercises, prepare) else prepare()()
+            checkNotNull(applied)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             PatchResult.Failed(e.message ?: "Unknown error during patch application")
         }
@@ -94,10 +116,11 @@ class PatchService(
             ?: return PatchResult.Failed("Audit entry $auditId not found")
 
         val inversePatches = json.decodeFromString<List<DbPatch>>(audit.serializedInverse)
-        return applyPatches(
+        return applyBatch(
             requestId = "undo-${audit.requestId}",
             patches = inversePatches,
-            userConfirmed = true  // undo is always user-initiated
+            userConfirmed = true,
+            restores = synchronized(undoActions) { undoActions[auditId].orEmpty() },
         )
     }
 

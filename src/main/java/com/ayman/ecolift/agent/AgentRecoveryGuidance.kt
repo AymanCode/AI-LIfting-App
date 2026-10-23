@@ -16,6 +16,7 @@ object AgentRecoveryGuidance {
         val hasNumberWord = NUMBER_WORDS.any { Regex("""\b${Regex.escape(it)}\b""").containsMatchIn(t) }
         val hasExerciseTerm = EXERCISE_TERMS.any { Regex("""\b${Regex.escape(it)}\b""").containsMatchIn(t) }
 
+        if (hasSetNotation) return true
         if (hasLogVerb && (hasExerciseTerm || hasSetNotation || hasUnitOrRep || hasNumberWord)) return true
         if (hasExerciseTerm && (hasSetNotation || hasUnitOrRep)) return true
         return false
