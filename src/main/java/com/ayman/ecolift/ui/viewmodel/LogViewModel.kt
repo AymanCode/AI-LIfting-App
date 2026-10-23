@@ -1142,7 +1142,7 @@ class LogViewModel(
         if (requests.isEmpty() || DemoGuard.blockIfDemo()) return
         val expectedGeneration = dataGeneration()
         viewModelScope.launch {
-            withDataGeneration(expectedGeneration) add@ {
+            withDataGeneration(expectedGeneration) add@{
             // Every line belongs to the day the user was on when they tapped. Changing the day
             // mid-run also clears the add token, which reads as "this line is done", so without
             // this check the remaining lines would land on the day the user moved to.

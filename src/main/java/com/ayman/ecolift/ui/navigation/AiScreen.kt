@@ -122,6 +122,12 @@ fun AiScreen(
     val quickActions = uiState.shortcuts.map { shortcut ->
         QuickAction(label = shortcut.title, query = shortcut.prompt)
     }
+    var chatDraft by remember { mutableStateOf("") }
+    var chatDraftGeneration by remember { mutableStateOf(generation) }
+    if (chatDraftGeneration != generation) {
+        chatDraftGeneration = generation
+        chatDraft = ""
+    }
 
     IronMindScreen(
         // Only an abnormal state earns a line in the header. A healthy model reports nothing,
@@ -133,18 +139,31 @@ fun AiScreen(
         },
         messages = mappedMessages,
         quickActions = quickActions,
-        inputQuery = uiState.input,
+        inputQuery = chatDraft,
         isThinking = uiState.isWorking,
-        onQueryChange = viewModel::updateInput,
-        onSend = viewModel::sendMessage,
+        onQueryChange = { text ->
+            chatDraft = text
+            viewModel.updateInput(text)
+        },
+        onSend = {
+            viewModel.sendMessage()
+            chatDraft = ""
+        },
         onQuickAction = { action ->
+            chatDraft = ""
             viewModel.applyShortcut(action.query)
             viewModel.sendMessage()
         },
         onRecoveryAction = { recovery, action ->
             when (action) {
-                RecoveryAction.EditOriginal -> viewModel.editRecoveryDraft(recovery.originalText)
-                RecoveryAction.UseTemplate -> viewModel.useRecoveryTemplate(recovery.suggestedTemplate)
+                RecoveryAction.EditOriginal -> {
+                    chatDraft = recovery.originalText
+                    viewModel.editRecoveryDraft(recovery.originalText)
+                }
+                RecoveryAction.UseTemplate -> {
+                    chatDraft = recovery.suggestedTemplate
+                    viewModel.useRecoveryTemplate(recovery.suggestedTemplate)
+                }
                 RecoveryAction.SaveForReview -> viewModel.saveRecoveryForReview(
                     originalText = recovery.originalText,
                     saveDate = recovery.saveDate

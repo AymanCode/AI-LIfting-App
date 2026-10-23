@@ -403,6 +403,7 @@ private class ClipboardState {
     var clippedSlotId: Long? by mutableStateOf(null)
     /** While a program clips on, its card keeps saying CLIP ON and rides up into the stub's slot. */
     var clipping: Long? by mutableStateOf(null)
+    var queryDraft by mutableStateOf("")
 
     fun isTorn(key: String): Boolean = torn.any { it.key == key }
 
@@ -477,7 +478,7 @@ internal fun LogClipboard(
     val loadedProgram = programs.firstOrNull { it.slotId == loadedSlotId }
     // Null means no stamp: a checked day with no group, or no proposal (spec 2026-09-28).
     val stamped = stampedProgram
-    val typing = focused || query.isNotBlank()
+    val typing = focused || state.queryDraft.isNotBlank()
     val isOpen = state.mode != ClipMode.Rest
     // While the on-screen keyboard is up the sheet ends just above it, so the tear strip and the
     // look-alike note are never under it; that sheet may be shorter than the host's 360 dp floor,
@@ -527,12 +528,19 @@ internal fun LogClipboard(
     fun close(afterAdd: Boolean = false) {
         closing = true
         focusManager.clearFocus()
-        if (query.isNotEmpty() && !afterAdd) onQueryChange("")
+        val typed = state.queryDraft.isNotEmpty() || query.isNotEmpty()
+        state.queryDraft = ""
+        if (typed && !afterAdd) onQueryChange("")
         scope.launch {
             height.animateTo(ClipRestHeight.value, tween(if (afterAdd) 440 else 320, easing = FastOutSlowInEasing))
             state.mode = ClipMode.Rest
             state.clipping = null
         }
+    }
+
+    androidx.activity.compose.BackHandler(enabled = isOpen) {
+        if (pickMode) onPickDismiss()
+        close()
     }
 
     fun openProgram(slotId: Long) {
@@ -911,11 +919,14 @@ private fun BoxScope.ClipSheet(
             .drawBehind { paperFill() },
     ) {
         ClipSearchLine(
-            query = query,
+            query = state.queryDraft,
             typing = typing,
             fieldFocus = fieldFocus,
             onFocusChanged = onFocusChanged,
-            onQueryChange = onQueryChange,
+            onQueryChange = { next ->
+                state.queryDraft = next
+                onQueryChange(next)
+            },
             onDone = onDone,
             programsOpen = state.programsOpen,
             onTogglePrograms = if (!typing && pocket.isNotEmpty()) {
@@ -945,13 +956,19 @@ private fun BoxScope.ClipSheet(
                 var index = 0
                 fun lineIndex() = index++
                 if (typing) {
-                    val shown = if (query.isBlank()) lifts.filter { it.lastCheckedDate != null }.take(6)
-                    else results.mapNotNull { result -> result.exerciseId?.let { liftsById[it] } }
+                    val typedQuery = state.queryDraft
+                    val shown = if (typedQuery.isBlank()) {
+                        lifts.filter { it.lastCheckedDate != null }.take(6)
+                    } else if (query.isBlank()) {
+                        emptyList()
+                    } else {
+                        results.mapNotNull { result -> result.exerciseId?.let { liftsById[it] } }
+                    }
                     shown.forEach { lift ->
                         ClipLiftLine(state, lift, lineIndex(), openClock, onToggle, onAnswer, registerLine, pickMode)
                     }
-                    if (!pickMode && clipboardShowsWrittenLine(query, lifts)) {
-                        val typed = ClipboardPick.Typed(query.trim())
+                    if (!pickMode && clipboardShowsWrittenLine(typedQuery, lifts)) {
+                        val typed = ClipboardPick.Typed(typedQuery.trim())
                         ClipWrittenLine(
                             pick = typed,
                             hidden = state.isTorn(typed.key),
@@ -978,7 +995,7 @@ private fun BoxScope.ClipSheet(
             val noteVisibleInline = noteKey != null &&
                 (
                 (typing && noteKey.startsWith("new:")) ||
-                    (noteKey.startsWith("id:") && isOnPage(noteKey, typing, query, results, lifts, state.tab))
+                    (noteKey.startsWith("id:") && isOnPage(noteKey, typing, state.queryDraft, results, lifts, state.tab))
                 )
             if (noteKey != null && !noteVisibleInline) {
                 Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 58.dp)) {

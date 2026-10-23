@@ -6,8 +6,8 @@ import com.ayman.ecolift.agent.FakeReadyEngine
 import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.test.runVmTest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.withTimeout
