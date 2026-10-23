@@ -12,6 +12,7 @@ import com.ayman.ecolift.android.platform.RestoreSource
 import com.ayman.ecolift.android.services.AndroidAppServices
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.DataBackupManager
+import com.ayman.ecolift.data.IsolatedBackupContext
 import com.ayman.ecolift.data.room.CardioSession
 import com.ayman.ecolift.ui.MainActivity
 import com.ayman.ecolift.ui.viewmodel.CardioViewModel
@@ -22,6 +23,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
@@ -30,10 +32,21 @@ import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class BackupLifecycleTest {
+    private val isolatedBackups = mutableListOf<IsolatedBackupContext>()
+
+    private fun isolatedBackupContext(): IsolatedBackupContext =
+        IsolatedBackupContext.open(ApplicationProvider.getApplicationContext()).also { isolatedBackups += it }
+
+    @After
+    fun deleteIsolatedBackups() {
+        isolatedBackups.forEach(IsolatedBackupContext::deleteIsolatedFiles)
+        isolatedBackups.clear()
+    }
+
     @Test
     fun recreationThenImportUpdatesRetainedCardioScreen() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val db = AppDatabase.getInstance(context)
+        val db = AppDatabase.getInstance(isolatedBackupContext())
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             val original = awaitGraph(scenario)
             var screen: CardioViewModel? = null
@@ -73,11 +86,12 @@ class BackupLifecycleTest {
     @Test
     fun malformedImportFailsBeforeReplacingData() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val db = AppDatabase.getInstance(context)
+        val backups = isolatedBackupContext()
+        val db = AppDatabase.getInstance(backups)
         val before = db.workoutSetDao().getAll()
         for (input in listOf("{truncated", "this is not JSON", "")) {
             val file = File(context.cacheDir, "bk-malformed.json").apply { writeText(input) }
-            val failure = runCatching { DataBackupManager.importFromUri(context, db, Uri.fromFile(file)) }.exceptionOrNull()
+            val failure = runCatching { DataBackupManager.importFromUri(backups, db, Uri.fromFile(file)) }.exceptionOrNull()
             assertEquals("JsonDecodingException", failure?.javaClass?.simpleName)
             assertEquals(before, db.workoutSetDao().getAll())
         }
@@ -85,9 +99,9 @@ class BackupLifecycleTest {
 
     @Test
     fun exportOutputFailurePropagatesToActionBoundary() = runBlocking {
-        val context = ApplicationProvider.getApplicationContext<Context>()
+        val backups = isolatedBackupContext()
         val failure = runCatching {
-            DataBackupManager.exportToUri(context, AppDatabase.getInstance(context), Uri.fromFile(File("/dev/full")))
+            DataBackupManager.exportToUri(backups, AppDatabase.getInstance(backups), Uri.fromFile(File("/dev/full")))
         }.exceptionOrNull()
         org.junit.Assert.assertTrue("The full output stream must fail", failure is java.io.IOException)
     }
@@ -95,7 +109,7 @@ class BackupLifecycleTest {
     @Test
     fun activityOwnerContainsMalformedImportAndExportFailure() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val db = AppDatabase.getInstance(context)
+        val db = AppDatabase.getInstance(isolatedBackupContext())
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             val graph = awaitGraph(scenario)
             val before = db.workoutSetDao().getAll()
@@ -120,7 +134,8 @@ class BackupLifecycleTest {
     @Test
     fun localRecoveryNeedsConfirmationAndRestoresTheSelectedSnapshot() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val db = AppDatabase.getInstance(context)
+        val backups = isolatedBackupContext()
+        val db = AppDatabase.getInstance(backups)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             val graph = awaitGraph(scenario)
             lateinit var owner: RepositoryOwner
@@ -128,7 +143,8 @@ class BackupLifecycleTest {
             val originalSettings = db.userSettingsDao().get()
             val originalSets = db.workoutSetDao().getAll()
             val exported = File(context.cacheDir, "bk-roundtrip.json")
-            DataBackupManager.exportToUri(context, db, Uri.fromFile(exported))
+            DataBackupManager.exportToUri(backups, db, Uri.fromFile(exported))
+            // RepositoryOwner reads this file from the application files directory.
             val backup = requireNotNull(DataBackupManager.createAutomaticBackup(context, db, "bk-local-test", force = true))
             val now = System.currentTimeMillis()
             val row = CardioSession(

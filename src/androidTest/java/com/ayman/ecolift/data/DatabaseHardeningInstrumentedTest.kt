@@ -26,6 +26,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
 class DatabaseHardeningInstrumentedTest {
@@ -40,10 +41,15 @@ class DatabaseHardeningInstrumentedTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val openDbs = mutableListOf<AppDatabase>()
+    private val isolatedBackups = mutableListOf<IsolatedBackupContext>()
+
+    private fun isolatedBackupContext(): IsolatedBackupContext =
+        IsolatedBackupContext.open(context).also { isolatedBackups += it }
 
     @After
     fun tearDown() {
         openDbs.forEach(AppDatabase::close)
+        isolatedBackups.forEach(IsolatedBackupContext::deleteIsolatedFiles)
         context.deleteDatabase(LEGACY_SOURCE_DB)
         context.deleteDatabase(BACKUP_SOURCE_DB)
         context.deleteDatabase(BACKUP_TARGET_DB)
@@ -347,41 +353,48 @@ class DatabaseHardeningInstrumentedTest {
         val source = createDb(BACKUP_SOURCE_DB)
         val target = createDb(BACKUP_TARGET_DB)
         seedBackupSource(source)
-        // Earlier backup tests can fill the eight-file retention cap, which keeps the count from growing.
-        File(context.filesDir, "automatic-backups").deleteRecursively()
+        val sentinelDir = File(context.filesDir, "automatic-backups").apply { mkdirs() }
+        val sentinel = File(sentinelDir, "rffix-sentinel-${UUID.randomUUID()}.json")
+        val backups = isolatedBackupContext()
+        try {
+            sentinel.writeText("keep")
+            val backupsBefore = DataBackupManager.listAutomaticBackups(backups).size
+            val backupFile = File(context.cacheDir, "ecolift-roundtrip-test.json").apply { delete() }
 
-        val backupsBefore = DataBackupManager.listAutomaticBackups(context).size
-        val backupFile = File(context.cacheDir, "ecolift-roundtrip-test.json").apply { delete() }
+            val exportResult = DataBackupManager.exportToUri(backups, source, Uri.fromFile(backupFile))
+            val importResult = DataBackupManager.importFromUri(backups, target, Uri.fromFile(backupFile))
+            val exportedSnapshot = Json { ignoreUnknownKeys = true }
+                .decodeFromString<UserDataBackup>(backupFile.readText())
 
-        val exportResult = DataBackupManager.exportToUri(context, source, Uri.fromFile(backupFile))
-        val importResult = DataBackupManager.importFromUri(context, target, Uri.fromFile(backupFile))
-        val exportedSnapshot = Json { ignoreUnknownKeys = true }
-            .decodeFromString<UserDataBackup>(backupFile.readText())
-
-        assertEquals(APP_DATABASE_VERSION, exportedSnapshot.metadata.appDbVersion)
-        assertTrue(exportResult.entryCount >= 10)
-        assertEquals(exportResult.entryCount, importResult.entryCount)
-        assertEquals(source.exerciseDao().domain().getAll().size, target.exerciseDao().domain().getAll().size)
-        assertEquals(source.workoutSetDao().domain().getAll().size, target.workoutSetDao().domain().getAll().size)
-        assertEquals(source.splitExerciseDao().domain().getAll().size, target.splitExerciseDao().domain().getAll().size)
-        assertEquals(source.auditDao().getAll().size, target.auditDao().getAll().size)
-        assertEquals(source.agentTurnLogDao().getAll().size, target.agentTurnLogDao().getAll().size)
-        assertEquals(source.cardioSessionDao().domain().getAll().size, target.cardioSessionDao().domain().getAll().size)
-        assertEquals("Bench Press", target.exerciseDao().domain().getById(1L)?.name)
-        assertTrue(DataBackupManager.listAutomaticBackups(context).size > backupsBefore)
-        assertEquals(source.archivedCycleDao().domain().getAll().size, target.archivedCycleDao().domain().getAll().size)
-        assertEquals("Spring Block", target.archivedCycleDao().domain().getById(700L)?.name)
-        assertEquals(185, target.userSettingsDao().domain().get()?.userBodyweightLbs)
-        val restoredTreadmill = target.cardioSessionDao().domain().getById(800L)
-        val restoredBike = target.cardioSessionDao().domain().getById(801L)
-        assertEquals(310, restoredTreadmill?.calories)
-        assertEquals(CardioActivityType.TREADMILL.name, restoredTreadmill?.activityType)
-        assertEquals(166, restoredTreadmill?.maxHeartRate)
-        assertEquals(5.5, restoredTreadmill?.avgInclinePercent ?: -1.0, 0.0)
-        assertEquals(82, restoredBike?.cadenceRpm)
-        assertEquals(8.0, restoredBike?.resistanceLevel ?: -1.0, 0.0)
-        assertEquals(185, restoredBike?.avgPowerWatts)
-        assertTrue(exportedSnapshot.cardioSessions.isNotEmpty())
+            assertEquals(APP_DATABASE_VERSION, exportedSnapshot.metadata.appDbVersion)
+            assertTrue(exportResult.entryCount >= 10)
+            assertEquals(exportResult.entryCount, importResult.entryCount)
+            assertEquals(source.exerciseDao().domain().getAll().size, target.exerciseDao().domain().getAll().size)
+            assertEquals(source.workoutSetDao().domain().getAll().size, target.workoutSetDao().domain().getAll().size)
+            assertEquals(source.splitExerciseDao().domain().getAll().size, target.splitExerciseDao().domain().getAll().size)
+            assertEquals(source.auditDao().getAll().size, target.auditDao().getAll().size)
+            assertEquals(source.agentTurnLogDao().getAll().size, target.agentTurnLogDao().getAll().size)
+            assertEquals(source.cardioSessionDao().domain().getAll().size, target.cardioSessionDao().domain().getAll().size)
+            assertEquals("Bench Press", target.exerciseDao().domain().getById(1L)?.name)
+            assertTrue(DataBackupManager.listAutomaticBackups(backups).size > backupsBefore)
+            assertEquals(source.archivedCycleDao().domain().getAll().size, target.archivedCycleDao().domain().getAll().size)
+            assertEquals("Spring Block", target.archivedCycleDao().domain().getById(700L)?.name)
+            assertEquals(185, target.userSettingsDao().domain().get()?.userBodyweightLbs)
+            val restoredTreadmill = target.cardioSessionDao().domain().getById(800L)
+            val restoredBike = target.cardioSessionDao().domain().getById(801L)
+            assertEquals(310, restoredTreadmill?.calories)
+            assertEquals(CardioActivityType.TREADMILL.name, restoredTreadmill?.activityType)
+            assertEquals(166, restoredTreadmill?.maxHeartRate)
+            assertEquals(5.5, restoredTreadmill?.avgInclinePercent ?: -1.0, 0.0)
+            assertEquals(82, restoredBike?.cadenceRpm)
+            assertEquals(8.0, restoredBike?.resistanceLevel ?: -1.0, 0.0)
+            assertEquals(185, restoredBike?.avgPowerWatts)
+            assertTrue(exportedSnapshot.cardioSessions.isNotEmpty())
+            assertTrue(sentinel.isFile)
+            assertEquals("keep", sentinel.readText())
+        } finally {
+            sentinel.delete()
+        }
     }
 
     @Test
@@ -419,7 +432,7 @@ class DatabaseHardeningInstrumentedTest {
             """.trimIndent(),
         )
 
-        DataBackupManager.importFromUri(context, target, Uri.fromFile(backupFile))
+        DataBackupManager.importFromUri(isolatedBackupContext(), target, Uri.fromFile(backupFile))
 
         assertEquals("Bench Press", target.exerciseDao().domain().getById(1L)?.name)
         val set = target.workoutSetDao().domain().getById(9L)

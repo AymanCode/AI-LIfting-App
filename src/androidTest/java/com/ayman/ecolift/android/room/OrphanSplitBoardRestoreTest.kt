@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.BackupMetadata
 import com.ayman.ecolift.data.DataBackupManager
+import com.ayman.ecolift.data.IsolatedBackupContext
 import com.ayman.ecolift.data.UserDataBackup
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
@@ -24,6 +25,7 @@ class OrphanSplitBoardRestoreTest {
     @Test
     fun restore_drops_a_missing_split_and_a_missing_exercise() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val backups = IsolatedBackupContext.open(context)
         val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
         try {
             val backup = UserDataBackup(
@@ -49,7 +51,7 @@ class OrphanSplitBoardRestoreTest {
             )
             val file = File(context.cacheDir, "orphan-split-board.json")
             file.writeText(Json { prettyPrint = true; ignoreUnknownKeys = true }.encodeToString(backup))
-            DataBackupManager.importFromUri(context, db, Uri.fromFile(file))
+            DataBackupManager.importFromUri(backups, db, Uri.fromFile(file))
 
             val keptMix = db.splitMemberChoiceDao().getBySplitId(10)!!.toChoice()
             assertEquals(listOf(1L), keptMix.board.inSplit)
@@ -64,6 +66,7 @@ class OrphanSplitBoardRestoreTest {
             assertEquals(listOf(1L), db.exerciseDao().getAll().map { it.id })
         } finally {
             db.close()
+            backups.deleteIsolatedFiles()
         }
     }
 }

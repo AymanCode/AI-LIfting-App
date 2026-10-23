@@ -8,6 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ayman.ecolift.android.platform.RestoreSource
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.DataBackupManager
+import com.ayman.ecolift.data.IsolatedBackupContext
 import com.ayman.ecolift.data.UserDataBackup
 import com.ayman.ecolift.data.splits.EffectiveSplitMembers
 import com.ayman.ecolift.data.splits.SplitChoicesState
@@ -35,13 +36,18 @@ class SplitBoardBackupTest {
     @Test
     fun export_replaces_a_longer_existing_backup_without_leaving_old_bytes() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val db = AppDatabase.getInstance(context)
-        val file = File(context.cacheDir, "sp-overwrite.json").apply { writeText("old backup bytes".repeat(10_000)) }
-        val result = DataBackupManager.exportToUri(context, db, Uri.fromFile(file))
-        val decoded = Json { ignoreUnknownKeys = true }.decodeFromString<UserDataBackup>(file.readText())
-        assertEquals(result.createdAtEpochMs, decoded.metadata.createdAtEpochMs)
-        assertEquals(db.exerciseDao().getAll(), decoded.exercises)
-        assertEquals(db.splitMemberChoiceDao().getAll(), decoded.splitMemberChoices)
+        val backups = IsolatedBackupContext.open(context)
+        try {
+            val db = AppDatabase.getInstance(backups)
+            val file = File(context.cacheDir, "sp-overwrite.json").apply { writeText("old backup bytes".repeat(10_000)) }
+            val result = DataBackupManager.exportToUri(backups, db, Uri.fromFile(file))
+            val decoded = Json { ignoreUnknownKeys = true }.decodeFromString<UserDataBackup>(file.readText())
+            assertEquals(result.createdAtEpochMs, decoded.metadata.createdAtEpochMs)
+            assertEquals(db.exerciseDao().getAll(), decoded.exercises)
+            assertEquals(db.splitMemberChoiceDao().getAll(), decoded.splitMemberChoices)
+        } finally {
+            backups.deleteIsolatedFiles()
+        }
     }
 
     @Test
@@ -112,28 +118,32 @@ class SplitBoardBackupTest {
     }
 
     private suspend fun withOwner(block: suspend (Context, AppDatabase, ActivityScenario<MainActivity>, RepositoryOwner, AppRepos) -> Unit) {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val db = AppDatabase.getInstance(context)
-        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            val repos = graph(scenario)
-            lateinit var owner: RepositoryOwner
-            scenario.onActivity { owner = it.repositoryOwner }
-            val original = File(context.cacheDir, "sp-original.json")
-            DataBackupManager.exportToUri(context, db, Uri.fromFile(original))
-            var primaryFailure: Throwable? = null
-            try {
-                block(context, db, scenario, owner, repos)
-            } catch (failure: Throwable) {
-                primaryFailure = failure
-                throw failure
-            } finally {
+        val context = IsolatedBackupContext.open(ApplicationProvider.getApplicationContext())
+        try {
+            val db = AppDatabase.getInstance(context)
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                val repos = graph(scenario)
+                lateinit var owner: RepositoryOwner
+                scenario.onActivity { owner = it.repositoryOwner }
+                val original = File(context.cacheDir, "sp-original.json")
+                DataBackupManager.exportToUri(context, db, Uri.fromFile(original))
+                var primaryFailure: Throwable? = null
                 try {
-                    restore(scenario, owner, original)
-                } catch (cleanupFailure: Throwable) {
-                    if (primaryFailure == null) throw cleanupFailure
-                    primaryFailure.addSuppressed(cleanupFailure)
+                    block(context, db, scenario, owner, repos)
+                } catch (failure: Throwable) {
+                    primaryFailure = failure
+                    throw failure
+                } finally {
+                    try {
+                        restore(scenario, owner, original)
+                    } catch (cleanupFailure: Throwable) {
+                        if (primaryFailure == null) throw cleanupFailure
+                        primaryFailure.addSuppressed(cleanupFailure)
+                    }
                 }
             }
+        } finally {
+            context.deleteIsolatedFiles()
         }
     }
 

@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.DataBackupManager
+import com.ayman.ecolift.data.IsolatedBackupContext
 import com.ayman.ecolift.data.Migrations
 import com.ayman.ecolift.data.room.CycleSlot
 import com.ayman.ecolift.data.room.Exercise
@@ -53,22 +54,27 @@ class MalformedSplitChoiceBackupTest {
             val exercises = db.exerciseDao().getAll()
             val sets = db.workoutSetDao().getAll()
             val choices = db.splitMemberChoiceDao().getAll()
-            val backups = DataBackupManager.listAutomaticBackups(context).map { it.fileName }
+            val backups = IsolatedBackupContext.open(context)
+            try {
+                val backupNames = DataBackupManager.listAutomaticBackups(backups).map { it.fileName }
 
-            val exported = File(context.cacheDir, "f4-choice-export.json")
-            DataBackupManager.exportToUri(context, db, Uri.fromFile(exported))
-            val bad = File(context.cacheDir, "f4-choice-bad.json")
-            bad.writeText(backupWithExactBadChoice(exported.readText()))
-            assertTrue(bad.readText().contains(BAD_CHOICE))
+                val exported = File(context.cacheDir, "f4-choice-export.json")
+                DataBackupManager.exportToUri(backups, db, Uri.fromFile(exported))
+                val bad = File(context.cacheDir, "f4-choice-bad.json")
+                bad.writeText(backupWithExactBadChoice(exported.readText()))
+                assertTrue(bad.readText().contains(BAD_CHOICE))
 
-            val failure = runCatching {
-                DataBackupManager.importFromUri(context, db, Uri.fromFile(bad))
-            }.exceptionOrNull()
-            assertEquals("JsonDecodingException", failure?.javaClass?.simpleName)
-            assertEquals(exercises, db.exerciseDao().getAll())
-            assertEquals(sets, db.workoutSetDao().getAll())
-            assertEquals(choices, db.splitMemberChoiceDao().getAll())
-            assertEquals(backups, DataBackupManager.listAutomaticBackups(context).map { it.fileName })
+                val failure = runCatching {
+                    DataBackupManager.importFromUri(backups, db, Uri.fromFile(bad))
+                }.exceptionOrNull()
+                assertEquals("JsonDecodingException", failure?.javaClass?.simpleName)
+                assertEquals(exercises, db.exerciseDao().getAll())
+                assertEquals(sets, db.workoutSetDao().getAll())
+                assertEquals(choices, db.splitMemberChoiceDao().getAll())
+                assertEquals(backupNames, DataBackupManager.listAutomaticBackups(backups).map { it.fileName })
+            } finally {
+                backups.deleteIsolatedFiles()
+            }
 
             val crashes = mutableListOf<Throwable>()
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, error -> crashes.add(error) })
