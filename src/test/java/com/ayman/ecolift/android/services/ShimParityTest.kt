@@ -12,14 +12,30 @@ import com.ayman.ecolift.web.logDateFromLocation
 import com.ayman.ecolift.web.logDateFromSearch
 import com.ayman.ecolift.web.scaledPhotoSize
 import com.ayman.ecolift.web.util.hapticConstant
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TestWatcher
+import org.junit.runner.Description
 import java.time.Instant
 
 class ShimParityTest {
+    @get:Rule
+    val searchClearedAfterTheTest = object : TestWatcher() {
+        override fun finished(description: Description) {
+            assertNull(logDateFromLocation())
+        }
+    }
+
+    @After
+    fun clearInstalledSearch() {
+        installLogSearch("")
+    }
+
     @Test
     fun `log date reads an iso date query and ignores the rest`() {
         assertEquals("2026-09-02", logDateFromSearch("?date=2026-09-02"))
@@ -38,6 +54,12 @@ class ShimParityTest {
         assertEquals("2026-09-02", logDateFromLocation())
         installLogSearch("")
         assertNull(logDateFromLocation())
+    }
+
+    @Test
+    fun `installed location search does not outlive the test`() {
+        installLogSearch("?date=2026-09-02")
+        assertEquals("2026-09-02", logDateFromLocation())
     }
 
     @Test
