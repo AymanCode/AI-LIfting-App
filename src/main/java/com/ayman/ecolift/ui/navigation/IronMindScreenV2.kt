@@ -1,5 +1,6 @@
 package com.ayman.ecolift.ui.navigation
 
+import android.content.res.Configuration
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -18,9 +19,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -78,6 +81,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -1342,6 +1346,9 @@ private fun SignOutGlyph(modifier: Modifier = Modifier) {
     }
 }
 
+internal fun ironMindPinsHeader(keyboardOpen: Boolean, landscape: Boolean): Boolean =
+    !(keyboardOpen && landscape)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IronMindScreen(
@@ -1395,7 +1402,7 @@ fun IronMindScreen(
     modifier: Modifier = Modifier
 ) {
     val palette = LocalGlassPalette.current
-    var isSettingsVisible by remember { mutableStateOf(openSettingsOnStart) }
+    var isSettingsVisible by rememberSaveable { mutableStateOf(openSettingsOnStart) }
     LaunchedEffect(Unit) {
         if (openSettingsOnStart) onSettingsOpenedOnStart()
     }
@@ -1466,11 +1473,14 @@ fun IronMindScreen(
         }
     }
 
+    val keyboardOpen = WindowInsets.ime.asPaddingValues().calculateBottomPadding() > 0.dp
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val pinHeader = ironMindPinsHeader(keyboardOpen, landscape)
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            HubHeader(
+            if (pinHeader) HubHeader(
                 openCount = desk.decisionCount,
                 onDesk = if (showDesk) {
                     null
@@ -1629,7 +1639,7 @@ fun IronMindScreen(
 
             IronMindDock(
                 query = inputQuery,
-                quickActions = quickActions,
+                quickActions = if (pinHeader) quickActions else emptyList(),
                 onQueryChange = onQueryChange,
                 onSend = { if (inputQuery.isNotBlank()) { showDesk = false; conversationTarget = null; onSend() } },
                 onQuickAction = { showDesk = false; conversationTarget = null; onQuickAction(it) },

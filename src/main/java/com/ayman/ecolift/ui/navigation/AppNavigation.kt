@@ -22,9 +22,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
@@ -53,12 +57,17 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -194,6 +203,41 @@ internal fun shouldShowGlobalBottomBar(
     currentRoute: String?,
     isKeyboardVisible: Boolean,
 ): Boolean = !isKeyboardVisible && !isProgressHighlightsReelRoute(currentRoute)
+
+internal data class ChromeClearance(
+    val start: Dp,
+    val end: Dp,
+    val bottom: Dp,
+)
+
+internal fun contentShowsBottomBar(
+    route: String?,
+    keyboardVisible: Boolean,
+    reportVisit: Boolean,
+): Boolean = shouldShowGlobalBottomBar(route, keyboardVisible) && !reportVisit
+
+internal fun chromeClearance(
+    navigationStart: Dp,
+    navigationEnd: Dp,
+    navigationBottom: Dp,
+    cutoutStart: Dp,
+    cutoutEnd: Dp,
+    bottomBarHeight: Dp,
+    showBottomBar: Boolean,
+): ChromeClearance = ChromeClearance(
+    start = maxOf(navigationStart, cutoutStart),
+    end = maxOf(navigationEnd, cutoutEnd),
+    bottom = if (showBottomBar) bottomBarHeight + navigationBottom else 0.dp,
+)
+
+internal fun rowsGrowWithFontScale(fontScale: Float): Boolean = fontScale > 1f
+
+internal fun bottomBarContentHeight(fontScale: Float): Dp {
+    if (!rowsGrowWithFontScale(fontScale)) return AppBottomBarHeight
+    val labelLine = 13f * fontScale
+    val item = maxOf(54f, 20f + 6f + labelLine)
+    return maxOf(AppBottomBarHeight.value, item + 6f + 16f).dp
+}
 
 @Composable
 fun AppNavigation(
@@ -413,8 +457,22 @@ fun AppNavigation(
         onImmersiveRouteChanged(isHighlightsReelRoute)
     }
 
-    val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val bottomBarReservedHeight = AppBottomBarHeight + navigationBarPadding
+    val layoutDirection = LocalLayoutDirection.current
+    val fontScale = LocalDensity.current.fontScale
+    val navPadding = WindowInsets.navigationBars.asPaddingValues()
+    val cutoutPadding = WindowInsets.displayCutout.asPaddingValues()
+    val navigationBarPadding = navPadding.calculateBottomPadding()
+    val barContentHeight = bottomBarContentHeight(fontScale)
+    val bottomBarReservedHeight = barContentHeight + navigationBarPadding
+    val clearance = chromeClearance(
+        navigationStart = navPadding.calculateStartPadding(layoutDirection),
+        navigationEnd = navPadding.calculateEndPadding(layoutDirection),
+        navigationBottom = navigationBarPadding,
+        cutoutStart = cutoutPadding.calculateStartPadding(layoutDirection),
+        cutoutEnd = cutoutPadding.calculateEndPadding(layoutDirection),
+        bottomBarHeight = barContentHeight,
+        showBottomBar = contentShowsBottomBar(currentRoute, isKeyboardVisible, isReportVisit),
+    )
 
     val swapOverlay = remember { SwapOverlayHost() }
     GlassTheme(palette = palette) {
@@ -458,13 +516,11 @@ fun AppNavigation(
                     .semantics { contentDescription = "App content" }
                     .onPreviewKeyEvent { swapOverlay.content != null }
                     .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets(
-                        bottom = if (!isReportVisit && shouldShowGlobalBottomBar(currentRoute, false)) {
-                            bottomBarReservedHeight
-                        } else {
-                            0.dp
-                        },
-                    )),
+                    .padding(
+                        start = clearance.start,
+                        end = clearance.end,
+                        bottom = clearance.bottom,
+                    ),
             ) {
                 composable("log") {
                     TodayScreen(
@@ -847,10 +903,17 @@ private fun AppBottomBar(
 
     val selectedIndex = destinations.indexOfFirst { isRouteSelected(currentRoute, it.route) }.coerceAtLeast(0)
     val markerIndex by animateFloatAsState(selectedIndex.toFloat(), tween(if (reducedMotion) 0 else 230, easing = CubicBezierEasing(.22f, 1f, .36f, 1f)))
+    val fontScale = LocalDensity.current.fontScale
+    val growRows = rowsGrowWithFontScale(fontScale)
+    val barHeight = if (growRows) {
+        Modifier.fillMaxWidth().heightIn(min = bottomBarContentHeight(fontScale))
+    } else {
+        Modifier.fillMaxWidth().height(AppBottomBarHeight)
+    }
     Box(modifier.fillMaxWidth().background(navBgColor).windowInsetsPadding(WindowInsets.navigationBars)
         .semantics { contentDescription = "Active tab ${destinations[selectedIndex].label}" }) {
         Row(
-            Modifier.fillMaxWidth().height(AppBottomBarHeight)
+            barHeight
                 .drawBehind {
                     if (dawn) drawLine(navLineColor, Offset.Zero, Offset(size.width, 0f), 1.dp.toPx())
                     val inset = 10.dp.toPx()
@@ -871,8 +934,9 @@ private fun AppBottomBar(
                 val pressed by source.collectIsPressedAsState()
                 val scale by animateFloatAsState(if (pressed) .94f else 1f, tween(if (reducedMotion) 0 else 100))
                 val tint = if (active) activeTintColor else inactiveTintColor
+                val itemHeight = if (growRows) Modifier.heightIn(min = 54.dp) else Modifier.height(54.dp)
                 Box(
-                    Modifier.weight(1f).height(54.dp)
+                    Modifier.weight(1f).then(itemHeight)
                         .graphicsLayer { scaleX = scale; scaleY = scale }
                         .clip(RoundedCornerShape(14.dp))
                         .background(if (pressed) EspressoPalette.panel2 else Color.Transparent)
@@ -893,7 +957,24 @@ private fun AppBottomBar(
                                 }
                             }
                         }
-                        Text(destination.label, color = tint, fontFamily = QuietUiFontFamily, fontSize = 11.sp, lineHeight = 13.sp, letterSpacing = 0.sp, fontWeight = if (active) FontWeight.Medium else FontWeight.Normal)
+                        if (growRows) {
+                            Text(
+                                destination.label,
+                                color = tint,
+                                fontFamily = QuietUiFontFamily,
+                                fontSize = 11.sp,
+                                lineHeight = 13.sp,
+                                letterSpacing = 0.sp,
+                                fontWeight = if (active) FontWeight.Medium else FontWeight.Normal,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            Text(destination.label, color = tint, fontFamily = QuietUiFontFamily, fontSize = 11.sp, lineHeight = 13.sp, letterSpacing = 0.sp, fontWeight = if (active) FontWeight.Medium else FontWeight.Normal)
+                        }
                     }
                 }
             }

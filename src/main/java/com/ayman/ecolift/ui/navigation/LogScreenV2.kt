@@ -746,13 +746,18 @@ private fun logMastLine(parts: List<DataPart>) = buildAnnotatedString {
 @Composable
 private fun LogMastCountRow(count: LogMastCount, color: Color, modifier: Modifier = Modifier) {
     val (before, after) = remember(count) { logMastCountParts(count) }
-    // The row keeps the kicker's 12sp line so the masthead is exactly as tall as before; the
-    // Clash digits are a touch larger and simply share that line.
+    // The 12dp floor is the kicker's 12sp line at font scale 1. Larger system text outgrows that
+    // line, so the row grows with it instead of painting only the top of the count.
     val line = TextStyle(lineHeight = 12.sp, lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both))
+    val countHeight = if (rowsGrowWithFontScale(LocalDensity.current.fontScale)) {
+        Modifier.heightIn(min = 12.dp)
+    } else {
+        Modifier.height(12.dp)
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
-            .height(12.dp)
+            .then(countHeight)
             .clearAndSetSemantics { contentDescription = logMastCountDescription(count) },
     ) {
         Text(text = logMastLine(before), style = line, maxLines = 1, softWrap = false)
@@ -2989,7 +2994,9 @@ fun LogScreen(
             val restTabColor = remember(exercises, restExerciseId) {
                 restTabColor(exercises.firstOrNull { it.exerciseId == restExerciseId }?.muscleGroups)
             }
-            val bottomBarPx = with(LocalDensity.current) { (AppBottomBarHeight + navigationBarPadding).toPx() }
+            val bottomBarPx = with(LocalDensity.current) {
+                (bottomBarContentHeight(fontScale) + navigationBarPadding).toPx()
+            }
             RestTab(
                 elapsedSeconds = restTimerSeconds,
                 color = restTabColor,
