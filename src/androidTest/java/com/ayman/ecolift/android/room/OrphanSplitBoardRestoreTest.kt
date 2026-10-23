@@ -8,8 +8,6 @@ import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.BackupMetadata
 import com.ayman.ecolift.data.DataBackupManager
 import com.ayman.ecolift.data.UserDataBackup
-import com.ayman.ecolift.data.room.CycleSlot as RoomCycleSlot
-import com.ayman.ecolift.data.room.Exercise as RoomExercise
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -18,6 +16,8 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import com.ayman.ecolift.data.room.CycleSlot as RoomCycleSlot
+import com.ayman.ecolift.data.room.Exercise as RoomExercise
 
 @RunWith(AndroidJUnit4::class)
 class OrphanSplitBoardRestoreTest {

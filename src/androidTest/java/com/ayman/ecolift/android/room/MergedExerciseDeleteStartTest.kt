@@ -4,7 +4,6 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ayman.ecolift.data.AppDatabase
-import com.ayman.ecolift.data.room.Exercise as RoomExercise
 import com.ayman.ecolift.data.room.UserSettings
 import com.ayman.ecolift.data.splits.EffectiveSplitMembers
 import com.ayman.ecolift.data.splits.SplitChoicesState
@@ -25,6 +24,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
+import com.ayman.ecolift.data.room.Exercise as RoomExercise
 
 @RunWith(AndroidJUnit4::class)
 class MergedExerciseDeleteStartTest {

@@ -1,7 +1,6 @@
 package com.ayman.ecolift.android.room
 
 import com.ayman.ecolift.data.AppDatabase
-import com.ayman.ecolift.data.room.Exercise as RoomExercise
 import com.ayman.ecolift.data.WorkoutCardDisplayMode
 import com.ayman.ecolift.data.WorkoutCardOrigin
 import com.ayman.ecolift.data.WorkoutExerciseCard
@@ -34,6 +33,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.time.ExperimentalTime
+import com.ayman.ecolift.data.room.Exercise as RoomExercise
 
 @OptIn(ExperimentalTime::class)
 class RoomRepos(
