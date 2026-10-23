@@ -210,18 +210,27 @@ class HubViewModel(
 
     fun updateSessionMessages(messages: List<AiMessageUi>) { sessionMessages.value = messages }
 
-    fun nameDeskGroup(slotId: Long, name: String) {
+    fun nameDeskGroup(slotId: Long, name: String, expectedGeneration: Long = repos.dataGeneration?.changes?.value ?: 0L) {
         if (slotId <= 0 || name.isBlank() || com.ayman.ecolift.web.demo.DemoGuard.blockIfDemo()) return
         viewModelScope.launch {
-            writeSplitThenRelearn(repos, "Couldn't rename the split.") { repos.workout.renameCycleSlot(slotId, name.trim()) }
+            withDeskGeneration(expectedGeneration) {
+                writeSplitThenRelearn(repos, "Couldn't rename the split.") { repos.workout.renameCycleSlot(slotId, name.trim()) }
+            }
         }
     }
 
-    fun retireDeskGroup(slotId: Long) {
+    fun retireDeskGroup(slotId: Long, expectedGeneration: Long = repos.dataGeneration?.changes?.value ?: 0L) {
         if (slotId <= 0 || com.ayman.ecolift.web.demo.DemoGuard.blockIfDemo()) return
         viewModelScope.launch {
-            writeSplitThenRelearn(repos, "Couldn't retire the split. Try again.") { repos.workout.suppressCycleSlot(slotId) }
+            withDeskGeneration(expectedGeneration) {
+                writeSplitThenRelearn(repos, "Couldn't retire the split. Try again.") { repos.workout.suppressCycleSlot(slotId) }
+            }
         }
+    }
+
+    private suspend fun withDeskGeneration(expected: Long, block: suspend () -> Unit) {
+        val generation = repos.dataGeneration
+        if (generation == null) block() else generation.withCurrent(expected, block)
     }
 
     val desk: StateFlow<IronMindDeskUi> = combine(
@@ -265,6 +274,19 @@ class HubViewModel(
     }
 
     init {
+        repos.dataGeneration?.let { generation ->
+            val initial = generation.changes.value
+            viewModelScope.launch {
+                var observed = initial
+                generation.changes.collect { current ->
+                    if (current != observed) {
+                        observed = current
+                        dismissedItemIds.value = emptySet()
+                        _expandedItemId.value = null
+                    }
+                }
+            }
+        }
         // Once the repository no longer contains a dismissed notification, forget the temporary
         // UI suppression. If a new unchecked set later gets the same date/exercise identity, it is
         // a new notification and should be allowed to appear.

@@ -261,6 +261,30 @@ class HubPolicyTest {
         assertNull(hubIndividualRemovalTarget(listOf(current.copy(completed = true)), -1L, "hub-1"))
     }
 
+    @Test
+    fun identicalRestoreResetsDismissedAndExpandedItems() = runVmTest {
+        val data = com.ayman.ecolift.agent.AgentMutationRepos(
+            listOf(com.ayman.ecolift.data.Exercise(1, "Bench Press", "CHEST")),
+            listOf(set(id = 1, date = "2001-01-01", weightLbs = 1350, reps = 5)),
+        )
+        val generation = com.ayman.ecolift.web.DataGeneration()
+        val repos = object : com.ayman.ecolift.web.AppRepos by data {
+            override val dataGeneration = generation
+        }
+        val vm = HubViewModel(repos, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
+        val backlog = kotlin.test.assertNotNull(withTimeout(2_000) { vm.build.first { it.backlog != null } }.backlog)
+        vm.dismiss(backlog, com.ayman.ecolift.ui.hub.HubSwipe.Confirm)
+        withTimeout(2_000) { vm.build.first { it.backlog == null } }
+        vm.toggleExpanded(backlog.id)
+        assertEquals(backlog.id, vm.expandedItemId.value)
+
+        generation.replace { }
+
+        assertNull(vm.expandedItemId.value)
+        assertEquals(backlog, withTimeout(2_000) { vm.build.first { it.backlog != null } }.backlog)
+        assertEquals(listOf(1350 to 5), data.currentSets.value.map { it.weightLbs to it.reps })
+    }
+
     private fun uncheckedItem(openSets: List<WorkoutSet>) = UncheckedSetsItem(
         id = "unchecked:test",
         date = openSets.first().date,

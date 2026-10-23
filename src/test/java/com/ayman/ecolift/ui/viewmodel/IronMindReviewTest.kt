@@ -10,9 +10,12 @@ import com.ayman.ecolift.test.runVmTest
 import com.ayman.ecolift.web.AppRepos
 import com.ayman.ecolift.web.supabase.PendingReviewRepository
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -89,6 +92,59 @@ class IronMindReviewTest {
     }
 
     @Test
+    fun savedDialogGenerationCannotResolveOrDismissAReplacementRow() = runVmTest {
+        val h = ReviewHarness()
+        val vm = OrchestratorViewModel(h.repos, FakeReadyEngine())
+        h.generation.replace { }
+
+        vm.resolveSavedReview(7, PendingReviewSet(1, 1350, 12), expectedGeneration = 0L)
+        vm.dismissSavedReview(7, expectedGeneration = 0L)
+
+        assertEquals(listOf(h.saved), h.reviews.value)
+        assertEquals(emptyList(), h.resolutions)
+        vm.resolveSavedReview(7, PendingReviewSet(1, 1450, 8), expectedGeneration = 1L)
+        assertEquals(listOf(7L to PendingReviewSet(1, 1450, 8)), h.resolutions)
+        assertEquals(emptyList(), h.reviews.value)
+    }
+
+    @Test
+    fun restoreDuringPendingResolveLeavesIronMindIdle() = runVmTest {
+        val h = ReviewHarness()
+        h.resolveGate = CompletableDeferred()
+        val vm = OrchestratorViewModel(h.repos, FakeReadyEngine())
+        val collect = launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
+        vm.resolveSavedReview(7, PendingReviewSet(1, 1350, 12), expectedGeneration = 0L)
+        assertEquals(true, vm.uiState.value.isWorking)
+
+        val restore = launch(Dispatchers.Main, start = CoroutineStart.UNDISPATCHED) {
+            h.generation.replace { }
+        }
+        h.resolveGate?.complete(Unit)
+        restore.join()
+
+        assertEquals(false, vm.uiState.value.isWorking)
+        assertEquals(1L, h.generation.changes.value)
+        collect.cancel()
+    }
+
+    @Test
+    fun queuedReviewCannotWriteAcrossAReplacementInProgress() = runVmTest {
+        val h = ReviewHarness()
+        val vm = OrchestratorViewModel(h.repos, FakeReadyEngine())
+        val gate = CompletableDeferred<Unit>()
+        val restore = kotlinx.coroutines.CoroutineScope(kotlin.coroutines.coroutineContext).launch(Dispatchers.Main, start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+            h.generation.replace { gate.await() }
+        }
+        vm.dismissSavedReview(7, expectedGeneration = 0L)
+        gate.complete(Unit)
+        restore.join()
+
+        assertEquals(listOf(h.saved), h.reviews.value)
+        vm.dismissSavedReview(7, expectedGeneration = 1L)
+        assertEquals(emptyList(), h.reviews.value)
+    }
+
+    @Test
     fun explicitSetInputRejectsInvalidNumbersAndPreservesDecimalPounds() {
         val exercise = Exercise(1, "Bench Press", "Chest")
         assertEquals(PendingReviewSet(1, 1355, 12), pendingReviewSet(exercise, "135.5", "12"))
@@ -109,7 +165,9 @@ private class ReviewHarness {
     var failWrites = false
     var resolveGate: CompletableDeferred<Unit>? = null
     val resolutions = mutableListOf<Pair<Long, PendingReviewSet>>()
+    val generation = com.ayman.ecolift.web.DataGeneration()
     val repos = object : AppRepos by data {
+        override val dataGeneration = generation
         override val pendingReviews = object : PendingReviewRepository, PendingReviewResolver {
             override val unresolved = reviews
             override suspend fun add(rawInput: String, dateLogged: String) {

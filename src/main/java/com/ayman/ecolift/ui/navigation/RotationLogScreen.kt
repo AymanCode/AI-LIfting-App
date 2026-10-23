@@ -219,6 +219,51 @@ internal fun rotationFieldValueFontSp(widthAt: (Float) -> Float, maxWidth: Float
         ?: ROTATION_FIELD_VALUE_SIZES_SP.last()
 }
 
+/** Sizes for the EST. 1RM headline, largest first. 50 is the resting size. */
+internal val ROTATION_HEADLINE_SIZES_SP = listOf(50f, 42f, 36f, 30f, 26f, 22f, 18f, 15f)
+
+/**
+ * Largest headline size whose measured width fits. An unmeasured column keeps 50.
+ * A value that still overflows at 15sp uses [rotationHeadlineCompact] instead of clipping digits.
+ */
+internal fun rotationHeadlineFontSp(widthAt: (Float) -> Float, maxWidth: Float): Float {
+    if (maxWidth <= 0f) return ROTATION_HEADLINE_SIZES_SP.first()
+    return ROTATION_HEADLINE_SIZES_SP.firstOrNull { widthAt(it) <= maxWidth }
+        ?: ROTATION_HEADLINE_SIZES_SP.last()
+}
+
+/** "1.43M" for a value that cannot fit as digits. Values under 10,000 stay written out. */
+internal fun rotationHeadlineCompact(value: Int): String {
+    if (value == Int.MIN_VALUE) return value.toString()
+    val negative = value < 0
+    val magnitude = kotlin.math.abs(value)
+    val unit = when {
+        magnitude >= 1_000_000_000 -> 1_000_000_000
+        magnitude >= 1_000_000 -> 1_000_000
+        magnitude >= 10_000 -> 1_000
+        else -> return value.toString()
+    }
+    val suffix = when (unit) {
+        1_000_000_000 -> "B"
+        1_000_000 -> "M"
+        else -> "K"
+    }
+    val hundredths = ((magnitude.toLong() * 100L) + (unit / 2)) / unit
+    val whole = hundredths / 100
+    val frac = (hundredths % 100).toInt()
+    val body = when {
+        whole >= 100 -> whole.toString()
+        whole >= 10 -> {
+            val tenth = (frac + 5) / 10
+            if (tenth >= 10) (whole + 1).toString() else if (tenth == 0) whole.toString() else "$whole.$tenth"
+        }
+        frac == 0 -> whole.toString()
+        frac % 10 == 0 -> "$whole.${frac / 10}"
+        else -> "$whole.${frac.toString().padStart(2, '0')}"
+    }
+    return (if (negative) "-" else "") + body + suffix
+}
+
 internal enum class RotationGestureAxis { UNDECIDED, VERTICAL, HORIZONTAL }
 
 /**
@@ -1396,7 +1441,7 @@ private fun TrendChart(
         Column(
             modifier = Modifier
                 .width(112.dp)
-                .height(124.dp)
+                .heightIn(min = 124.dp)
                 .padding(end = 10.dp),
             verticalArrangement = Arrangement.Center,
         ) {
@@ -1423,21 +1468,46 @@ private fun TrendChart(
                     maxLines = 3,
                 )
             } else {
-                Text(
-                    text = headline?.roundToInt()?.toString() ?: "—",
-                    fontFamily = LogDisplayFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 50.sp,
-                    lineHeight = 50.sp,
-                    letterSpacing = (-2.5).sp,
-                    color = when {
-                        today == null -> EspressoPalette.dim
-                        todayLogged -> palette.complete
-                        else -> accent
-                    },
-                    maxLines = 1,
-                    softWrap = false,
-                )
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val digits = headline?.roundToInt()
+                    val maxPx = constraints.maxWidth.toFloat()
+                    fun measure(text: String, sizeSp: Float): Float {
+                        val style = TextStyle(
+                            fontFamily = LogDisplayFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = sizeSp.sp,
+                            letterSpacing = (-2.5f * sizeSp / 50f).sp,
+                        )
+                        return textMeasurer.measure(text, style, maxLines = 1, softWrap = false).size.width.toFloat()
+                    }
+                    val (label, sizeSp) = if (digits == null) {
+                        "—" to 50f
+                    } else {
+                        val plain = digits.toString()
+                        val plainSize = rotationHeadlineFontSp({ measure(plain, it) }, maxPx)
+                        if (measure(plain, plainSize) <= maxPx) {
+                            plain to plainSize
+                        } else {
+                            val compact = rotationHeadlineCompact(digits)
+                            compact to rotationHeadlineFontSp({ measure(compact, it) }, maxPx)
+                        }
+                    }
+                    Text(
+                        text = label,
+                        fontFamily = LogDisplayFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = sizeSp.sp,
+                        lineHeight = sizeSp.sp,
+                        letterSpacing = (-2.5f * sizeSp / 50f).sp,
+                        color = when {
+                            today == null -> EspressoPalette.dim
+                            todayLogged -> palette.complete
+                            else -> accent
+                        },
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                }
                 if (percent != null) {
                     Spacer(Modifier.height(6.dp))
                     val percentString = when {
@@ -3534,7 +3604,7 @@ internal fun RotationCard(
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .height(26.dp)
+                            .heightIn(min = 26.dp)
                             .clip(muscleChipShape)
                             .background(EspressoPalette.tint(muscleChipBase), muscleChipShape)
                             .clickable(role = Role.Button) { muscleMenuExpanded = true }
@@ -3652,7 +3722,7 @@ internal fun RotationCard(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .height(26.dp)
+                        .heightIn(min = 26.dp)
                         .clip(progressChipShape)
                         .background(EspressoPalette.panel2, progressChipShape)
                         .padding(horizontal = 10.dp),

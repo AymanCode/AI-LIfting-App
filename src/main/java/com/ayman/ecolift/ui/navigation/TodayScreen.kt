@@ -5,6 +5,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -39,6 +40,7 @@ fun TodayScreen(
     palette: LogGlassPalette = paletteChoice.palette(),
 ) {
     val repos = LocalRepos.current
+    val dataGeneration = repos.dataGeneration?.changes?.collectAsStateWithLifecycle()?.value ?: 0L
     val viewModel: LogViewModel = viewModel { LogViewModel(repos) }
     var consumedInitialDate by rememberSaveable(initialDate) { mutableStateOf(false) }
     LaunchedEffect(initialDate) {
@@ -165,6 +167,7 @@ fun TodayScreen(
         UnsavedSetEditing(unsavedInputs, viewModel::retryUnsavedSet, viewModel::discardUnsavedSet)
     }
     CompositionLocalProvider(LocalUnsavedSetEditing provides unsavedEditing) {
+        key(dataGeneration) {
         LogScreen(
             initialExerciseId = initialExerciseId,
             onReturnToProgress = onReturnToProgress,
@@ -249,12 +252,13 @@ fun TodayScreen(
             dayUndo = dayUndo,
             onUndoDayChange = viewModel::undoDayChange,
             onDismissDayUndo = viewModel::dismissDayUndo,
-            onDeleteSets = viewModel::deleteSets,
+            onDeleteSets = { ids, onResult -> viewModel.deleteSets(ids, dataGeneration, onResult) },
             chromeReveal = chromeReveal,
             paletteChoice = paletteChoice,
             onPaletteChoiceChange = onPaletteChoiceChange,
             palette = palette,
             modifier = modifier
         )
+        }
     }
 }
