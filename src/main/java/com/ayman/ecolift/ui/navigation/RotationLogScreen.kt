@@ -33,6 +33,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -1414,6 +1416,7 @@ internal fun rotationLastLineScale(widthAt: (Float) -> Float, maxWidth: Float): 
  * The estimated-1RM trend. Number column on the left (104dp wide), plot on the right (124dp tall)
  * with labelled gridlines and axis line beneath.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TrendChart(
     history: List<Float>,
@@ -1521,7 +1524,12 @@ private fun TrendChart(
                         else -> EspressoTone.Flat
                     }
                     val lastVal = lastSession?.roundToInt() ?: 0
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // Large text drops the comparison under the chip instead of hiding its number.
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        itemVerticalAlignment = Alignment.CenterVertically,
+                    ) {
                         EspressoDeltaChip(text = percentString, tone = tone)
                         Text(
                             text = "VS $lastVal",
