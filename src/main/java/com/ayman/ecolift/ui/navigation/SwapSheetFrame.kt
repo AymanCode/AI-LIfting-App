@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.ayman.ecolift.ui.theme.EspressoPalette
 import com.ayman.ecolift.ui.theme.rememberReducedMotion
+import com.ayman.ecolift.web.util.keyboardOverlap
 
 
 /** One retained app-scene surface for the ledger and active-card swap flows. */
@@ -55,7 +56,7 @@ internal fun <T : Any> SwapSheetFrame(
             val closeFocus = remember { FocusRequester() }
             val interactive = state != null && !busy
             val dismiss = { if (interactive) { focus.clearFocus(); onDismiss() } }
-            val keyboard = 0.dp
+            val keyboard = keyboardOverlap()
             val height = (with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() } - keyboard).coerceAtLeast(0.dp)
             val tight = height < 500.dp
             Box(Modifier.fillMaxSize()) {

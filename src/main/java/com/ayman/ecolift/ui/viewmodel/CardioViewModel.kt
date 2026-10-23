@@ -13,6 +13,7 @@ import com.ayman.ecolift.web.AppRepos
 import com.ayman.ecolift.web.VisionService
 import com.ayman.ecolift.web.ai.VisionStats
 import com.ayman.ecolift.web.demo.DemoGuard
+import com.ayman.ecolift.web.pickPhoto
 import com.ayman.ecolift.web.util.nowMillis
 import com.ayman.ecolift.web.util.todayLocalDate
 import kotlinx.coroutines.CancellationException
@@ -27,11 +28,6 @@ import kotlin.math.round
 
 enum class ReadState { READ, CHECK, UNREAD }
 enum class SaveState { IDLE, SAVING, FAILED }
-
-/** Photo pick waits for writer E's PhotoPicker. Until then the scan starts with no image. */
-private fun pickPhoto(onResult: (Pair<String, String>?) -> Unit) {
-    onResult(null)
-}
 
 data class CardioDraft(
     val type: CardioActivityType,
@@ -759,13 +755,13 @@ class CardioViewModel(
             _uiState.update {
                 it.copy(
                     scanning = true,
-                    scanPhotoBase64 = photo.first,
-                    scanPhotoMime = photo.second,
+                    scanPhotoBase64 = photo.second,
+                    scanPhotoMime = photo.first,
                 )
             }
             viewModelScope.launch {
                 try {
-                    val stats = vision.scanStats(photo.first, photo.second)
+                    val stats = vision.scanStats(photo.second, photo.first)
                     if (token != currentScanToken) return@launch
                     if (stats == null) {
                         handleScanFailure()

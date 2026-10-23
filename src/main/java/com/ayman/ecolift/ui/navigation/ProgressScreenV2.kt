@@ -184,6 +184,7 @@ import com.ayman.ecolift.web.util.DAY_ABBREV
 import com.ayman.ecolift.web.util.MONTH_ABBREV
 import com.ayman.ecolift.web.util.formatFixed
 import com.ayman.ecolift.web.util.formatWholeGrouped
+import com.ayman.ecolift.web.util.shareProgressRecap
 import com.ayman.ecolift.web.LocalRepos
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
@@ -2330,7 +2331,6 @@ fun ProgressScreen(
     modifier: Modifier = Modifier
 ) {
     val palette = LocalGlassPalette.current
-    val shareContext = androidx.compose.ui.platform.LocalContext.current
     val activeOrganizationMode = resolveProgressContentMode(organizationMode)
     val quietStateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     if (activeOrganizationMode == ProgressOrganizationModeV2.PROGRESS) {
@@ -2447,7 +2447,7 @@ fun ProgressScreen(
                     MonthSheetScreen(
                         state = monthState,
                         onStepMonth = monthViewModel::stepMonth,
-                        onShare = { text -> shareProgressRecap(shareContext, text) },
+                        onShare = { text -> shareProgressRecap(text) {} },
                         onOpenLift = { id -> onOpenMonthReport(id, monthState.yearMonth.atEndOfMonth().toString()) },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2458,14 +2458,6 @@ fun ProgressScreen(
         }
         }
     }
-}
-
-private fun shareProgressRecap(context: android.content.Context, text: String) {
-    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(android.content.Intent.EXTRA_TEXT, text)
-    }
-    runCatching { context.startActivity(android.content.Intent.createChooser(send, null)) }
 }
 
 @Composable

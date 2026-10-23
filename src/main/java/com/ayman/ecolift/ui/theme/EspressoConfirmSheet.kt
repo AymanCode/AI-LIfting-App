@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ayman.ecolift.ui.viewmodel.DataPart
+import com.ayman.ecolift.web.util.keyboardOverlap
 
 
 /** What the sheet's main button does: removes something (red tone) or goes ahead (a colour). */
@@ -70,8 +71,7 @@ fun EspressoConfirmSheet(
     content: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    // Android resizes the window for the keyboard. The web overlap helper is not on this platform yet.
-    val keyboard = 0.dp
+    val keyboard = keyboardOverlap()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,

@@ -139,6 +139,7 @@ import com.ayman.ecolift.ui.viewmodel.ClipboardPick
 import com.ayman.ecolift.ui.viewmodel.ClipboardPickRequest
 import com.ayman.ecolift.ui.viewmodel.ClipboardProgramUi
 import com.ayman.ecolift.web.supabase.simpleNameKey
+import com.ayman.ecolift.web.util.keyboardOverlap
 
 import kotlin.math.min
 import kotlin.random.Random
@@ -470,7 +471,7 @@ internal fun LogClipboard(
     var root by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var boardTopPx by remember { mutableStateOf(0f) }
     var canvasHeightPx by remember { mutableStateOf(0f) }
-    val keyboard = 0.dp
+    val keyboard = keyboardOverlap()
 
     val pocket = remember(programs) { clipboardPocketOrder(programs) }
     val loadedProgram = programs.firstOrNull { it.slotId == loadedSlotId }

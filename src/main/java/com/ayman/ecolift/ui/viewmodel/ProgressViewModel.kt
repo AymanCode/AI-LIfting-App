@@ -20,6 +20,7 @@ import com.ayman.ecolift.data.normalizeBodyPartGroup
 import com.ayman.ecolift.data.selectableBodyPartParts
 import com.ayman.ecolift.data.suggestMuscleGroup
 import com.ayman.ecolift.web.AppRepos
+import com.ayman.ecolift.web.Diagnostics
 import com.ayman.ecolift.web.demo.DemoGuard
 import com.ayman.ecolift.web.supabase.SyncErrors
 import com.ayman.ecolift.web.supabase.UserVisibleSyncException
@@ -66,6 +67,7 @@ class ProgressViewModel(
     private val highlights = combine(
         exerciseRepository.exercises, setRepository.sets, highlightDate,
     ) { exercises, sets, date ->
+        Diagnostics.count("progress.highlights")
         buildHighlightReelSnapshot(exercises, sets, date)
     }
 
@@ -113,6 +115,7 @@ class ProgressViewModel(
 
     /** One projection per history/search/window/bodyweight change; composition only renders these values. */
     private val groupWall = combine(heldSources, timeWindow, userBodyweightLbs) { source, window, bodyweight ->
+        Diagnostics.count("progress.wall")
         val (filter, end) = window
         val start = if (filter == TimeframeFilter.ALL_TIME) {
             source.sets.filter { com.ayman.ecolift.data.WorkoutMetrics.isStrengthEligible(it) && it.date <= end.toString() }
@@ -133,6 +136,7 @@ class ProgressViewModel(
         userBodyweightLbs,
         timeWindow,
     ) { exercises, summaries, userBodyweight, window ->
+        Diagnostics.count("progress.list")
         val (filter, now) = window
         val muscleGroupsById = exercises.associate { exercise ->
             val groups = if (ExerciseMuscleClassifier.shouldClassify(exercise)) {
@@ -213,6 +217,7 @@ class ProgressViewModel(
         workoutRepository.observeArchivedCycles(),
         userBodyweightLbs,
     ) { exercises, sets, archivedCycles, userBodyweight ->
+        Diagnostics.count("progress.hero")
         buildProgressHeroData(
             exercises = exercises,
             allSets = sets,
@@ -247,6 +252,7 @@ class ProgressViewModel(
                 setRepository.observeSetsSince(id, sinceDate.toString()),
                 setRepository.observeSetsSince(id, historyStartDate)
             ) { exercises: List<com.ayman.ecolift.data.Exercise>, filteredSets: List<WorkoutSet>, allTimeSets: List<WorkoutSet> ->
+                Diagnostics.count("progress.detail")
                 val exercise = exercises.find { it.id == id }
                 val isBodyweight = exercise?.isBodyweight ?: false
                 val muscleGroups = exercise

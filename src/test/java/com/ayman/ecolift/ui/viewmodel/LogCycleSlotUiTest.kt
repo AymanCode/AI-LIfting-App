@@ -20,8 +20,8 @@ class LogCycleSlotUiTest {
         )
 
         assertEquals("Push", slotUi?.label)
-        assertEquals("Pu", slotUi?.shortLabel)
-        assertEquals(42, slotUi?.type)
+        assertEquals("Push", slotUi?.shortLabel)
+        assertEquals(42L, slotUi?.slotId)
         assertEquals(3, slotUi?.occurrence)
     }
 

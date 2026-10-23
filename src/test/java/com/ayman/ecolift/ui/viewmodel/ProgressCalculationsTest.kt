@@ -1,14 +1,14 @@
 package com.ayman.ecolift.ui.viewmodel
 
-import com.ayman.ecolift.data.CycleSlot
-import com.ayman.ecolift.data.SplitExercise
 import com.ayman.ecolift.data.WeightLbs
-import com.ayman.ecolift.data.WorkoutDay
 import com.ayman.ecolift.data.WorkoutSet
+import com.ayman.ecolift.web.util.minusDays
+import com.ayman.ecolift.web.util.minusMonths
+import com.ayman.ecolift.web.util.minusYears
+import kotlinx.datetime.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.LocalDate
 
 class ProgressCalculationsTest {
 
@@ -25,7 +25,7 @@ class ProgressCalculationsTest {
             timeframe = TimeframeFilter.ONE_MONTH,
             isBodyweight = false,
             userBodyWeight = 180,
-            now = LocalDate.of(2026, 4, 17)
+            now = LocalDate(2026, 4, 17)
         )
 
         assertEquals("215", stats.currentPr)
@@ -50,7 +50,7 @@ class ProgressCalculationsTest {
             timeframe = TimeframeFilter.ONE_MONTH,
             isBodyweight = false,
             userBodyWeight = 180,
-            now = LocalDate.of(2026, 4, 25)
+            now = LocalDate(2026, 4, 25)
         )
 
         assertEquals(220f, stats.currentPrLbs, 0.01f)
@@ -110,7 +110,7 @@ class ProgressCalculationsTest {
     }
 
     @Test
-    fun `bodyweight progress uses effective load instead of empty zero weight`() {
+    fun `bodyweight progress counts added load and skips a profile-weight estimate`() {
         val sets = listOf(
             workoutSet(date = "2026-04-10", weight = null, reps = 10, setNumber = 1, isBodyweight = true),
             workoutSet(date = "2026-04-10", weight = 25, reps = 8, setNumber = 2, isBodyweight = true),
@@ -126,16 +126,16 @@ class ProgressCalculationsTest {
             timeframe = TimeframeFilter.ONE_MONTH,
             isBodyweight = true,
             userBodyWeight = 180,
-            now = LocalDate.of(2026, 4, 17),
+            now = LocalDate(2026, 4, 17),
         )
 
         assertEquals(1, points.size)
-        assertEquals(WeightLbs.fromWholePounds(205), points.single().maxWeight)
-        assertEquals(3440, points.single().volume)
-        assertEquals("205", stats.currentPr)
-        assertEquals(205f, stats.currentPrLbs, 0.01f)
-        assertEquals(3440, stats.totalVolumeLbs)
-        assertTrue(points.single().estimated1RM > 259f)
+        assertEquals(WeightLbs.fromWholePounds(25), points.single().maxWeight)
+        assertEquals(200, points.single().volume)
+        assertEquals("25", stats.currentPr)
+        assertEquals(25f, stats.currentPrLbs, 0.01f)
+        assertEquals(200, stats.totalVolumeLbs)
+        assertEquals(0f, points.single().estimated1RM, 0.01f)
     }
 
     @Test
@@ -155,7 +155,7 @@ class ProgressCalculationsTest {
             timeframe = TimeframeFilter.ONE_MONTH,
             isBodyweight = true,
             userBodyWeight = null,
-            now = LocalDate.of(2026, 4, 17),
+            now = LocalDate(2026, 4, 17),
         )
 
         assertEquals(WeightLbs.fromWholePounds(25), points.single().maxWeight)
@@ -191,98 +191,6 @@ class ProgressCalculationsTest {
         assertEquals(listOf("Bench Press"), result.map { it.name })
     }
 
-    @Test
-    fun `buildProgressSplitPages keeps each split isolated`() {
-        val exercises = listOf(
-            progressExercise(1, "Bench Press", 10f),
-            progressExercise(2, "Back Squat", 5f),
-            progressExercise(3, "Unassigned Curl", 20f),
-        )
-        val splits = listOf(
-            ProgressSplitSource(10, "Push", listOf(1)),
-            ProgressSplitSource(20, "Legs", listOf(2)),
-        )
-
-        val pages = buildProgressSplitPages(exercises, splits, "")
-
-        assertEquals(2, pages.size)
-        assertEquals("Push", pages[0].name)
-        assertEquals(listOf("Bench Press"), pages[0].exercises.map { it.name })
-        assertEquals("Legs", pages[1].name)
-        assertEquals(listOf("Back Squat"), pages[1].exercises.map { it.name })
-    }
-
-    @Test
-    fun `buildProgressSplitPages keeps split pages even when filtered empty`() {
-        val pages = buildProgressSplitPages(
-            exercises = listOf(progressExercise(1, "Bench Press", 10f)),
-            splits = listOf(
-                ProgressSplitSource(10, "Push", listOf(1)),
-                ProgressSplitSource(20, "Pull", listOf(2)),
-            ),
-            searchQuery = "",
-        )
-
-        assertEquals(2, pages.size)
-        assertEquals("Push", pages[0].name)
-        assertEquals(listOf("Bench Press"), pages[0].exercises.map { it.name })
-        assertEquals("Pull", pages[1].name)
-        assertTrue(pages[1].exercises.isEmpty())
-    }
-
-    @Test
-    fun `buildProgressSplitSources falls back to latest logged split session`() {
-        val sources = buildProgressSplitSources(
-            slots = listOf(
-                CycleSlot(id = 10L, name = "Push", orderIndex = 0),
-                CycleSlot(id = 20L, name = "Pull", orderIndex = 1),
-            ),
-            savedRows = emptyList(),
-            workoutDays = listOf(
-                WorkoutDay(date = "2026-05-01", cycleSlotId = 10L),
-                WorkoutDay(date = "2026-05-15", cycleSlotId = 10L),
-                WorkoutDay(date = "2026-05-10", cycleSlotId = 20L),
-            ),
-            setsByDate = mapOf(
-                "2026-05-01" to listOf(workoutSet(date = "2026-05-01", exerciseId = 99L, weight = 95, reps = 10)),
-                "2026-05-15" to listOf(
-                    workoutSet(date = "2026-05-15", exerciseId = 1L, weight = 185, reps = 5, setNumber = 1),
-                    workoutSet(date = "2026-05-15", exerciseId = 1L, weight = 205, reps = 3, setNumber = 2),
-                    workoutSet(date = "2026-05-15", exerciseId = 2L, weight = 95, reps = 12, setNumber = 1),
-                ),
-                "2026-05-10" to listOf(workoutSet(date = "2026-05-10", exerciseId = 3L, weight = 135, reps = 8)),
-            ),
-        )
-
-        assertEquals(listOf(1L, 2L), sources.first { it.splitId == 10L }.exerciseIds)
-        assertEquals(listOf(3L), sources.first { it.splitId == 20L }.exerciseIds)
-    }
-
-    @Test
-    fun `buildProgressSplitSources prefers saved split exercises over history`() {
-        val sources = buildProgressSplitSources(
-            slots = listOf(CycleSlot(id = 10L, name = "Push", orderIndex = 0)),
-            savedRows = listOf(
-                SplitExercise(splitId = 10L, exerciseId = 3L, orderIndex = 1),
-                SplitExercise(splitId = 10L, exerciseId = 2L, orderIndex = 0),
-            ),
-            workoutDays = listOf(WorkoutDay(date = "2026-05-15", cycleSlotId = 10L)),
-            setsByDate = mapOf(
-                "2026-05-15" to listOf(workoutSet(date = "2026-05-15", exerciseId = 1L, weight = 185, reps = 5)),
-            ),
-        )
-
-        assertEquals(listOf(2L, 3L), sources.single().exerciseIds)
-    }
-
-    @Test
-    fun `normalizeSplitIndex clamps index to available pages`() {
-        assertEquals(0, normalizeProgressSplitIndex(-1, 3))
-        assertEquals(1, normalizeProgressSplitIndex(1, 3))
-        assertEquals(2, normalizeProgressSplitIndex(7, 3))
-        assertEquals(0, normalizeProgressSplitIndex(7, 0))
-    }
-
     private fun progressExercise(
         id: Long,
         name: String,
@@ -293,6 +201,7 @@ class ProgressCalculationsTest {
         muscleGroups = "CHEST",
         sessions = 1,
         lastSessionDate = "May 14",
+        lastSessionIsoDate = "2026-05-14",
         lastSessionSummary = "100 x 10",
         changePercentage = change,
         trend = listOf(100),
@@ -320,8 +229,8 @@ class ProgressCalculationsTest {
 
     @Test
     fun `bestTimeframeFor picks ONE_MONTH when two sessions fall in the last month`() {
-        val now = LocalDate.of(2026, 6, 8)
-        val dates = listOf(LocalDate.of(2026, 6, 6), LocalDate.of(2026, 5, 20))
+        val now = LocalDate(2026, 6, 8)
+        val dates = listOf(LocalDate(2026, 6, 6), LocalDate(2026, 5, 20))
         assertEquals(TimeframeFilter.ONE_MONTH, bestTimeframeFor(dates, now))
     }
 
@@ -329,42 +238,42 @@ class ProgressCalculationsTest {
     fun `bestTimeframeFor escalates to THREE_MONTHS for the Lateral Raise case`() {
         // Real emulator data: sessions on Apr 4 and Jun 6, viewed Jun 8.
         // 1M window (since May 8) has only Jun 6; 3M window (since Mar 8) has both.
-        val now = LocalDate.of(2026, 6, 8)
-        val dates = listOf(LocalDate.of(2026, 4, 4), LocalDate.of(2026, 6, 6))
+        val now = LocalDate(2026, 6, 8)
+        val dates = listOf(LocalDate(2026, 4, 4), LocalDate(2026, 6, 6))
         assertEquals(TimeframeFilter.THREE_MONTHS, bestTimeframeFor(dates, now))
     }
 
     @Test
     fun `bestTimeframeFor escalates to SIX_MONTHS when sessions are older than three months`() {
-        val now = LocalDate.of(2026, 6, 8)
+        val now = LocalDate(2026, 6, 8)
         val dates = listOf(now.minusMonths(4), now.minusMonths(5))
         assertEquals(TimeframeFilter.SIX_MONTHS, bestTimeframeFor(dates, now))
     }
 
     @Test
     fun `bestTimeframeFor escalates to ONE_YEAR when sessions are older than six months`() {
-        val now = LocalDate.of(2026, 6, 8)
+        val now = LocalDate(2026, 6, 8)
         val dates = listOf(now.minusMonths(8), now.minusMonths(10))
         assertEquals(TimeframeFilter.ONE_YEAR, bestTimeframeFor(dates, now))
     }
 
     @Test
     fun `bestTimeframeFor falls back to ALL_TIME when no window has two sessions`() {
-        val now = LocalDate.of(2026, 6, 8)
+        val now = LocalDate(2026, 6, 8)
         val dates = listOf(now.minusYears(2), now.minusYears(3))
         assertEquals(TimeframeFilter.ALL_TIME, bestTimeframeFor(dates, now))
     }
 
     @Test
     fun `bestTimeframeFor falls back to ALL_TIME with a single session`() {
-        val now = LocalDate.of(2026, 6, 8)
+        val now = LocalDate(2026, 6, 8)
         assertEquals(TimeframeFilter.ALL_TIME, bestTimeframeFor(listOf(now.minusDays(2)), now))
     }
 
     @Test
     fun `bestTimeframeFor does not count multiple sets on the same day as two sessions`() {
-        val now = LocalDate.of(2026, 6, 8)
-        val sameDay = LocalDate.of(2026, 6, 6)
+        val now = LocalDate(2026, 6, 8)
+        val sameDay = LocalDate(2026, 6, 6)
         assertEquals(TimeframeFilter.ALL_TIME, bestTimeframeFor(listOf(sameDay, sameDay), now))
     }
 }

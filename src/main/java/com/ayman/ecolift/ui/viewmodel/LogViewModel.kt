@@ -45,6 +45,7 @@ import com.ayman.ecolift.data.suggestMuscleGroup
 import com.ayman.ecolift.data.suggestMuscleGroupFromKeywords
 import com.ayman.ecolift.web.AppRepos
 import com.ayman.ecolift.web.demo.DemoGuard
+import com.ayman.ecolift.web.logDateFromLocation
 import com.ayman.ecolift.data.splits.LearnedModel
 import com.ayman.ecolift.web.supabase.ResolvedSplitReplacement
 import com.ayman.ecolift.web.supabase.ExerciseMergePreparationResult
@@ -209,7 +210,7 @@ class LogViewModel(
     val logGestureHintSessions: StateFlow<Int> = _logGestureHintSessions
 
     // `?date=YYYY-MM-DD` deep-links a day; the QA harness relies on it.
-    private val currentDate = MutableStateFlow(WorkoutDates.today())
+    private val currentDate = MutableStateFlow(logDateFromLocation() ?: WorkoutDates.today())
     private val _sessionSets = MutableStateFlow<List<WorkoutSet>>(emptyList())
     private val _sessionSetSnapshot = MutableStateFlow(
         DatedWorkoutSets(WorkoutDates.today(), emptyList()),

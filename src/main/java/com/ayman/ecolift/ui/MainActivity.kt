@@ -1,5 +1,6 @@
 package com.ayman.ecolift.ui
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,16 +11,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.ayman.ecolift.android.platform.AndroidHost
 import com.ayman.ecolift.ui.navigation.AppNavigation
 import com.ayman.ecolift.ui.theme.loadAppFonts
 import com.ayman.ecolift.web.LocalAppServices
 import com.ayman.ecolift.web.LocalRepos
+import com.ayman.ecolift.web.PhotoPickerBridge
 import com.ayman.ecolift.web.demo.DemoAppServices
 import com.ayman.ecolift.web.demo.DemoRepos
+import com.ayman.ecolift.web.util.WebHapticFeedback
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AndroidHost.install(this)
+        PhotoPickerBridge.register(this)
         enableEdgeToEdge()
         setContent {
             var fontsReady by remember { mutableStateOf(false) }
@@ -30,12 +37,20 @@ class MainActivity : ComponentActivity() {
             if (!fontsReady) return@setContent
             val repos = remember { DemoRepos() }
             val services = remember { DemoAppServices() }
+            val haptics = remember { WebHapticFeedback() }
             CompositionLocalProvider(
                 LocalRepos provides repos,
                 LocalAppServices provides services,
+                LocalHapticFeedback provides haptics,
             ) {
                 AppNavigation()
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        AndroidHost.install(this)
     }
 }

@@ -93,6 +93,7 @@ import com.ayman.ecolift.ui.viewmodel.SplitCardMemberUi
 import com.ayman.ecolift.ui.viewmodel.SplitGroupCardUi
 import com.ayman.ecolift.ui.viewmodel.data
 import com.ayman.ecolift.ui.viewmodel.filler
+import com.ayman.ecolift.web.util.keyboardOverlap
 
 import kotlinx.coroutines.launch
 
@@ -133,7 +134,7 @@ internal fun SplitEditorSheet(
     var dragId by remember(ids) { mutableStateOf<Long?>(null) }
     var dragOffset by remember(ids) { mutableFloatStateOf(0f) }
     val rowBounds = remember(ids) { mutableStateMapOf<Long, Pair<Float, Float>>() }
-    val keyboard = 0.dp
+    val keyboard = keyboardOverlap()
     val scroll = rememberScrollState()
     var viewport by remember { mutableStateOf<Rect?>(null) }
     val handles = remember { HashMap<Long, LayoutCoordinates>() }
