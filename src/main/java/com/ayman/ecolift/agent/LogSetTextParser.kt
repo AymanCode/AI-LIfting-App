@@ -20,24 +20,27 @@ object LogSetTextParser {
         val sets: List<ParsedSet>
     )
 
+    private data class ParsedGroup(val offset: Int, val sets: List<ParsedSet>)
+
     fun parseOneExercise(text: String): ParsedLog? {
         val normalized = normalize(text)
         if (AgentWeightInput.hasInvalidLoad(normalized)) return null
         val consumed = mutableListOf<IntRange>()
-        val sets = mutableListOf<ParsedSet>()
+        val groups = mutableListOf<ParsedGroup>()
 
         for (match in WEIGHT_REPS_COUNT.findAll(normalized)) {
             val weight = match.groupValues[1].toStorageWeightOrNull() ?: return null
             val reps = match.groupValues[2].toIntOrNull()?.takeIf { it in 1..100 } ?: return null
             val count = match.groupValues[3].toIntOrNull()?.takeIf { it in 1..10 } ?: return null
-            repeat(count) { sets.add(ParsedSet(weight, reps)) }
+            groups.add(ParsedGroup(match.range.first, List(count) { ParsedSet(weight, reps) }))
             consumed.add(match.range)
         }
-        parseWeightRepLists(normalized, consumed, sets)
-        parseBareWeightRepLists(normalized, consumed, sets)
-        parseBareWeightRepPairs(normalized, consumed, sets)
-        parseCompactWeightReps(normalized, consumed, sets)
+        parseWeightRepLists(normalized, consumed, groups)
+        parseBareWeightRepLists(normalized, consumed, groups)
+        parseBareWeightRepPairs(normalized, consumed, groups)
+        parseCompactWeightReps(normalized, consumed, groups)
 
+        val sets = groups.sortedBy { it.offset }.flatMap { it.sets }
         val expanded = expandExplicitSetCount(normalized, sets)
         if (expanded.isEmpty()) return null
 
@@ -58,7 +61,7 @@ object LogSetTextParser {
     private fun parseWeightRepLists(
         text: String,
         consumed: MutableList<IntRange>,
-        sets: MutableList<ParsedSet>
+        groups: MutableList<ParsedGroup>
     ) {
         for (match in WEIGHT_REP_LIST.findAll(text)) {
             val range = match.range
@@ -71,7 +74,7 @@ object LogSetTextParser {
                 .toList()
             if (reps.isEmpty()) continue
 
-            reps.forEach { sets.add(ParsedSet(weightLbs = weight, reps = it)) }
+            groups.add(ParsedGroup(range.first, reps.map { ParsedSet(weightLbs = weight, reps = it) }))
             consumed.add(range)
         }
     }
@@ -79,7 +82,7 @@ object LogSetTextParser {
     private fun parseCompactWeightReps(
         text: String,
         consumed: MutableList<IntRange>,
-        sets: MutableList<ParsedSet>
+        groups: MutableList<ParsedGroup>
     ) {
         for (match in COMPACT_WEIGHT_REPS.findAll(text)) {
             val range = match.range
@@ -93,7 +96,7 @@ object LogSetTextParser {
             if (firstNumber <= 20.0) continue
 
             val weight = weightRaw.toStorageWeightOrNull() ?: continue
-            sets.add(ParsedSet(weightLbs = weight, reps = reps))
+            groups.add(ParsedGroup(range.first, listOf(ParsedSet(weightLbs = weight, reps = reps))))
             consumed.add(range)
         }
     }
@@ -101,7 +104,7 @@ object LogSetTextParser {
     private fun parseBareWeightRepLists(
         text: String,
         consumed: MutableList<IntRange>,
-        sets: MutableList<ParsedSet>
+        groups: MutableList<ParsedGroup>
     ) {
         for (match in BARE_WEIGHT_REP_LIST.findAll(text)) {
             val range = match.range
@@ -114,7 +117,7 @@ object LogSetTextParser {
                 .toList()
             if (reps.size < 2) continue
 
-            reps.forEach { sets.add(ParsedSet(weightLbs = weight, reps = it)) }
+            groups.add(ParsedGroup(range.first, reps.map { ParsedSet(weightLbs = weight, reps = it) }))
             consumed.add(range)
         }
     }
@@ -122,7 +125,7 @@ object LogSetTextParser {
     private fun parseBareWeightRepPairs(
         text: String,
         consumed: MutableList<IntRange>,
-        sets: MutableList<ParsedSet>
+        groups: MutableList<ParsedGroup>
     ) {
         for (match in BARE_WEIGHT_REP_PAIR.findAll(text)) {
             val range = match.range
@@ -136,7 +139,7 @@ object LogSetTextParser {
             if (firstNumber <= 20.0) continue
 
             val weight = weightRaw.toStorageWeightOrNull(unit = match.groupValues[2]) ?: continue
-            sets.add(ParsedSet(weightLbs = weight, reps = reps))
+            groups.add(ParsedGroup(range.first, listOf(ParsedSet(weightLbs = weight, reps = reps))))
             consumed.add(range)
         }
     }

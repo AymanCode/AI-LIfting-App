@@ -18,8 +18,8 @@ class AgentToolsImpl(
     // findExercise
 
     override suspend fun findExercise(fuzzyName: String): ExerciseMatch? {
-        val query = normalizeExerciseQuery(fuzzyName.trim().lowercase())
-        if (query.isEmpty()) return null
+        val exactQuery = normalizeExerciseQuery(fuzzyName.trim().lowercase())
+        if (exactQuery.isEmpty()) return null
 
         val all = repos.exercises.getAll()
         if (all.isEmpty()) return null
@@ -28,12 +28,23 @@ class AgentToolsImpl(
             ExerciseMatch(ex.id, ex.name, ex.isBodyweight, score)
 
         // 0. Exact name match (case-insensitive) - highest priority for @mentions
-        all.firstOrNull { it.name.equals(query, ignoreCase = true) }
+        all.firstOrNull { it.name.equals(exactQuery, ignoreCase = true) }
             ?.let { return ExerciseMatch(it, 0.0) }
 
+        all.firstOrNull { it.name.lowercase().contains(exactQuery) }
+            ?.let { return ExerciseMatch(it, 0.0) }
+
+        val query = exactQuery.replace(Regex("""\bflat\s+(?=bench\s+press\b)"""), "")
         // 1. Exact substring
         all.firstOrNull { it.name.lowercase().contains(query) }
             ?.let { return ExerciseMatch(it, 0.0) }
+
+        all.sortedByDescending { it.name.length }.firstOrNull { ex ->
+            val name = ex.name.lowercase()
+            if (name.length < 4) return@firstOrNull false
+            val fullName = Regex("""\b${Regex.escape(name)}\b""")
+            fullName.containsMatchIn(query) && fullName.replace(query, " ").trim() in setOf("please", "exercise")
+        }?.let { return ExerciseMatch(it, 0.0) }
 
         // Every query word must match; one shared word cannot identify an exercise.
         val queryWords = query.split(Regex("\\s+")).filter { it.length > 2 }

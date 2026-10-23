@@ -316,7 +316,7 @@ class AgentOrchestrator(
         allowModelFallback: Boolean
     ): List<DbPatch>? {
         val targetDate = extractDate(userText, today()) ?: today()
-        val parsed = LogSetTextParser.parseOneExercise(userText)
+        val parsed = LogSetTextParser.parseOneExercise(DateExtractor.withoutDateReferences(userText, LocalDate.parse(today())))
         if (parsed != null) {
             val ex = tools.findExercise(parsed.exerciseQuery)
             if (ex != null) {
@@ -474,7 +474,7 @@ class AgentOrchestrator(
         }
 
         // 2. Heuristic fallback
-        val candidate = text
+        val candidate = DateExtractor.withoutDateReferences(text, LocalDate.parse(today()))
             .replace(Regex("""(?i)\b(rename\s+.+?)\s+to\s+.+"""), "$1")
             .replace(Regex("""(?i)\b(?:set\s+\d+|sets?|first|second|third|extra|twice|accidental|should|use|weight)\b"""), " ")
             .replace(Regex("""@[^@\s]+(?: [^@\s]+)*"""), " ") // Remove @mention if it failed above
@@ -770,7 +770,16 @@ class AgentOrchestrator(
 
     private suspend fun patchChangeLabels(patches: List<DbPatch>, userText: String?): List<String> {
         val hintedExercise = userText?.let { extractAndFindExercise(it) }
-        val hintedRecent = hintedExercise?.let { tools.getRecentSets(it.exerciseId, limit = 1).firstOrNull() }
+        val hintedSets = hintedExercise?.takeIf {
+            patches.any { patch -> patch is DbPatch.EditSet || patch is DbPatch.DeleteSet }
+        }?.let { exercise ->
+            val date = userText?.let { extractDate(it, today()) }
+            if (date != null) {
+                tools.getSessionByDate(date).exercises.firstOrNull { it.exerciseId == exercise.exerciseId }?.sets.orEmpty()
+            } else {
+                tools.getRecentSets(exercise.exerciseId, limit = 20)
+            }
+        }.orEmpty()
         return patches.map { patch ->
             val exerciseName = hintedExercise?.name ?: "Unknown lift"
             when (patch) {
@@ -783,12 +792,13 @@ class AgentOrchestrator(
                     "$exerciseName · added $load×${patch.reps}"
                 }
                 is DbPatch.EditSet -> {
-                    val setLabel = hintedRecent?.setNumber?.let { "set $it" } ?: "set ${patch.setId}"
-                    val detail = editPatchDetail(hintedRecent, patch)
+                    val before = hintedSets.firstOrNull { it.setId == patch.setId }
+                    val setLabel = before?.setNumber?.let { "set $it" } ?: "set ${patch.setId}"
+                    val detail = editPatchDetail(before, patch)
                     "$exerciseName · $setLabel: $detail"
                 }
                 is DbPatch.DeleteSet -> {
-                    val setLabel = hintedRecent?.setNumber?.let { "set $it" } ?: "set ${patch.setId}"
+                    val setLabel = hintedSets.firstOrNull { it.setId == patch.setId }?.setNumber?.let { "set $it" } ?: "set ${patch.setId}"
                     "$exerciseName · deleted $setLabel"
                 }
                 is DbPatch.MoveWorkoutDay -> "Workout · moved ${humanDate(patch.currentDate)} → ${humanDate(patch.newDate)}"

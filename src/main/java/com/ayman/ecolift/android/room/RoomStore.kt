@@ -21,6 +21,8 @@ import com.ayman.ecolift.data.room.toRoom
 import com.ayman.ecolift.data.splits.SplitAlternative
 import com.ayman.ecolift.web.supabase.sync.PreparedSplitReplacement
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -104,14 +106,19 @@ class RoomStore(val db: AppDatabase) {
             mutex.withLock {
                 val draft = publishedDraft()
                 withContext(WriteToken(this@RoomStore) + active.asContextElement(draft)) {
-                    val result = db.withTransaction {
-                        val value = draft.block()
-                        draft.reconcileDayRevisions()
-                        value
+                    val callerJob = coroutineContext[Job]!!
+                    withContext(NonCancellable) {
+                        val result = db.withTransaction {
+                            withContext(callerJob) {
+                                val value = draft.block()
+                                draft.reconcileDayRevisions()
+                                value
+                            }
+                        }
+                        publish(draft)
+                        draft.afterCommit.forEach { it() }
+                        result
                     }
-                    publish(draft)
-                    draft.afterCommit.forEach { it() }
-                    result
                 }
             }
         }

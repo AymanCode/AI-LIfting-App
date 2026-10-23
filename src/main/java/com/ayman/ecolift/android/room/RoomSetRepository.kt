@@ -52,7 +52,11 @@ class RoomSetRepository(
             check(current.sameContents(expected)) { "These sets changed after the assistant edit. Undo was not applied." }
             removeSets(current.rows.map { it.id })
             deleteCards(current.cards.map { it.id })
-            desired.cards.forEach { insertCard(it) }
+            val dayCards = cards.filter { it.date == desired.date }.sortedBy { it.position }.toMutableList()
+            desired.cards.sortedBy { it.position }.forEach { card ->
+                dayCards.add(card.position.coerceIn(0, dayCards.size), card)
+            }
+            rewriteDayCards(desired.date, dayCards.mapIndexed { position, card -> card.copy(position = position) })
             desired.rows.forEach { row ->
                 db.workoutSetDao().insert(row.toRoom())
                 sets = sets + row
