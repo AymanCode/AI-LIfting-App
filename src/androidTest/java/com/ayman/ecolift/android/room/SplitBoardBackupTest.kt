@@ -13,6 +13,7 @@ import com.ayman.ecolift.data.splits.EffectiveSplitMembers
 import com.ayman.ecolift.data.splits.SplitChoicesState
 import com.ayman.ecolift.data.splits.effectiveSplitMembers
 import com.ayman.ecolift.ui.MainActivity
+import com.ayman.ecolift.web.AppRepos
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
@@ -106,7 +107,7 @@ class SplitBoardBackupTest {
         }
     }
 
-    private suspend fun withOwner(block: suspend (Context, AppDatabase, ActivityScenario<MainActivity>, RepositoryOwner, RoomRepos) -> Unit) {
+    private suspend fun withOwner(block: suspend (Context, AppDatabase, ActivityScenario<MainActivity>, RepositoryOwner, AppRepos) -> Unit) {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = AppDatabase.getInstance(context)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
@@ -165,7 +166,7 @@ class SplitBoardBackupTest {
         assertTrue("Restore ${backup.name}: ${owner.backups.state.value.message}", owner.backups.state.value.message!!.startsWith("Imported "))
     }
 
-    private suspend fun graph(scenario: ActivityScenario<MainActivity>): RoomRepos {
+    private suspend fun graph(scenario: ActivityScenario<MainActivity>): AppRepos {
         lateinit var loaded: Deferred<LoadedRepositories>
         scenario.onActivity { loaded = it.repositoryOwner.initialize(false) }
         return withTimeout(30_000) { loaded.await().repos }
