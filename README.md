@@ -18,15 +18,15 @@ Screenshots are from the Android app with demo data.
 
 | Workout log | Set card |
 | --- | --- |
-| <img src="docs/assets/android/log.png" width="390" alt="Log for a weekday with the Lower Strength split and six lifts"> | <img src="docs/assets/android/set-card.png" width="390" alt="The Back Squat card open for logging, 240 lb by 6"> |
+| <img src="docs/assets/android/log.png" width="390" alt="Friday's log suggesting Lower Strength, with Back Squat 270x5 and Romanian Deadlift 230x6 to beat"> | <img src="docs/assets/android/set-card.png" width="390" alt="Back Squat set 1 at 240 lb by 6, with an Est. 1RM of 288 against 306"> |
 
 | Progress | Split |
 | --- | --- |
-| <img src="docs/assets/android/progress.png" width="390" alt="The Progress overview with split charts and session data"> | <img src="docs/assets/android/splits.png" width="390" alt="The October split calendar on the Split tab"> |
+| <img src="docs/assets/android/progress.png" width="390" alt="Progress by split, with Upper Strength charts for Barbell Bench Press, Incline Dumbbell Press and Pull Up"> | <img src="docs/assets/android/splits.png" width="390" alt="October calendar with 6 sessions and the Wed, Oct 21 Upper Strength note"> |
 
 | IronMind | Cardio |
 | --- | --- |
-| <img src="docs/assets/android/ironmind.png" width="390" alt="The IronMind desk"> | <img src="docs/assets/android/cardio.png" width="390" alt="The Cardio tab"> |
+| <img src="docs/assets/android/ironmind.png" width="390" alt="IronMind desk noticing Barbell Bench Press up from 210 to 220 lb and a flat Hanging Knee Raise"> | <img src="docs/assets/android/cardio.png" width="390" alt="Cardio week arc with 1 h 18 min over the last 7 days and a 30:00 treadmill session"> |
 
 ## What it does
 
@@ -37,6 +37,9 @@ queue.
 - Logs exercises, sets, reps, weights, completion state and rest time.
 - Finds exercises without needing the name to be typed exactly as it was saved.
 - Manages ordered training splits and suggests which session comes next.
+- Has a Smart suggest switch on the Split tab. When it is on, Split shows learned splits.
+  When it is off, Split shows only the splits you made. Edits to a split's lifts, their order
+  and its other options survive restarts and backups.
 - Shows exercise history, strength estimates, trends and previous sets.
 - Saves finished training cycles as snapshots so later routine changes do not rewrite them.
 - Gives each cardio activity its own fields, including incline, cadence, pace, stroke rate
@@ -90,14 +93,14 @@ especially older corrections and imports:
 - `for last saturday my deadlift top set should say three fifteen for four not 275`
 - `delete the extra squat set from May 10`
 
-Common requests are handled in Kotlin first. Sending a message does not call a model.
-The Try AI button on a failed draft calls the model. A debug build uses Groq for that call when
-`GROQ_API_KEY` is set. That key selects Groq over Gemini Nano. A failed Groq call stays
-on Groq. It does not call Gemini Nano. When `GROQ_API_KEY` is blank, API 31 and newer
-use Gemini Nano. The model does not get database access. Before a write reaches
-Room, it becomes a typed `DbPatch` that the app checks. Deletes and renames ask for
-confirmation. `RoomRepos` commits the saved workout. Undo keeps the inverse patch in memory.
-A restart clears that history.
+Kotlin code handles each request first, and sending a message does not call a model. Try AI
+on a failed draft calls Groq in a debug build with `GROQ_API_KEY` set, and Gemini Nano on API
+31 and newer otherwise. The model never touches the database.
+
+A delete or a rename waits in the chat with Apply and Cancel, and nothing is written until
+you tap Apply. Other changes are saved right away. The most recent applied change offers Undo
+from the chat, and that Undo is still there after you switch tabs and come back. Restoring a
+backup clears any waiting change and the Undo. Restarting the app clears Undo history.
 
 If an imported line or workout log cannot be parsed, EcoLift keeps the original text in an
 editable draft instead of guessing. The prompt cases used to check this behavior live in
@@ -145,7 +148,9 @@ upgrade tests can install one build over another. It is not a release key.
 CI runs ktlint 1.5.0 over `src/**/*.kt`, then
 `./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest`. That builds the app
 and the instrumentation-test APK. It does not run the instrumentation tests.
-`scripts/ci/verify-apk-compatibility.sh` requires `versionCode` to rise.
+`scripts/ci/verify-apk-signer.sh` checks the debug APK against the pinned signer.
+`scripts/ci/verify-apk-compatibility.sh` requires the same package and signer as an older
+build, and a higher `versionCode`.
 
 More commands are in [docs/TESTING.md](docs/TESTING.md).
 
