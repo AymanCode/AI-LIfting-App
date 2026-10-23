@@ -24,6 +24,7 @@ Resource calls change at the copy. `Res.drawable.name` becomes `R.drawable.name`
 - There is no login, no sync, and no offline queue. `CurrentAppMode` stays authenticated, so `DemoGuard` does not block. `syncStatus` stays up to date. `assistantChanges` is `NoAssistantChangeRepository`.
 - Exercise swap is local. `exerciseSwaps` is `RoomExerciseSwapRepository`.
 - `LogViewModel` waits for the slot and anchor projections as well as the saved board before consuming Split's Start request. An unread anchor list is distinct from an empty one.
+- Saved split boards live in `split_member_choice`, separately from learned anchors. Android backups include them; a full repository reload replaces cached board revisions and missing rows after restore. Exercise deletion removes board references in the same transaction.
 - `CardioViewModel` reads the Android photo pair as mime then base64. `photo.first` is the mime type and `photo.second` is the base64 payload. The snapshot reads base64 then mime.
 - Compose BOM `2025.09.01` resolves `androidx.compose.material3:material3` 1.4.0. `SplitEditorSheet` passes `sheetGesturesEnabled = dragId == null`. Dragging a split row does not dismiss the sheet. Material3 1.3.2, from BOM `2025.08.00`, has no such parameter.
 - `ProgressViewModel` takes `derivationDispatcher` and runs both derived flows on it. The default is `Dispatchers.Default`, so the first Progress open does not block the main thread for several seconds. Unit tests pass the `Main` dispatcher they install.

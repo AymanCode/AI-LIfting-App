@@ -18,6 +18,7 @@ import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.room.WorkoutDayState
 import com.ayman.ecolift.data.room.toDomain
 import com.ayman.ecolift.data.room.toRoom
+import com.ayman.ecolift.data.splits.EffectiveSplitMembers
 import com.ayman.ecolift.data.splits.SplitAlternative
 import com.ayman.ecolift.web.supabase.sync.PreparedSplitReplacement
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +40,7 @@ import kotlin.coroutines.coroutineContext
 class RoomStore(val db: AppDatabase) {
     private val mutex = Mutex()
     private val active = ThreadLocal<RoomDraft?>()
+    internal var publishSplitChoices: (List<RoomSplitMemberChoice>, Boolean) -> Unit = { _, _ -> }
 
     private val _exercises = MutableStateFlow<List<Exercise>>(emptyList())
     private val _aliases = MutableStateFlow<List<ExerciseAlias>>(emptyList())
@@ -156,6 +158,7 @@ class RoomStore(val db: AppDatabase) {
         )
         _journal.value = draft.journal
         _alternatives.value = draft.alternatives
+        draft.splitChoicesAfterCommit?.let { publishSplitChoices(it, draft.replaceSplitChoices) }
     }
 }
 
@@ -178,6 +181,8 @@ class RoomDraft(
     var alternatives: List<SplitAlternative>,
 ) {
     internal val afterCommit = mutableListOf<() -> Unit>()
+    internal var splitChoicesAfterCommit: List<RoomSplitMemberChoice>? = null
+    internal var replaceSplitChoices = false
     private var setsAtOpen: List<WorkoutSet> = sets
     private val bumpedDays = mutableSetOf<String>()
     suspend fun reloadAll() {
@@ -190,6 +195,8 @@ class RoomDraft(
         cycle = db.cycleDao().getCycle()?.toDomain() ?: Cycle().also { db.cycleDao().upsert(it.toRoom()) }
         slots = db.cycleSlotDao().getAll().map { it.toDomain() }
         splitExercises = db.splitExerciseDao().getAll().map { it.toDomain() }
+        splitChoicesAfterCommit = db.splitMemberChoiceDao().getAll()
+        replaceSplitChoices = true
         archives = db.archivedCycleDao().getAll().map { it.toDomain() }
         reviews = db.pendingReviewDao().getAll().map { it.toDomain() }
         cardio = db.cardioSessionDao().getAll().map { it.toDomain() }
@@ -231,6 +238,20 @@ class RoomDraft(
     }
 
     suspend fun deleteExerciseRow(id: Long) {
+        val choices = db.splitMemberChoiceDao().getAll()
+        var changed = false
+        for (row in choices) {
+            val choice = row.toChoice()
+            val board = EffectiveSplitMembers.of(
+                choice.board.inSplit.filterNot { it == id },
+                choice.board.otherOptions.filterNot { it == id },
+            )
+            if (board != choice.board) {
+                db.splitMemberChoiceDao().upsert(choice.copy(revision = choice.revision + 1L, board = board).toRoomChoice())
+                changed = true
+            }
+        }
+        if (changed) splitChoicesAfterCommit = db.splitMemberChoiceDao().getAll()
         db.exerciseDao().deleteById(id)
         exercises = exercises.filterNot { it.id == id }
         aliases = aliases.filterNot { it.exerciseId == id }

@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.room.withTransaction
 import com.ayman.ecolift.agent.model.AgentTurnLog
 import com.ayman.ecolift.agent.model.AuditEntity
+import com.ayman.ecolift.android.room.RoomSplitMemberChoice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -70,6 +71,7 @@ data class UserDataBackup(
     val exerciseSwapReceipts: List<RoomExerciseSwapReceipt> = emptyList(),
     val workoutDayStates: List<RoomWorkoutDayState> = emptyList(),
     val swapAlternativeQueue: List<RoomSwapAlternativeQueue> = emptyList(),
+    val splitMemberChoices: List<RoomSplitMemberChoice> = emptyList(),
 )
 
 data class LocalBackupInfo(
@@ -101,7 +103,7 @@ object DataBackupManager {
     suspend fun exportToUri(context: Context, db: AppDatabase, uri: Uri): BackupResult =
         withContext(Dispatchers.IO) {
             val snapshot = buildSnapshot(db, source = "manual-export")
-            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+            context.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { writer ->
                 writer.write(json.encodeToString(snapshot))
             } ?: throw IOException("Unable to open export destination.")
             snapshot.toResult()
@@ -210,6 +212,7 @@ object DataBackupManager {
             val pendingReviews = db.pendingReviewDao().getAll()
             val cycleSlots = db.cycleSlotDao().getAll()
             val splitExercises = db.splitExerciseDao().getAll()
+            val splitMemberChoices = db.splitMemberChoiceDao().getAll()
             val tempSessionSwaps = db.tempSessionSwapDao().getAll()
             val auditEntries = db.auditDao().getAll()
             val agentTurns = db.agentTurnLogDao().getAll()
@@ -237,6 +240,7 @@ object DataBackupManager {
                 pendingReviews = pendingReviews,
                 cycleSlots = cycleSlots,
                 splitExercises = splitExercises,
+                splitMemberChoices = splitMemberChoices,
                 tempSessionSwaps = tempSessionSwaps,
                 auditEntries = auditEntries,
                 agentTurns = agentTurns,
@@ -260,6 +264,7 @@ object DataBackupManager {
             if (snapshot.exercises.isNotEmpty()) db.exerciseDao().insertAll(snapshot.exercises)
             snapshot.cycle?.let { db.cycleDao().upsert(it) }
             if (snapshot.cycleSlots.isNotEmpty()) db.cycleSlotDao().insertAll(snapshot.cycleSlots)
+            snapshot.splitMemberChoices.forEach { db.splitMemberChoiceDao().upsert(it) }
             if (snapshot.workoutDays.isNotEmpty()) db.workoutDayDao().insertAll(snapshot.workoutDays)
             if (snapshot.exerciseAliases.isNotEmpty()) db.exerciseAliasDao().insertAll(snapshot.exerciseAliases)
             if (snapshot.exerciseDistinctPairs.isNotEmpty()) {
@@ -299,6 +304,7 @@ object DataBackupManager {
         writableDb.execSQL("DELETE FROM `exercise_distinct_pair`")
         writableDb.execSQL("DELETE FROM `workout_exercise_card`")
         writableDb.execSQL("DELETE FROM `split_exercise`")
+        writableDb.execSQL("DELETE FROM `split_member_choice`")
         writableDb.execSQL("DELETE FROM `temp_session_swap`")
         writableDb.execSQL("DELETE FROM `workout_set`")
         writableDb.execSQL("DELETE FROM `workout_day`")
@@ -350,6 +356,7 @@ object DataBackupManager {
             pendingReviews.size +
             cycleSlots.size +
             splitExercises.size +
+            splitMemberChoices.size +
             tempSessionSwaps.size +
             auditEntries.size +
             agentTurns.size +

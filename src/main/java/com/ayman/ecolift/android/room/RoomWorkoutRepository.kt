@@ -33,6 +33,7 @@ import com.ayman.ecolift.web.supabase.toPendingWrite
 import com.ayman.ecolift.web.util.todayLocalDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -51,20 +52,50 @@ class RoomWorkoutRepository(
     scope: CoroutineScope,
 ) : WorkoutRepository {
     private val archiveJson = Json { ignoreUnknownKeys = true }
-    private val choiceBook = SplitChoiceBook()
+    private val choiceLock = Any()
+    private var choiceBook = SplitChoiceBook()
+    private var choiceGeneration = 0L
+    private val choiceState = MutableStateFlow<SplitChoicesState>(SplitChoicesState.Loading)
     private val choiceWrites = Mutex()
 
     init {
+        store.publishSplitChoices = { rows, replace ->
+            synchronized(choiceLock) {
+                if (replace) {
+                    choiceGeneration++
+                    choiceBook = SplitChoiceBook()
+                }
+                choiceBook.loaded(rows.map { it.toChoice() })
+                choiceState.value = choiceBook.state.value
+            }
+        }
         scope.launch {
-            store.db.splitMemberChoiceDao().observeAll().collect { rows ->
-                synchronized(choiceBook) { choiceBook.loaded(rows.map { it.toChoice() }) }
+            store.db.splitMemberChoiceDao().observeAll().collect {
+                store.write {
+                    val rows = db.splitMemberChoiceDao().getAll()
+                    editChoices { loaded(rows.map { it.toChoice() }) }
+                }
             }
         }
     }
 
     override val cycle: StateFlow<Cycle> = store.cycle
 
-    override val splitMemberChoices: StateFlow<SplitChoicesState> = choiceBook.state
+    override val splitMemberChoices: StateFlow<SplitChoicesState> = choiceState
+
+    private fun <T> editChoices(block: SplitChoiceBook.() -> T): T = synchronized(choiceLock) {
+        val result = choiceBook.block()
+        choiceState.value = choiceBook.state.value
+        result
+    }
+
+    private fun editCurrentChoices(generation: Long, block: SplitChoiceBook.() -> Unit) {
+        synchronized(choiceLock) {
+            if (generation != choiceGeneration) return
+            choiceBook.block()
+            choiceState.value = choiceBook.state.value
+        }
+    }
 
     override fun observeWorkoutDay(date: String): Flow<WorkoutDay?> =
         store.days.map { days -> days.firstOrNull { it.date == date } }
@@ -144,10 +175,11 @@ class RoomWorkoutRepository(
     }
 
     override suspend fun saveSplitMembers(slotId: Long, board: EffectiveSplitMembers) {
-        val token = synchronized(choiceBook) { choiceBook.stage(slotId, board) }
+        val (generation, token) = editChoices { choiceGeneration to stage(slotId, board) }
         try {
             val saved = choiceWrites.withLock {
                 store.write {
+                    if (synchronized(choiceLock) { generation != choiceGeneration }) return@write null
                     require(slots.any { it.id == slotId && it.isActive }) { "Active cycle slot $slotId not found" }
                     val revision = (db.splitMemberChoiceDao().getBySplitId(slotId)?.revision ?: 0L) + 1L
                     val choice = SplitMemberChoice(slotId, revision, board)
@@ -155,9 +187,9 @@ class RoomWorkoutRepository(
                     choice
                 }
             }
-            synchronized(choiceBook) { choiceBook.confirm(token, saved) }
+            if (saved != null) editCurrentChoices(generation) { confirm(token, saved) }
         } finally {
-            synchronized(choiceBook) { choiceBook.drop(token) }
+            editCurrentChoices(generation) { drop(token) }
         }
     }
 

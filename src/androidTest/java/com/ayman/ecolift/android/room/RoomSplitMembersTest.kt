@@ -7,8 +7,10 @@ import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.data.splits.EffectiveSplitMembers
 import com.ayman.ecolift.data.splits.SplitChoicesState
+import com.ayman.ecolift.data.splits.SplitMemberChoice
 import com.ayman.ecolift.data.splits.effectiveSplitMembers
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -18,13 +20,48 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
+import kotlin.coroutines.CoroutineContext
 
 @RunWith(AndroidJUnit4::class)
 class RoomSplitMembersTest {
+    @Test
+    fun delayed_save_confirmation_cannot_replace_a_fully_reloaded_older_board() = runBlocking {
+        withRepository { fixture ->
+            val slot = fixture.repo.addCycleSlot("Restored manual")
+            val restored = EffectiveSplitMembers.of(listOf(1, 2), listOf(3))
+            fixture.repo.saveSplitMembers(slot, restored)
+            val resumes = LinkedBlockingQueue<Runnable>()
+            val paused = object : CoroutineDispatcher() {
+                override fun dispatch(context: CoroutineContext, block: Runnable) {
+                    resumes.put(block)
+                }
+            }
+            val save = launch(paused, start = CoroutineStart.UNDISPATCHED) {
+                fixture.repo.saveSplitMembers(slot, EffectiveSplitMembers.of(listOf(3, 2), listOf(1)))
+            }
+            val resume = withContext(Dispatchers.IO) { checkNotNull(resumes.poll(5, TimeUnit.SECONDS)) }
+            try {
+                assertEquals(2L, fixture.store.db.splitMemberChoiceDao().getBySplitId(slot)!!.revision)
+                fixture.store.write {
+                    db.splitMemberChoiceDao().upsert(SplitMemberChoice(slot, 1, restored).toRoomChoice())
+                    reloadAll()
+                }
+            } finally {
+                resume.run()
+                save.join()
+            }
+            assertEquals(restored, fixture.board(slot))
+            assertEquals(1L, fixture.choices().confirmed.getValue(slot).revision)
+        }
+    }
+
     @Test
     fun rapid_edits_show_the_latest_board_then_commit_in_order_without_changing_anchors() = runBlocking {
         withRepository { fixture ->
