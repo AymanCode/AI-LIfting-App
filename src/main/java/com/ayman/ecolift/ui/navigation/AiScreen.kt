@@ -51,15 +51,20 @@ fun AiScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val reviewError by viewModel.reviewError.collectAsStateWithLifecycle()
     val exercises by repos.exercises.exercises.collectAsStateWithLifecycle()
+    val generation = repos.dataGeneration?.changes?.collectAsStateWithLifecycle()?.value ?: 0L
     val snackbarHostState = remember { SnackbarHostState() }
-    var reviewTarget by remember { mutableStateOf<Long?>(null) }
+    var reviewTarget by remember(generation) { mutableStateOf<Long?>(null) }
     LaunchedEffect(viewModel, snackbarHostState) {
-        viewModel.undoEvent.collectLatest { applied ->
+        viewModel.undoOffer.collectLatest { applied ->
+            if (applied == null) {
+                snackbarHostState.currentSnackbarData?.dismiss()
+                return@collectLatest
+            }
             val result = snackbarHostState.showSnackbar(
                 message = applied.text,
                 actionLabel = "Undo",
-                withDismissAction = true,
-                duration = SnackbarDuration.Long,
+                withDismissAction = false,
+                duration = SnackbarDuration.Indefinite,
             )
             if (result == SnackbarResult.ActionPerformed) viewModel.undo(applied.auditId)
         }
@@ -70,8 +75,8 @@ fun AiScreen(
     val hubViewModel: HubViewModel = sharedHubViewModel ?: viewModel { HubViewModel(repos) }
     val hubBuild by hubViewModel.build.collectAsStateWithLifecycle()
     val desk by hubViewModel.desk.collectAsStateWithLifecycle()
-    var renameTarget by remember { mutableStateOf<DeskDecisionUi?>(null) }
-    var retireTarget by remember { mutableStateOf<DeskDecisionUi?>(null) }
+    var renameTarget by remember(generation) { mutableStateOf<DeskDecisionUi?>(null) }
+    var retireTarget by remember(generation) { mutableStateOf<DeskDecisionUi?>(null) }
     LaunchedEffect(viewModel, hubViewModel) {
         viewModel.sessionMessages.collect(hubViewModel::updateSessionMessages)
     }
@@ -156,7 +161,7 @@ fun AiScreen(
         onApplyPending = viewModel::confirmPending,
         onCancelPending = viewModel::dismissPending,
         onResolveReview = { review -> reviewTarget = review.id; viewModel.clearReviewError() },
-        onDismissReview = viewModel::dismissSavedReview,
+        onDismissReview = { viewModel.dismissSavedReview(it, generation) },
         reviewError = if (reviewTarget == null) reviewError else null,
         snackbarHostState = snackbarHostState,
         onKeepGroup = { if (!DemoGuard.blockIfDemo()) renameTarget = it },
@@ -196,19 +201,19 @@ fun AiScreen(
             exercises = exercises,
             busy = uiState.isWorking,
             error = reviewError,
-            onApply = { viewModel.resolveSavedReview(review.id, it) },
+            onApply = { viewModel.resolveSavedReview(review.id, it, generation) },
             onDismiss = { reviewTarget = null; viewModel.clearReviewError() },
         )
     }
     renameTarget?.let { target ->
         RenameSplitSheet(initialName = "", onDismiss = { renameTarget = null }, onConfirm = { name ->
-            hubViewModel.nameDeskGroup(target.slotId, name)
+            hubViewModel.nameDeskGroup(target.slotId, name, generation)
             renameTarget = null
         })
     }
     retireTarget?.let { target ->
         ConfirmRetireDialog(splitName = target.title, onDismiss = { retireTarget = null }, onConfirm = {
-            hubViewModel.retireDeskGroup(target.slotId)
+            hubViewModel.retireDeskGroup(target.slotId, generation)
             retireTarget = null
         })
     }

@@ -33,12 +33,9 @@ import com.ayman.ecolift.web.util.MONTH_ABBREV
 import com.ayman.ecolift.web.util.countLabel
 import com.ayman.ecolift.web.util.nowMillis
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
@@ -89,6 +86,7 @@ class OrchestratorViewModel(
             _busy.value = false
             _msgs.value = listOf(WELCOME)
             _input.value = ""
+            _undoOffer.value = null
             _reviewError.value = null
             _recentTurns.value = emptyList()
             notifiedReviewIds.clear()
@@ -131,47 +129,55 @@ class OrchestratorViewModel(
     private val _busy    = MutableStateFlow(false)
     private var nextId   = 1L
 
-    /** One-shot event: UI should show a Snackbar with "Undo" action. */
-    private val _undoEvent = MutableSharedFlow<AgentTurn.Applied>(extraBufferCapacity = 1)
-    val undoEvent: SharedFlow<AgentTurn.Applied> = _undoEvent.asSharedFlow()
+    private val _undoOffer = MutableStateFlow<AgentTurn.Applied?>(null)
+    val undoOffer: StateFlow<AgentTurn.Applied?> = _undoOffer.asStateFlow()
 
     private val _reviewError = MutableStateFlow<String?>(null)
     val reviewError: StateFlow<String?> = _reviewError.asStateFlow()
 
     fun clearReviewError() { _reviewError.value = null }
 
-    fun resolveSavedReview(id: Long, set: PendingReviewSet) {
+    fun resolveSavedReview(id: Long, set: PendingReviewSet, expectedGeneration: Long = repos.dataGeneration?.changes?.value ?: 0L) {
+        if (expectedGeneration != (repos.dataGeneration?.changes?.value ?: 0L)) return
         if (_busy.value || DemoGuard.blockIfDemo()) return
         _busy.value = true
         _reviewError.value = null
         viewModelScope.launch {
             try {
-                val resolver = repos.pendingReviews as? PendingReviewResolver
-                    ?: error("Saved review resolution is unavailable")
-                resolver.resolve(id, set)
+                val resolve: suspend () -> Unit = {
+                    val resolver = repos.pendingReviews as? PendingReviewResolver
+                        ?: error("Saved review resolution is unavailable")
+                    resolver.resolve(id, set)
+                    Unit
+                }
+                val generation = repos.dataGeneration
+                if (generation == null) resolve() else generation.withCurrent(expectedGeneration, resolve)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (t: Throwable) {
-                _reviewError.value = "Couldn't save your answer. Try again."
+                if (expectedGeneration == (repos.dataGeneration?.changes?.value ?: 0L)) _reviewError.value = "Couldn't save your answer. Try again."
             } finally {
-                _busy.value = false
+                if (expectedGeneration == (repos.dataGeneration?.changes?.value ?: 0L)) _busy.value = false
             }
         }
     }
 
-    fun dismissSavedReview(id: Long) {
+    fun dismissSavedReview(id: Long, expectedGeneration: Long = repos.dataGeneration?.changes?.value ?: 0L) {
+        if (expectedGeneration != (repos.dataGeneration?.changes?.value ?: 0L)) return
         if (_busy.value || DemoGuard.blockIfDemo()) return
         _busy.value = true
         _reviewError.value = null
         viewModelScope.launch {
             try {
-                repos.pendingReviews.markResolved(id)
+                val dismiss: suspend () -> Unit = { repos.pendingReviews.markResolved(id) }
+                val generation = repos.dataGeneration
+                if (generation == null) dismiss() else generation.withCurrent(expectedGeneration, dismiss)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (t: Throwable) {
-                _reviewError.value = "Couldn't save your answer. Try again."
+                if (expectedGeneration == (repos.dataGeneration?.changes?.value ?: 0L)) _reviewError.value = "Couldn't save your answer. Try again."
             } finally {
-                _busy.value = false
+                if (expectedGeneration == (repos.dataGeneration?.changes?.value ?: 0L)) _busy.value = false
             }
         }
     }
@@ -374,9 +380,10 @@ class OrchestratorViewModel(
                         generation.withCurrent(session.generation, resolve) ?: return@launch
                     }
                     if (session.generation != currentSession().generation) return@launch
+                    val message = "Saved ${countLabel(rows, "set")} as ${exercise.name}."
                     push(
                         isUser = false,
-                        text = "Saved ${countLabel(rows, "set")} as ${exercise.name}.",
+                        text = message,
                         card = AiChangesCardUi(
                             patches.mapNotNull { patch ->
                                 (patch as? DbPatch.LogSet)?.let {
@@ -386,7 +393,7 @@ class OrchestratorViewModel(
                             }
                         )
                     )
-                    _undoEvent.tryEmit(AgentTurn.Applied("Unchecked sets cleared.", result.auditId))
+                    _undoOffer.value = AgentTurn.Applied(message, result.auditId)
                 }
                 is PatchResult.Rejected -> push(isUser = false, text = "Couldn't clean up pending rows: ${result.reason}")
                 is PatchResult.Failed -> push(isUser = false, text = result.error, isError = true)
@@ -423,7 +430,9 @@ class OrchestratorViewModel(
 
     fun undo(auditId: Long) {
         val session = currentSession()
+        if (_undoOffer.value?.auditId != auditId) return
         if (DemoGuard.blockIfDemo()) return
+        _undoOffer.value = null
         viewModelScope.launch {
             handleTurn(session.agent.undo(auditId), offerUndo = false, session = session)
         }
@@ -499,7 +508,9 @@ class OrchestratorViewModel(
                     text = turn.text,
                     card = turn.changes.takeIf { it.isNotEmpty() }?.let(::AiChangesCardUi)
                 )
-                if (offerUndo) _undoEvent.tryEmit(turn)
+                if (offerUndo) {
+                    _undoOffer.value = turn
+                }
             }
             is AgentTurn.RecoverableFailure -> {
                 push(
@@ -523,7 +534,8 @@ class OrchestratorViewModel(
                 )
                 persistPendingReviewDrafts(turn.pendingReviews, session)
                 if (turn.auditId != null) {
-                    _undoEvent.tryEmit(AgentTurn.Applied(turn.text, turn.auditId))
+                    val offer = AgentTurn.Applied(turn.text, turn.auditId)
+                    _undoOffer.value = offer
                 }
             }
             is AgentTurn.Error -> push(isUser = false, text = turn.message, isError = true)

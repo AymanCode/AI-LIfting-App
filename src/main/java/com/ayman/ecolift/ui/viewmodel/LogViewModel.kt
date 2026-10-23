@@ -232,6 +232,9 @@ class LogViewModel(
     val exerciseSwapUndo: StateFlow<ExerciseSwapUndoUi?> = _exerciseSwapUndo.asStateFlow()
     private var swapAfterSignature: DayContentSignature? = null
     private var swapRequest: com.ayman.ecolift.web.supabase.ExerciseSwapRequest? = null
+    private var swapGeneration = 0L
+    private var swapUndoGeneration = 0L
+    private var dayUndoGeneration = 0L
     private var swapSearchJob: kotlinx.coroutines.Job? = null
     private var swapInvalidationJob: kotlinx.coroutines.Job? = null
     private val _swapUndoBusy = MutableStateFlow(false)
@@ -299,6 +302,33 @@ class LogViewModel(
             )
 
     init {
+        repos.dataGeneration?.let { generation ->
+            val initial = generation.changes.value
+            viewModelScope.launch {
+                var observed = initial
+                generation.changes.collect { current ->
+                    if (current != observed) {
+                        observed = current
+                        swapSearchJob?.cancel()
+                        swapInvalidationJob?.cancel()
+                        swapRequest = null
+                        swapAfterSignature = null
+                        _exerciseSwapUndo.value = null
+                        _exerciseSwap.value = null
+                        _swapUndoBusy.value = false
+                        _dayUndo.value = null
+                        _ticketSwaps.value = emptyMap()
+                        _ticketInclusion.value = emptyMap()
+                        _chosenEmptyDaySlot.value = emptyMap()
+                        _putAwayEmptyDay.value = emptySet()
+                        dateSelectionGeneration++
+                        latestSplitSwitchRequestId = ++nextSplitSwitchRequestId
+                        clearPendingSplitSwitch()
+                        clearExerciseSearch()
+                    }
+                }
+            }
+        }
         ProcessLifecycleOwner.get().lifecycle.addObserver(flushWhenHidden)
         viewModelScope.launch {
             var lastLoadedDate: String? = null
@@ -355,6 +385,13 @@ class LogViewModel(
         }
     }
 
+    private fun dataGeneration(): Long = repos.dataGeneration?.changes?.value ?: 0L
+
+    private suspend fun <T : Any> withDataGeneration(expected: Long, block: suspend () -> T): T? {
+        val generation = repos.dataGeneration ?: return block()
+        return generation.withCurrent(expected, block)
+    }
+
     fun openExerciseSwap(sourceId: Long) {
         flushPendingSetCommits()
         if (_exerciseSwap.value?.busy == true) return
@@ -368,6 +405,7 @@ class LogViewModel(
         val slotId = group?.slotId?.takeIf { it > 0 }
         val name = clipboardPrograms.value.firstOrNull { it.slotId == slotId }?.name
         swapRequest = null
+        swapGeneration = dataGeneration()
         _exerciseSwap.value = ExerciseSwapUi(date, sourceId, source.name, slotId, name,
             retainedSetCount = setRepository.sets.value.count { it.date == date && safeCanonicalId(it.exerciseId) == sourceId && it.completed },
             context = group?.let { cardSwapSheet(it.key, sourceId) })
@@ -404,6 +442,7 @@ class LogViewModel(
     fun swapExercise(targetId: Long, onReady: (Long, String?) -> Unit) {
         flushPendingSetCommits()
         val state = _exerciseSwap.value?.takeUnless { it.busy } ?: return
+        val expectedGeneration = swapGeneration
         if (state.date != currentDate.value || targetId == state.sourceId) return
         if (DemoGuard.blockIfDemo()) {
             _exerciseSwap.value = state.copy(error = com.ayman.ecolift.web.supabase.exerciseSwapError("DEMO"))
@@ -416,7 +455,8 @@ class LogViewModel(
         swapRequest = request
         viewModelScope.launch {
             try {
-                val result = repos.exerciseSwaps.swap(request)
+                val result = withDataGeneration(expectedGeneration) { repos.exerciseSwaps.swap(request) } ?: return@launch
+                if (dataGeneration() != expectedGeneration) return@launch
                 if (!result.ok) {
                     _exerciseSwap.value = if (currentDate.value == state.date)
                         state.copy(error = com.ayman.ecolift.web.supabase.exerciseSwapError(result.code)) else null
@@ -427,11 +467,13 @@ class LogViewModel(
                 if (currentDate.value == state.date) {
                     publishSessionSets(state.date, fresh)
                     updateHistoricalTopSets(state.date, fresh)
+                    if (dataGeneration() != expectedGeneration) return@launch
                     val id = if (result.code == "UNDONE") state.sourceId else result.targetId ?: target
                     val first = fresh.filter { it.exerciseId == id }.sortedBy { it.setNumber }
                         .let { rows -> rows.firstOrNull { !it.completed } ?: rows.firstOrNull() }
                     _dayUndo.value = null
                     swapAfterSignature = currentSignature(state.date)
+                    swapUndoGeneration = expectedGeneration
                     _exerciseSwapUndo.value = if (result.code == "UNDONE") null
                         else ExerciseSwapUndoUi(request.requestId, state.date, state.sourceId, id)
                     onReady(id, first?.syncId)
@@ -439,7 +481,7 @@ class LogViewModel(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
-                _exerciseSwap.value = if (currentDate.value == state.date)
+                _exerciseSwap.value = if (dataGeneration() == expectedGeneration && currentDate.value == state.date)
                     state.copy(error = com.ayman.ecolift.web.supabase.exerciseSwapError("FAILED")) else null
             }
         }
@@ -448,17 +490,20 @@ class LogViewModel(
     fun undoExerciseSwap(onReady: (Long, String?) -> Unit) {
         flushPendingSetCommits()
         val undo = _exerciseSwapUndo.value ?: return
+        val expectedGeneration = swapUndoGeneration
         if (_swapUndoBusy.value || DemoGuard.blockIfDemo()) return
         _swapUndoBusy.value = true
         viewModelScope.launch {
             try {
-                val result = repos.exerciseSwaps.undo(undo.requestId)
+                val result = withDataGeneration(expectedGeneration) { repos.exerciseSwaps.undo(undo.requestId) } ?: return@launch
+                if (dataGeneration() != expectedGeneration) return@launch
                 if (result.ok) {
                     _exerciseSwapUndo.value = null
                     val fresh = SetQueries.forDate(setRepository.sets.value, undo.date)
                     if (currentDate.value == undo.date) {
                         publishSessionSets(undo.date, fresh)
                         updateHistoricalTopSets(undo.date, fresh)
+                        if (dataGeneration() != expectedGeneration) return@launch
                         onReady(undo.sourceId, fresh.filter { it.exerciseId == undo.sourceId }.minByOrNull { it.setNumber }?.syncId)
                     }
                 } else {
@@ -467,9 +512,9 @@ class LogViewModel(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
-                _uiMessage.value = "Couldn't undo the swap. Try again."
+                if (dataGeneration() == expectedGeneration) _uiMessage.value = "Couldn't undo the swap. Try again."
             } finally {
-                _swapUndoBusy.value = false
+                if (dataGeneration() == expectedGeneration) _swapUndoBusy.value = false
             }
         }
     }
@@ -1095,7 +1140,9 @@ class LogViewModel(
     ) {
         flushPendingSetCommits()
         if (requests.isEmpty() || DemoGuard.blockIfDemo()) return
+        val expectedGeneration = dataGeneration()
         viewModelScope.launch {
+            withDataGeneration(expectedGeneration) add@ {
             // Every line belongs to the day the user was on when they tapped. Changing the day
             // mid-run also clears the add token, which reads as "this line is done", so without
             // this check the remaining lines would land on the day the user moved to.
@@ -1103,8 +1150,8 @@ class LogViewModel(
             val startGeneration = dateSelectionGeneration
             val syncIdsBefore = SetQueries.forDate(setRepository.sets.value, startDate).map { it.syncId }.toSet()
             for (request in requests) {
-                if (currentDate.value != startDate || dateSelectionGeneration != startGeneration) return@launch
-                val context = beginExerciseAdd() ?: return@launch
+                if (currentDate.value != startDate || dateSelectionGeneration != startGeneration) return@add
+                val context = beginExerciseAdd() ?: return@add
                 val carryOn = try {
                     addClipboardPick(request, context)
                 } catch (cancelled: CancellationException) {
@@ -1117,15 +1164,16 @@ class LogViewModel(
                     }
                     false
                 }
-                if (!carryOn) return@launch
+                if (!carryOn) return@add
             }
-            if (currentDate.value != startDate || dateSelectionGeneration != startGeneration) return@launch
+            if (currentDate.value != startDate || dateSelectionGeneration != startGeneration) return@add
             val added = SetQueries.forDate(setRepository.sets.value, startDate)
                 .filter { it.syncId.isNotBlank() && it.syncId !in syncIdsBefore }
-            if (added.isEmpty()) return@launch
+            if (added.isEmpty()) return@add
             onAdded(added.first().exerciseId, added.first().syncId)
             val lifts = added.map { it.exerciseId }.distinct().map { id -> id to exerciseNameFor(id) }
             publishDayUndo(startDate, addedCopy(lifts, added.size), DayUndoRestore.DeleteAdded(added.map { it.syncId }.toSet()))
+            }
         }
     }
 
@@ -1702,6 +1750,7 @@ class LogViewModel(
                 intent = intent,
             ),
             dateSelectionGeneration = dateSelectionGeneration,
+            dataGeneration = dataGeneration(),
             appends = appends,
         )
         latestSplitSwitchRequestId = requestId
@@ -1725,7 +1774,7 @@ class LogViewModel(
     ) {
         viewModelScope.launch {
             try {
-                block()
+                withDataGeneration(context.dataGeneration, block)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
@@ -2124,6 +2173,7 @@ class LogViewModel(
         dayContentSignature(date, setRepository.sets.value, setRepository.cards.value)
 
     private fun publishDayUndo(date: String, copy: DayUndoCopy, restore: DayUndoRestore) {
+        dayUndoGeneration = dataGeneration()
         _dayUndo.value = DayUndoState.Offered(DayUndoOffer(++nextDayUndoId, date, copy, restore, currentSignature(date)))
     }
 
@@ -2183,9 +2233,11 @@ class LogViewModel(
     fun undoDayChange(offerId: Long) {
         flushPendingSetCommits()
         val offer = (_dayUndo.value as? DayUndoState.Offered)?.offer?.takeIf { it.id == offerId } ?: return
+        val expectedGeneration = dayUndoGeneration
         if (DemoGuard.blockIfDemo()) return
         _dayUndo.value = DayUndoState.Restoring(offer)
         viewModelScope.launch {
+            withDataGeneration(expectedGeneration) {
             val precondition = {
                 if (currentSignature(offer.date) != offer.afterSignature) throw DayUndoStale()
             }
@@ -2225,11 +2277,13 @@ class LogViewModel(
                 }
                 _uiMessage.value = "Couldn't undo. Try again."
             }
+            }
         }
     }
 
     /** The batch form of [deleteSet]: one local edit, one history refresh, one repository call. */
-    fun deleteSets(ids: List<Long>, onResult: (LocalCommit<Unit>) -> Unit = {}) {
+    fun deleteSets(ids: List<Long>, expectedGeneration: Long = dataGeneration(), onResult: (LocalCommit<Unit>) -> Unit = {}) {
+        if (expectedGeneration != dataGeneration()) return
         flushPendingSetCommits()
         val targets = ids.filter { it != 0L }.distinct()
         if (targets.isEmpty() || DemoGuard.blockIfDemo()) {
@@ -2238,6 +2292,7 @@ class LogViewModel(
         }
         val date = currentDate.value
         viewModelScope.launch {
+            withDataGeneration(expectedGeneration) {
             when (val committed = setRepository.deleteSets(targets)) {
                 is LocalCommit.Committed -> {
                     onResult(committed)
@@ -2247,6 +2302,7 @@ class LogViewModel(
                     onResult(committed)
                     reportSetNotSaved(committed.reason)
                 }
+            }
             }
         }
     }
@@ -3256,6 +3312,7 @@ private data class UiInputCore(
 private data class SplitSwitchRequestContext(
     val request: SplitSwitchRequest,
     val dateSelectionGeneration: Long,
+    val dataGeneration: Long,
     val appends: List<com.ayman.ecolift.data.splits.SplitAlternative> = emptyList(),
 )
 

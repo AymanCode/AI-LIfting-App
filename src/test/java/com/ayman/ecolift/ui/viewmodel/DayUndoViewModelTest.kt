@@ -583,6 +583,77 @@ class DayUndoViewModelTest {
         assertEquals(DayUndoState.Restored(offer), h.vm.dayUndo.value)
     }
 
+    @Test
+    fun identical_restore_clears_day_undo_and_does_not_delete_restored_rows() = runVmTest {
+        val h = DayUndoHarness()
+        h.vm.selectDate(DATE)
+        h.vm.loadProgram(UPPER_ID, emptySet())
+        val offer = assertNotNull(h.vm.dayUndo.awaitValue { it is DayUndoState.Offered }).offer
+        val restored = h.setRepository.sets.value
+
+        h.generation.replace { }
+        h.vm.undoDayChange(offer.id)
+
+        assertEquals(restored, h.setRepository.sets.value)
+        assertNull(h.vm.dayUndo.value)
+    }
+
+    @Test
+    fun identical_restore_clears_swap_undo_and_pending_picker() = runVmTest {
+        val h = DayUndoHarness(currentRows = listOf(
+            WorkoutSet(1, EXERCISE_UPPER_1, DATE, 1, 950, 8),
+        ))
+        h.vm.selectDate(DATE)
+        h.vm.uiState.awaitValue { it.currentDate == DATE && it.exercises.isNotEmpty() }
+        h.vm.openExerciseSwap(EXERCISE_UPPER_1)
+        h.vm.swapExercise(EXERCISE_MANUAL) { _, _ -> }
+        assertNotNull(h.vm.exerciseSwapUndo.awaitValue { it != null })
+        h.vm.openExerciseSwap(EXERCISE_UPPER_1)
+        assertNotNull(h.vm.exerciseSwap.value)
+
+        h.generation.replace { }
+        h.vm.undoExerciseSwap { _, _ -> }
+
+        assertEquals(emptyList(), h.undoRequests)
+        assertNull(h.vm.exerciseSwapUndo.value)
+        assertNull(h.vm.exerciseSwap.value)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun queued_swap_undo_cannot_cross_a_restore_in_progress() = runVmTest {
+        val h = DayUndoHarness(currentRows = listOf(WorkoutSet(1, EXERCISE_UPPER_1, DATE, 1, 950, 8)))
+        h.vm.selectDate(DATE)
+        h.vm.uiState.awaitValue { it.currentDate == DATE && it.exercises.isNotEmpty() }
+        h.vm.openExerciseSwap(EXERCISE_UPPER_1)
+        h.vm.swapExercise(EXERCISE_MANUAL) { _, _ -> }
+        h.vm.exerciseSwapUndo.awaitValue { it != null }
+        val gate = CompletableDeferred<Unit>()
+        val replacement = launch(kotlinx.coroutines.Dispatchers.Main, start = CoroutineStart.UNDISPATCHED) {
+            h.generation.replace { gate.await() }
+        }
+        h.vm.undoExerciseSwap { _, _ -> }
+        gate.complete(Unit)
+        replacement.join()
+        runCurrent()
+
+        assertEquals(emptyList(), h.undoRequests)
+        assertNull(h.vm.exerciseSwapUndo.value)
+    }
+
+    @Test
+    fun stale_staged_delete_cannot_remove_rows_with_reused_ids() = runVmTest {
+        val h = DayUndoHarness(currentRows = listOf(WorkoutSet(1, EXERCISE_UPPER_1, DATE, 1, 950, 8)))
+        h.vm.selectDate(DATE)
+        h.generation.replace { }
+
+        h.vm.deleteSets(listOf(1), expectedGeneration = 0L)
+
+        assertEquals(listOf(950 to 8), h.setRepository.sets.value.map { it.weightLbs to it.reps })
+        h.vm.deleteSets(listOf(1), expectedGeneration = 1L)
+        assertEquals(emptyList(), h.setRepository.sets.value)
+    }
+
     private suspend fun <T> Flow<T>.awaitValue(predicate: (T) -> Boolean): T =
         withTimeout(TIMEOUT) { first(predicate) }
 
@@ -661,7 +732,9 @@ class DayUndoViewModelTest {
                 return ExerciseSwapResult(true, "UNDONE", requestId)
             }
         }
+        val generation = com.ayman.ecolift.web.DataGeneration()
         val repos: AppRepos = object : AppRepos by base {
+            override val dataGeneration = generation
             override val exerciseSwaps: ExerciseSwapRepository = swapRepository
             override val sets: SetRepository = setRepository
             override val workout: WorkoutRepository = workoutRepository
