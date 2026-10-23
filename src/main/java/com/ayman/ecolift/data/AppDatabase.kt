@@ -9,7 +9,7 @@ import com.ayman.ecolift.agent.model.AgentTurnLogDao
 import com.ayman.ecolift.agent.model.AuditEntity
 import com.ayman.ecolift.agent.patches.AuditDao
 
-const val APP_DATABASE_VERSION = 20
+const val APP_DATABASE_VERSION = 21
 
 @Database(
     entities = [
@@ -33,6 +33,7 @@ const val APP_DATABASE_VERSION = 20
         com.ayman.ecolift.data.room.ExerciseSwapReceiptRow::class,
         com.ayman.ecolift.data.room.WorkoutDayState::class,
         com.ayman.ecolift.data.room.SwapAlternativeQueueRow::class,
+        com.ayman.ecolift.android.room.RoomSplitMemberChoice::class,
     ],
     version = APP_DATABASE_VERSION,
     exportSchema = true,
@@ -58,6 +59,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun exerciseSwapReceiptDao(): ExerciseSwapReceiptDao
     abstract fun workoutDayStateDao(): WorkoutDayStateDao
     abstract fun swapAlternativeQueueDao(): SwapAlternativeQueueDao
+    abstract fun splitMemberChoiceDao(): com.ayman.ecolift.android.room.SplitMemberChoiceDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null

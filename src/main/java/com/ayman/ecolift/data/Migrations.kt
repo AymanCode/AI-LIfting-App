@@ -450,6 +450,23 @@ object Migrations {
         )
     }
 
+    val MIGRATION_20_21 = object : Migration(20, 21) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `split_member_choice` (
+                    `splitId` INTEGER NOT NULL,
+                    `revision` INTEGER NOT NULL,
+                    `inSplitJson` TEXT NOT NULL,
+                    `otherOptionsJson` TEXT NOT NULL,
+                    PRIMARY KEY(`splitId`),
+                    FOREIGN KEY(`splitId`) REFERENCES `cycle_slot`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent(),
+            )
+        }
+    }
+
     val ALL_MIGRATIONS = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
@@ -470,6 +487,7 @@ object Migrations {
         MIGRATION_17_18,
         MIGRATION_18_19,
         MIGRATION_19_20,
+        MIGRATION_20_21,
     )
 
     private fun migrateLegacyWorkoutSchemaToV3Shape(db: SupportSQLiteDatabase) {
