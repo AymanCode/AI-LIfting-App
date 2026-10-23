@@ -64,6 +64,30 @@ class LearnedTicketTest {
     }
 
     @Test
+    fun long_history_optimisation_keeps_literal_ticket_and_split_results() {
+        val history = listOf(
+            set("2026-08-01", 1000, 8), set("2026-08-04", 1000, 10),
+            set("2026-08-08", 1050, 8), set("2026-08-11", 1050, 10),
+            set("2026-08-15", 1100, 8), set("2026-08-18", 1100, 10),
+            set("2026-09-28", 9990, 99),
+            set("2026-09-01", 9990, 99).copy(isWarmup = true),
+            set("2026-09-02", 9990, 99).copy(completed = false),
+        )
+        val before = LocalDate(2026, 9, 28)
+        val report = reportBefore(history, false, before)
+        assertEquals(TopSet(1100, 10), report.topSet)
+        assertEquals("2026-08-18", report.lastSessionDate)
+        assertEquals(NextStep(1150, 10, "10", 10, 1100, 2, 2), report.nextStep)
+        assertEquals(11, report.suggestedReps)
+        assertEquals(6, report.events.size)
+        assertEquals(StakeUi.StepUp(1150, false), stakeFor(history, false, before))
+        assertEquals(
+            SplitLiftMetrics("110\u00d710", listOf(800f, 1000f, 840f, 1050f, 880f, 1100f), 38),
+            splitLiftMetrics(com.ayman.ecolift.data.Exercise(1, "Bench", "CHEST"), history, before),
+        )
+    }
+
+    @Test
     fun programsRunInDueOrderWithTheDueGroupMarked() {
         assertEquals(listOf("Chest · Arms", "Legs", "Upper 1", "Legs"), programs.map { it.name })
         assertTrue(programs.first().isExpected)

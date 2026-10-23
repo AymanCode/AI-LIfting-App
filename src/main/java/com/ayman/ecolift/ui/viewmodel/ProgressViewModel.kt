@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -92,6 +93,7 @@ class ProgressViewModel(
     private val organizationMode = MutableStateFlow(ProgressOrganizationMode.PROGRESS)
     private val sortMode = MutableStateFlow(ProgressSortMode.TREND)
     private val searchQuery = MutableStateFlow("")
+    val searchText: StateFlow<String> = searchQuery.asStateFlow()
     private val showAllLifts = MutableStateFlow(false)
 
     /** "All lifts" swaps the held landing for the full library; the library shows alone with no held lifts. */

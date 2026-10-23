@@ -56,6 +56,18 @@ import kotlinx.coroutines.delay
 import kotlinx.datetime.LocalDate
 import kotlin.math.roundToInt
 
+internal fun cardioWeekDurationSeconds(sessions: List<CardioSession>, today: LocalDate): Long {
+    val start = today.minusDays(6)
+    return sessions.sumOf { session ->
+        val date = runCatching { LocalDate.parse(session.date) }.getOrNull()
+        if (date != null && date in start..today && CardioInsights.countsForActivity(session)) {
+            session.durationSec?.toLong() ?: 0L
+        } else {
+            0L
+        }
+    }
+}
+
 @Composable
 fun CardioTab(
     viewModel: CardioViewModel,
@@ -119,6 +131,7 @@ internal fun CardioTabContent(
 
     val dots = remember(state.sessions, today) { CardioInsights.weekArc(state.sessions, today) }
     val totals = remember(state.sessions, today) { CardioInsights.weekTotals(state.sessions, today) }
+    val seconds = remember(state.sessions, today) { cardioWeekDurationSeconds(state.sessions, today) }
     val dayRuns = remember(state.sessions, today) { CardioInsights.dayRuns(state.sessions, today) }
     val weekStreak = remember(state.sessions, today) { CardioInsights.weekStreak(state.sessions, today) }
     val records = remember(state.sessions, today) { CardioInsights.records(state.sessions, today) }
@@ -284,7 +297,7 @@ internal fun CardioTabContent(
                     Spacer(Modifier.height(if (totalLoggedDays < 7) 14.dp else 8.dp))
 
                     // Totals row
-                    val totalMins = totals.seconds / 60
+                    val totalMins = seconds / 60
                     val h = totalMins / 60
                     val m = totalMins % 60
                     val timeDurationStr = if (h > 0) "$h h $m min" else "$m min"

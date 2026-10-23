@@ -202,6 +202,7 @@ fun QuietProgressOverviewScreen(
             }
             if (!showHeld) HorizontalDivider(color = QuietDepth.line, thickness = 1.dp)
         }
+        if (isPending) item(key = "loading") { QuietProgressLoading() }
         if (showHeld) {
             if (!isPending && groupWall.panels.isEmpty()) item(key = "held-empty") {
                 QuietText("No matching held lifts. Try All lifts.", 13, QuietDepth.muted, modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp), align = TextAlign.Center)
@@ -782,6 +783,19 @@ private fun QuietExerciseRow(exercise: ProgressExercise, expanded: Boolean, star
             }
         }
         HorizontalDivider(color = QuietDepth.line, thickness = 1.dp)
+    }
+}
+
+@Composable
+private fun QuietProgressLoading() {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 28.dp).semantics { liveRegion = LiveRegionMode.Polite },
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CircularProgressIndicator(Modifier.size(18.dp), color = EspressoPalette.dim, strokeWidth = 2.dp)
+        Spacer(Modifier.width(10.dp))
+        QuietText("Loading progress", 13, QuietDepth.muted)
     }
 }
 

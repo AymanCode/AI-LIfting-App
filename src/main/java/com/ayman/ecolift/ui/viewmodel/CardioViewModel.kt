@@ -181,12 +181,11 @@ internal object CardioDraftLogic {
     fun applyTyped(draft: CardioDraft, field: CardioEntryField, text: String): CardioDraft {
         val trimmed = text.trim()
         val parsed = CardioFieldRules.parse(field, draft.type, trimmed)
-        return if (parsed == null) {
+        return if (parsed == null || !CardioFieldRules.isPlausible(field, draft.type, parsed)) {
             draft.copy(invalid = draft.invalid + field)
         } else {
-            val plausible = CardioFieldRules.isPlausible(field, draft.type, parsed)
             val newReadStates = if (draft.readStates.containsKey(field)) {
-                draft.readStates + (field to if (plausible) ReadState.READ else ReadState.CHECK)
+                draft.readStates + (field to ReadState.READ)
             } else {
                 draft.readStates
             }
@@ -443,10 +442,12 @@ internal object CardioDraftLogic {
 class CardioViewModel(
     private val repos: AppRepos,
     private val vision: VisionService,
+    private val photoPicker: (((Pair<String, String>?) -> Unit) -> Unit) = ::pickPhoto,
 ) : ViewModel() {
     private val repository = repos.cardio
     private val draftsByMachine = mutableMapOf<CardioActivityType, CardioDraft>()
-    private var currentScanToken: Int = 0
+    private class ScanRequest
+    private var currentScanToken: ScanRequest? = null
 
     private val _uiState = MutableStateFlow(CardioUiState())
     val uiState: StateFlow<CardioUiState> = _uiState.asStateFlow()
@@ -465,11 +466,16 @@ class CardioViewModel(
     }
 
     fun startNewDraft() {
+        currentScanToken = null
         draftsByMachine.clear()
         val draft = CardioDraftLogic.newDraft(repository.sessions.value, todayLocalDate())
         _uiState.update {
             it.copy(
                 draft = draft,
+                scanning = false,
+                scanPhotoBase64 = null,
+                scanPhotoMime = null,
+                toast = null,
                 saveState = SaveState.IDLE,
                 saveError = null,
                 expandedField = null,
@@ -479,6 +485,7 @@ class CardioViewModel(
     }
 
     fun startEditDraft(id: Long) {
+        currentScanToken = null
         viewModelScope.launch {
             val session = repository.getById(id) ?: return@launch
             draftsByMachine.clear()
@@ -486,6 +493,10 @@ class CardioViewModel(
             _uiState.update {
                 it.copy(
                     draft = draft,
+                    scanning = false,
+                    scanPhotoBase64 = null,
+                    scanPhotoMime = null,
+                    toast = null,
                     saveState = SaveState.IDLE,
                     saveError = null,
                     expandedField = null,
@@ -496,10 +507,14 @@ class CardioViewModel(
     }
 
     fun cancelDraft() {
+        currentScanToken = null
         draftsByMachine.clear()
         _uiState.update {
             it.copy(
                 draft = null,
+                scanning = false,
+                scanPhotoBase64 = null,
+                scanPhotoMime = null,
                 expandedField = null,
                 typingField = null,
                 saveState = SaveState.IDLE,
@@ -696,7 +711,11 @@ class CardioViewModel(
                 val toast = if (isEdit) {
                     CardioToast(text = "Session updated", emphasis = null, action = null)
                 } else {
-                    CardioToast(text = "Saved.", emphasis = "$dayName filled in.", action = "Undo")
+                    CardioToast(
+                        text = "Saved.",
+                        emphasis = if (CardioInsights.countsForActivity(savedSession)) "$dayName filled in." else null,
+                        action = "Undo",
+                    )
                 }
                 val now = nowMillis()
                 _uiState.update {
@@ -749,9 +768,31 @@ class CardioViewModel(
 
     fun startScan() {
         if (DemoGuard.blockIfDemo()) return
-        pickPhoto { photo ->
-            if (photo == null) return@pickPhoto
-            val token = ++currentScanToken
+        val token = ScanRequest()
+        currentScanToken = token
+        draftsByMachine.clear()
+        _uiState.update {
+            it.copy(
+                scanning = true,
+                draft = null,
+                toast = null,
+                scanPhotoBase64 = null,
+                scanPhotoMime = null,
+                scanReadCount = 0,
+                scanFieldCount = 0,
+                scanLowConfidence = false,
+                expandedField = null,
+                typingField = null,
+                saveState = SaveState.IDLE,
+                saveError = null,
+            )
+        }
+        photoPicker onPhoto@{ photo ->
+            if (token !== currentScanToken) return@onPhoto
+            if (photo == null) {
+                cancelScan()
+                return@onPhoto
+            }
             _uiState.update {
                 it.copy(
                     scanning = true,
@@ -762,7 +803,7 @@ class CardioViewModel(
             viewModelScope.launch {
                 try {
                     val stats = vision.scanStats(photo.second, photo.first)
-                    if (token != currentScanToken) return@launch
+                    if (token !== currentScanToken) return@launch
                     if (stats == null) {
                         handleScanFailure()
                         return@launch
@@ -780,8 +821,10 @@ class CardioViewModel(
                             scanFieldCount = fieldCount,
                         )
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Throwable) {
-                    if (token != currentScanToken) return@launch
+                    if (token !== currentScanToken) return@launch
                     handleScanFailure()
                 }
             }
@@ -810,7 +853,8 @@ class CardioViewModel(
     }
 
     fun cancelScan() {
-        currentScanToken++
+        if (currentScanToken == null) return
+        currentScanToken = null
         _uiState.update {
             it.copy(
                 scanning = false,

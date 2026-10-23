@@ -8,7 +8,10 @@ import android.util.Base64
 import androidx.activity.ComponentActivity
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -28,23 +31,52 @@ object PhotoPickerBridge {
     private var host: ComponentActivity? = null
     private var launchPicker: (() -> Unit)? = null
     private var pending: ((Pair<String, String>?) -> Unit)? = null
+    private var unregisterPicker: (() -> Unit)? = null
 
     fun register(activity: ComponentActivity) {
         if (host === activity) return
+        val previous = pending
+        pending = null
+        launchPicker = null
+        unregisterPicker?.invoke()
+        unregisterPicker = null
         host = activity
+        previous?.invoke(null)
         val launcher = activity.registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-            val callback = pending
-            pending = null
-            if (callback == null) return@registerForActivityResult
+            if (host !== activity) return@registerForActivityResult
+            val callback = pending ?: return@registerForActivityResult
             if (uri == null) {
+                pending = null
                 callback(null)
                 return@registerForActivityResult
             }
             activity.lifecycleScope.launch {
-                val encoded = withContext(Dispatchers.IO) { encodePickedPhoto(activity, uri) }
-                callback(encoded)
+                val encoded = try {
+                    withContext(Dispatchers.IO) { encodePickedPhoto(activity, uri) }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    null
+                }
+                if (host === activity && pending === callback) {
+                    pending = null
+                    callback(encoded)
+                }
             }
         }
+        unregisterPicker = launcher::unregister
+        activity.lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onDestroy(owner: LifecycleOwner) {
+                if (host !== activity) return
+                val callback = pending
+                pending = null
+                host = null
+                launchPicker = null
+                unregisterPicker = null
+                launcher.unregister()
+                callback?.invoke(null)
+            }
+        })
         launchPicker = {
             launcher.launch(
                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
@@ -58,7 +90,9 @@ object PhotoPickerBridge {
             onResult(null)
             return
         }
+        val previous = pending
         pending = onResult
+        previous?.invoke(null)
         launch()
     }
 }

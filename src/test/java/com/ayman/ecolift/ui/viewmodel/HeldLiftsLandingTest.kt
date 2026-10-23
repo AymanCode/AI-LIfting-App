@@ -57,6 +57,17 @@ class HeldLiftsLandingTest {
     }
 
     @Test
+    fun filtered_held_lift_keeps_its_literal_ticket_values() {
+        val filtered = sections("lat pulldown")
+        assertEquals(listOf("Upper 1"), filtered.map { it.title })
+        val row = filtered.single().rows.single()
+        assertEquals("Lat Pulldown", row.name)
+        assertEquals("140\u00d710", row.topSetLabel)
+        assertEquals(StakeUi.Beat(10), row.stake)
+        assertEquals(false, row.faded)
+    }
+
+    @Test
     fun noHeldLiftsMeansNoSections() {
         val m = LearnedSplitsEngine.compute(LearnedFixtures.inputs("2026-09-28", LearnedFixtures.day("2026-09-27", 1)))
         assertTrue(buildHeldSections(m, "2026-09-28", emptyList(), emptyList(), { it }).isEmpty())
