@@ -213,7 +213,13 @@ class ProgressSubscriptionTest {
         }
         private val repos = object : AppRepos by base { override val sets = this@Fixture.sets }
         fun model(scope: ProgressScope = ProgressScope.Overview) =
-            ProgressViewModel(repos, DemoGenAiEngine(), scope = scope, today = { LocalDate(2026, 10, 14) })
+            ProgressViewModel(
+                repos,
+                DemoGenAiEngine(),
+                scope = scope,
+                today = { LocalDate(2026, 10, 14) },
+                derivationDispatcher = Dispatchers.Main,
+            )
         fun changeUncheckedReps(reps: Int) {
             currentSets.value = currentSets.value.map { if (it.id == 103L) it.copy(reps = reps) else it }
         }

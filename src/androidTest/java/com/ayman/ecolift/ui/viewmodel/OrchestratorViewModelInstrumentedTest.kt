@@ -3,14 +3,20 @@ package com.ayman.ecolift.ui.viewmodel
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.ayman.ecolift.android.room.RoomRepos
+import com.ayman.ecolift.android.services.AndroidGenAiEngine
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.data.PendingReview
 import com.ayman.ecolift.data.domain
 import com.ayman.ecolift.data.WeightLbs
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -18,6 +24,16 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class OrchestratorViewModelInstrumentedTest {
+    private var repos: RoomRepos? = null
+    private var reposScope: CoroutineScope? = null
+
+    @After
+    fun tearDown() {
+        repos?.close()
+        reposScope?.cancel()
+        repos = null
+        reposScope = null
+    }
 
     @Test
     fun sendMessageImportsDatedWorkoutRowsThroughProductionViewModel() = runBlocking {
@@ -27,7 +43,7 @@ class OrchestratorViewModelInstrumentedTest {
         val lateralId = getOrCreateExercise(db, "QA Lateral Raise Machine")
         val initialCalfCount = db.workoutSetDao().getForDateAndExercise("2026-05-11", calfId).size
         val initialLateralCount = db.workoutSetDao().getForDateAndExercise("2026-05-11", lateralId).size
-        val viewModel = OrchestratorViewModel(app)
+        val viewModel = productionViewModel(app, db)
 
         viewModel.updateInput(
             "5/11/26 QA Calf Raise Machine 90lbs for 12, 10, 8; " +
@@ -71,7 +87,7 @@ class OrchestratorViewModelInstrumentedTest {
                 dateLogged = "2026-05-10"
             )
         )
-        val viewModel = OrchestratorViewModel(app)
+        val viewModel = productionViewModel(app, db)
 
         viewModel.updateInput("all pending review items are QA Hip Abduction")
         viewModel.sendMessage()
@@ -89,6 +105,17 @@ class OrchestratorViewModelInstrumentedTest {
             hipSets.map { it.weightLbs }
         )
         assertTrue(pendingDao.getUnresolved().none { it.id == pendingId })
+    }
+
+    private suspend fun productionViewModel(app: Application, db: AppDatabase): OrchestratorViewModel {
+        repos?.close()
+        reposScope?.cancel()
+        val scope = CoroutineScope(SupervisorJob())
+        val room = RoomRepos(db = db, scope = scope)
+        reposScope = scope
+        repos = room
+        room.loadAll()
+        return OrchestratorViewModel(room, AndroidGenAiEngine(app))
     }
 
     private suspend fun getOrCreateExercise(db: AppDatabase, name: String): Long {

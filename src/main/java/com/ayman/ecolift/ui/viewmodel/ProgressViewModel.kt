@@ -59,6 +59,7 @@ class ProgressViewModel(
     initialTimeframe: TimeframeFilter = TimeframeFilter.ONE_MONTH,
     private val scope: ProgressScope = ProgressScope.Overview,
     private val today: () -> LocalDate = ::todayLocalDate,
+    private val derivationDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
     private val exerciseRepository = repos.exercises
     private val setRepository = repos.sets
@@ -213,7 +214,7 @@ class ProgressViewModel(
                 isBodyweight = summary.isBodyweight,
             )
         }.sortedBy { it.name }
-    }.flowOn(progressDerivationDispatcher())
+    }.flowOn(derivationDispatcher)
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(0), replay = 1)
 
     private val heroData = combine(
@@ -368,7 +369,7 @@ class ProgressViewModel(
 
     val uiState: StateFlow<ProgressProjection> = visible.flatMapLatest { isVisible ->
         if (isVisible) projection else emptyFlow()
-    }.flowOn(progressDerivationDispatcher())
+    }.flowOn(derivationDispatcher)
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(0),
@@ -436,14 +437,6 @@ class ProgressViewModel(
     }
 
     fun clearAnalysis() { _analysis.value = AnalysisState.Idle }
-}
-
-// ProgressSubscriptionTest installs a kotlinx.coroutines.test Main and drains it with runCurrent().
-// The real Default pool would leave those frames on Pending, so unit tests stay on that Main.
-private fun progressDerivationDispatcher(): CoroutineDispatcher {
-    val main = Dispatchers.Main
-    val name = main::class.qualifiedName.orEmpty()
-    return if (name.startsWith("kotlinx.coroutines.test")) main else Dispatchers.Default
 }
 
 sealed interface AnalysisState {
