@@ -15,14 +15,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.splits.SplitSwitchIntent
-import com.ayman.ecolift.data.splits.SplitSwitchOutcome
+import com.ayman.ecolift.data.splits.consumeSplitDeepLink
 import com.ayman.ecolift.ui.theme.GlassPaletteChoice
 import com.ayman.ecolift.ui.theme.LogGlassPalette
 import com.ayman.ecolift.ui.theme.palette
 import com.ayman.ecolift.ui.viewmodel.LogViewModel
 import com.ayman.ecolift.web.LocalRepos
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.onSubscription
 import kotlin.math.roundToInt
 
 @Composable
@@ -77,27 +75,16 @@ fun TodayScreen(
     val exerciseSwapUndo by viewModel.exerciseSwapUndo.collectAsStateWithLifecycle()
     val swapUndoBusy by viewModel.swapUndoBusy.collectAsStateWithLifecycle()
     var consumedInitialSplit by rememberSaveable(initialSplitId) { mutableStateOf(false) }
-    var initialSplitRequestId by remember(initialSplitId) { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(initialSplitId, consumedInitialSplit) {
         val splitId = initialSplitId ?: return@LaunchedEffect
         if (consumedInitialSplit) return@LaunchedEffect
-        viewModel.splitSwitchOutcomes
-            .onSubscription {
-                // The Splits tab's Load: seed-only, like the ticket's Start (spec 2026-09-28).
-                viewModel.awaitSplitChoices(splitId)
-                initialSplitRequestId = viewModel.loadProgram(
-                    splitId,
-                    emptySet(),
-                    SplitSwitchIntent.DeepLinkLoad,
-                )
-            }
-            .first { outcome ->
-                outcome is SplitSwitchOutcome.Applied &&
-                    outcome.requestId == initialSplitRequestId
-            }
+        // The Splits tab's Load: seed-only, like the ticket's Start (spec 2026-09-28).
+        consumeSplitDeepLink(viewModel.splitSwitchOutcomes) {
+            viewModel.awaitSplitChoices(splitId)
+            viewModel.loadProgram(splitId, emptySet(), SplitSwitchIntent.DeepLinkLoad)
+        }
         consumedInitialSplit = true
-        initialSplitRequestId = null
     }
 
     // The day's group comes from its checked sets (the model), not from what was loaded.
