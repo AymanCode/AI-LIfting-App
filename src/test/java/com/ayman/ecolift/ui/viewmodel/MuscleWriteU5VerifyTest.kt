@@ -141,6 +141,7 @@ class MuscleWriteU5VerifyTest {
                 override val sets: SetRepository = this@Harness.sets
             },
             isOnline = { false },
+            derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate,
         )
 
         suspend fun showDate() {

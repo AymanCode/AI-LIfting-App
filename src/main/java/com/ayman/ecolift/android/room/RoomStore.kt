@@ -20,6 +20,8 @@ import com.ayman.ecolift.data.room.toDomain
 import com.ayman.ecolift.data.room.toRoom
 import com.ayman.ecolift.data.splits.SplitAlternative
 import com.ayman.ecolift.web.supabase.sync.PreparedSplitReplacement
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -36,7 +38,7 @@ import kotlin.coroutines.coroutineContext
  */
 class RoomStore(val db: AppDatabase) {
     private val mutex = Mutex()
-    private var active: RoomDraft? = null
+    private val active = ThreadLocal<RoomDraft?>()
 
     private val _exercises = MutableStateFlow<List<Exercise>>(emptyList())
     private val _aliases = MutableStateFlow<List<ExerciseAlias>>(emptyList())
@@ -69,40 +71,39 @@ class RoomStore(val db: AppDatabase) {
     val cardio: StateFlow<List<CardioSession>> = _cardio
     val alternatives: StateFlow<List<SplitAlternative>> = _alternatives
 
-    fun exercisesNow(): List<Exercise> = active?.exercises ?: _exercises.value
-    fun setsNow(): List<WorkoutSet> = active?.sets ?: _sets.value
-    fun cardsNow(): List<WorkoutExerciseCard> = active?.cards ?: _cards.value
-    fun aliasesNow(): List<ExerciseAlias> = active?.aliases ?: _aliases.value
-    fun pairsNow(): List<ExerciseDistinctPair> = active?.pairs ?: _pairs.value
-    fun settingsNow(): UserSettings = active?.settings ?: _settings.value
-    fun daysNow(): List<WorkoutDay> = active?.days ?: _days.value
-    fun cycleNow(): Cycle = active?.cycle ?: _cycle.value
-    fun slotsNow(): List<CycleSlot> = active?.slots ?: _slots.value
-    fun splitExercisesNow(): List<SplitExercise> = active?.splitExercises ?: _splitExercises.value
-    fun archivesNow(): List<ArchivedCycle> = active?.archives ?: _archives.value
-    fun reviewsNow(): List<PendingReview> = active?.reviews ?: _reviews.value
-    fun cardioNow(): List<CardioSession> = active?.cardio ?: _cardio.value
-    fun journalNow(): Map<String, PreparedSplitReplacement> = active?.journal ?: _journal.value
+    fun exercisesNow(): List<Exercise> = active.get()?.exercises ?: _exercises.value
+    fun setsNow(): List<WorkoutSet> = active.get()?.sets ?: _sets.value
+    fun cardsNow(): List<WorkoutExerciseCard> = active.get()?.cards ?: _cards.value
+    fun aliasesNow(): List<ExerciseAlias> = active.get()?.aliases ?: _aliases.value
+    fun pairsNow(): List<ExerciseDistinctPair> = active.get()?.pairs ?: _pairs.value
+    fun settingsNow(): UserSettings = active.get()?.settings ?: _settings.value
+    fun daysNow(): List<WorkoutDay> = active.get()?.days ?: _days.value
+    fun cycleNow(): Cycle = active.get()?.cycle ?: _cycle.value
+    fun slotsNow(): List<CycleSlot> = active.get()?.slots ?: _slots.value
+    fun splitExercisesNow(): List<SplitExercise> = active.get()?.splitExercises ?: _splitExercises.value
+    fun archivesNow(): List<ArchivedCycle> = active.get()?.archives ?: _archives.value
+    fun reviewsNow(): List<PendingReview> = active.get()?.reviews ?: _reviews.value
+    fun cardioNow(): List<CardioSession> = active.get()?.cardio ?: _cardio.value
+    fun journalNow(): Map<String, PreparedSplitReplacement> = active.get()?.journal ?: _journal.value
 
     fun saveJournal(replacement: PreparedSplitReplacement) {
-        val draft = active ?: return
+        val draft = active.get() ?: return
         draft.journal = draft.journal + (replacement.date to replacement)
     }
 
     fun clearJournal(date: String) {
-        val draft = active ?: return
+        val draft = active.get() ?: return
         draft.journal = draft.journal - date
     }
 
     suspend fun <T> write(block: suspend RoomDraft.() -> T): T {
-        if (active != null && coroutineContext[WriteToken] != null) {
-            return active!!.block()
+        if (coroutineContext[WriteToken]?.store === this) {
+            return checkNotNull(active.get()).block()
         }
-        return mutex.withLock {
-            val draft = publishedDraft()
-            active = draft
-            try {
-                withContext(WriteToken()) {
+        return withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val draft = publishedDraft()
+                withContext(WriteToken(this@RoomStore) + active.asContextElement(draft)) {
                     val result = db.withTransaction {
                         val value = draft.block()
                         draft.reconcileDayRevisions()
@@ -111,8 +112,6 @@ class RoomStore(val db: AppDatabase) {
                     publish(draft)
                     result
                 }
-            } finally {
-                active = null
             }
         }
     }
@@ -517,6 +516,6 @@ fun deviceTimeZone(): String =
 private const val PARKED_CARD_POSITION = 1_000_000
 private const val NEW_CARD_POSITION = 2_000_000
 
-private class WriteToken : AbstractCoroutineContextElement(WriteToken) {
+private class WriteToken(val store: RoomStore) : AbstractCoroutineContextElement(WriteToken) {
     companion object : Key<WriteToken>
 }

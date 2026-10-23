@@ -80,6 +80,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.stateIn
@@ -192,6 +193,7 @@ class LogViewModel(
     private val classifyMuscles: suspend (List<Exercise>) -> List<MuscleClassification> = { targets ->
         ExerciseMuscleClassifier().classifyBatch(targets)
     },
+    private val derivationContext: CoroutineContext = Dispatchers.Default,
 ) : ViewModel() {
     private val exerciseRepository = repos.exercises
     private val setRepository = repos.sets
@@ -210,9 +212,9 @@ class LogViewModel(
 
     // `?date=YYYY-MM-DD` deep-links a day; the QA harness relies on it.
     private val currentDate = MutableStateFlow(logDateFromLocation() ?: WorkoutDates.today())
-    private val _sessionSets = MutableStateFlow<List<WorkoutSet>>(emptyList())
+    private val _sessionSets = MutableStateFlow(SetQueries.forDate(setRepository.sets.value, currentDate.value))
     private val _sessionSetSnapshot = MutableStateFlow(
-        DatedWorkoutSets(WorkoutDates.today(), emptyList()),
+        DatedWorkoutSets(currentDate.value, _sessionSets.value),
     )
     private val exerciseInput = MutableStateFlow("")
     private val predictiveSuggestions = MutableStateFlow<List<Exercise>>(emptyList())
@@ -763,21 +765,47 @@ class LogViewModel(
             pendingExerciseResolution,
         ->
         buildUiState(inputs, snapshot, uiMessage, pendingExerciseResolution)
-    }.onCompletion { flushPendingSetCommits() }.stateIn(
+    }.flowOn(derivationContext).onCompletion { flushPendingSetCommits() }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = LogUiState(
-            currentDate = WorkoutDates.today(),
-            currentDateLabel = WorkoutDates.formatHeader(WorkoutDates.today()),
-            cycleEnabled = false,
-        ),
+        initialValue = initialUiState(),
     )
+
+    private fun initialUiState(): LogUiState {
+        val date = currentDate.value
+        return buildUiState(
+            inputs = UiInputs(
+                date = date,
+                input = "",
+                suggestions = emptyList(),
+                expanded = false,
+                smartAdjustments = emptyMap(),
+                historySnapshot = _exerciseHistorySnapshot.value,
+                userBodyweightLbs = repos.settings.settings.value.userBodyweightLbs,
+            ),
+            snapshot = DbSnapshot(
+                date = date,
+                exercises = exerciseRepository.exercises.value,
+                cycle = workoutRepository.cycle.value,
+                slots = emptyList(),
+                workoutDays = emptyList(),
+                currentDay = null,
+                currentSets = _sessionSets.value,
+                cards = setRepository.cards.value,
+                pendingReviews = emptyList(),
+                dueSlotId = null,
+                takenGroups = emptyMap(),
+            ),
+            uiMessage = null,
+            pendingExerciseResolution = null,
+        )
+    }
 
     /** The clipboard's pages: every lift with the last day it had a checked set, newest first. */
     val clipboardLifts: StateFlow<List<ClipboardLiftUi>> =
         combine(exerciseRepository.exercises, setRepository.sets.distinctUntilChangedBy(::clipboardLiftsKey)) { exercises, sets ->
             buildClipboardLifts(exercises, sets, ::safeCanonicalId)
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        }.flowOn(derivationContext).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private class BoardInputs(val slots: List<CycleSlot>, val rows: List<SplitExercise>, val state: SplitChoicesState) {
         val choices: Map<Long, SplitMemberChoice> get() = (state as? SplitChoicesState.Ready)?.choices.orEmpty()
@@ -809,7 +837,7 @@ class LogViewModel(
             LearnedProposalSnapshot(date, model, exercises, sets,
                 buildLearnedPrograms(model, date, exercises, sets, boards.slots, boards.rows, boards.choices, ::safeCanonicalId)
                     .map { program -> program.copy(startable = canStartSlot(boards.state, program.slotId)) })
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), LearnedProposalSnapshot.EMPTY)
+        }.flowOn(derivationContext).stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), LearnedProposalSnapshot.EMPTY)
 
     /**
      * Splits retired from the picker's X, hidden at once while the write and the relearn run; a
@@ -859,7 +887,7 @@ class LogViewModel(
             ledgerBuilds++
             buildEmptyDayLedgerSnapshot(source.date, source.programs, source.model, source.exercises, source.sets, ::safeCanonicalId)
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), EmptyDayLedgerSnapshot.EMPTY)
+    }.flowOn(derivationContext).stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), EmptyDayLedgerSnapshot.EMPTY)
 
     /** Only TodayScreen's empty-day branch subscribes to this projection. */
     val emptyDayLedger: StateFlow<EmptyDayLedgerUi> = combine(emptyDayLedgerSnapshot, ticketSwaps) { snapshot, swaps ->

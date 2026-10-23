@@ -191,7 +191,7 @@ class ClipboardAddTest {
             override val sets: SetRepository = this@Harness.sets
             override val exercises: ExerciseRepository = this@Harness.exercises
         }
-        val viewModel = LogViewModel(repos, isOnline = { online })
+        val viewModel = LogViewModel(repos, isOnline = { online }, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
 
         suspend fun showDate() {
             viewModel.selectDate(DATE)

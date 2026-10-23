@@ -667,7 +667,7 @@ class DayUndoViewModelTest {
             override val workout: WorkoutRepository = workoutRepository
             override val splitReplacement: SplitReplacementCoordinator = coordinator
         }
-        val vm = LogViewModel(repos, isOnline = { false })
+        val vm = LogViewModel(repos, isOnline = { false }, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
     }
 
     private class DayUndoFakeSetRepository(

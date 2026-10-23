@@ -181,7 +181,7 @@ class LearningInputsTest {
                 override val model: StateFlow<LearnedModel> = MutableStateFlow(PUSH_MODEL)
             }
         }
-        return LogViewModel(repos, isOnline = { false })
+        return LogViewModel(repos, isOnline = { false }, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
     }
 
     private inner class MutableSetRepository(initial: List<WorkoutSet>) : SetRepository by DemoRepos(

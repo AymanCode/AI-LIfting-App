@@ -377,7 +377,7 @@ class LogSetCarryOverTest {
         private val repos: AppRepos = object : AppRepos by base {
             override val sets: SetRepository = setRepository
         }
-        val viewModel = LogViewModel(repos, isOnline = { false }, stepCommitContext = stepCommitContext)
+        val viewModel = LogViewModel(repos, isOnline = { false }, stepCommitContext = stepCommitContext, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
 
         suspend fun showBench(): List<LogSetUi> {
             viewModel.selectDate(TODAY)

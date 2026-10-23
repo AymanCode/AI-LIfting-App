@@ -46,7 +46,7 @@ class LogViewModelLocalCommitTest {
     @Test fun failed_check_keeps_the_unchecked_row_next_values_and_one_failure() = runVmTest {
         CurrentAppMode.mode = AppMode.Authenticated
         val data = ViewModelMutationTestRepos(rows)
-        val vm = LogViewModel(data.repos, isOnline = { false })
+        val vm = LogViewModel(data.repos, isOnline = { false }, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
         show(vm)
         data.updateFailure = NotCommittedReason.QuotaExceeded
         val snackbar = listenForSnackbar()
@@ -64,7 +64,7 @@ class LogViewModelLocalCommitTest {
     @Test fun failed_uncheck_keeps_the_checked_row_and_existing_rest() = runVmTest {
         CurrentAppMode.mode = AppMode.Authenticated
         val data = ViewModelMutationTestRepos(rows)
-        val vm = LogViewModel(data.repos, isOnline = { false })
+        val vm = LogViewModel(data.repos, isOnline = { false }, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
         show(vm)
         vm.toggleCompleted(101)
         withTimeout(5_000) { data.currentSets.first { it.first().completed } }
@@ -81,7 +81,7 @@ class LogViewModelLocalCommitTest {
     @Test fun a_refused_rep_edit_is_kept_as_unsaved_input_outside_the_session_rows_until_a_retry_saves_it() = runVmTest {
         CurrentAppMode.mode = AppMode.Authenticated
         val data = ViewModelMutationTestRepos(rows)
-        val vm = LogViewModel(data.repos, isOnline = { false })
+        val vm = LogViewModel(data.repos, isOnline = { false }, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
         show(vm)
         data.updateFailure = NotCommittedReason.StorageUnavailable
         vm.updateReps(101, "12")
@@ -102,7 +102,7 @@ class LogViewModelLocalCommitTest {
     @Test fun failed_scrub_restores_the_value_before_the_first_step() = runVmTest {
         CurrentAppMode.mode = AppMode.Authenticated
         val data = ViewModelMutationTestRepos(rows)
-        val vm = LogViewModel(data.repos, isOnline = { false })
+        val vm = LogViewModel(data.repos, isOnline = { false }, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
         show(vm)
         data.updateFailure = NotCommittedReason.QuotaExceeded
         vm.adjustWeight(101, 50)
@@ -117,7 +117,7 @@ class LogViewModelLocalCommitTest {
     @Test fun failed_batch_delete_returns_the_result_for_the_screen_to_restore_hidden_rows() = runVmTest {
         CurrentAppMode.mode = AppMode.Authenticated
         val data = ViewModelMutationTestRepos(rows)
-        val vm = LogViewModel(data.repos, isOnline = { false })
+        val vm = LogViewModel(data.repos, isOnline = { false }, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
         show(vm)
         data.deleteFailure = NotCommittedReason.QuotaExceeded
         val snackbar = async(start = CoroutineStart.UNDISPATCHED) {
@@ -134,7 +134,7 @@ class LogViewModelLocalCommitTest {
     @Test fun completion_focus_callback_waits_for_commit_and_failure_does_not_invoke_it() = runVmTest {
         CurrentAppMode.mode = AppMode.Authenticated
         val data = ViewModelMutationTestRepos(rows)
-        val vm = LogViewModel(data.repos, isOnline = { false })
+        val vm = LogViewModel(data.repos, isOnline = { false }, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
         show(vm)
         val gate = CompletableDeferred<Unit>()
         data.updateGate = gate
@@ -153,7 +153,7 @@ class LogViewModelLocalCommitTest {
     @Test fun committed_completion_invokes_focus_once_after_the_repository_changed() = runVmTest {
         CurrentAppMode.mode = AppMode.Authenticated
         val data = ViewModelMutationTestRepos(rows)
-        val vm = LogViewModel(data.repos, isOnline = { false })
+        val vm = LogViewModel(data.repos, isOnline = { false }, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
         show(vm)
         val gate = CompletableDeferred<Unit>()
         data.updateGate = gate
@@ -173,7 +173,7 @@ class LogViewModelLocalCommitTest {
     @Test fun a_retry_that_saves_clears_only_its_own_input_and_keeps_a_newer_refused_edit() = runVmTest {
         CurrentAppMode.mode = AppMode.Authenticated
         val data = ViewModelMutationTestRepos(rows)
-        val vm = LogViewModel(data.repos, isOnline = { false })
+        val vm = LogViewModel(data.repos, isOnline = { false }, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
         show(vm)
         data.updateFailure = NotCommittedReason.StorageUnavailable
         vm.updateReps(101, "12")
@@ -197,7 +197,7 @@ class LogViewModelLocalCommitTest {
     @Test fun a_refused_check_runs_its_completion_step_only_when_the_retry_saves() = runVmTest {
         CurrentAppMode.mode = AppMode.Authenticated
         val data = ViewModelMutationTestRepos(rows)
-        val vm = LogViewModel(data.repos, isOnline = { false })
+        val vm = LogViewModel(data.repos, isOnline = { false }, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
         show(vm)
         data.updateFailure = NotCommittedReason.QuotaExceeded
         val focused = mutableListOf<Long>()
