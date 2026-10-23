@@ -26,6 +26,7 @@ Resource calls change at the copy. `Res.drawable.name` becomes `R.drawable.name`
 - `CardioViewModel` reads the Android photo pair as mime then base64. `photo.first` is the mime type and `photo.second` is the base64 payload. The snapshot reads base64 then mime.
 - Compose BOM `2025.09.01` resolves `androidx.compose.material3:material3` 1.4.0. `SplitEditorSheet` passes `sheetGesturesEnabled = dragId == null`. Dragging a split row does not dismiss the sheet. Material3 1.3.2, from BOM `2025.08.00`, has no such parameter.
 - `ProgressViewModel` takes `derivationDispatcher` and runs both derived flows on it. The default is `Dispatchers.Default`, so the first Progress open does not block the main thread for several seconds. Unit tests pass the `Main` dispatcher they install.
+- IronMind settings adds Android backup, restore, local-backup recovery, and Health Connect rows. Restore confirms replacement before importing. Android's retained repository owner keeps the same graph across activity recreation and reports backup failures without closing the app.
 
 ## Port a newer snapshot
 
