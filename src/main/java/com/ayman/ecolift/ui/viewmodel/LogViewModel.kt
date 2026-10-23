@@ -200,7 +200,7 @@ class LogViewModel(
     private val pendingReviewRepository = repos.pendingReviews
 
     private val assist = com.ayman.ecolift.agent.assist.AssistService(
-        tools = UnavailableAgentTools,
+        tools = com.ayman.ecolift.agent.tools.AgentToolsImpl(repos),
         engine = null, // Log helpers are local-only; no Groq.
     )
     private val _assistSuggestions = MutableStateFlow<Map<Long, com.ayman.ecolift.agent.assist.SetSuggestion>>(emptyMap())

@@ -1,13 +1,17 @@
 package com.ayman.ecolift.agent.tools
 
-import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.FuzzyMatcher
 import com.ayman.ecolift.data.WeightLbs
-import com.ayman.ecolift.data.room.toDomain
-import java.time.LocalDate
+import com.ayman.ecolift.data.epleyEstimate
+import com.ayman.ecolift.web.AppRepos
+import com.ayman.ecolift.web.util.countLabel
+import com.ayman.ecolift.web.util.minusDays
+import com.ayman.ecolift.web.util.plusDays
+import com.ayman.ecolift.web.util.todayLocalDate
+import kotlinx.datetime.LocalDate
 
 class AgentToolsImpl(
-    private val db: AppDatabase,
+    private val repos: AppRepos,
     private val embeddingIndex: ExerciseEmbeddingIndex = ExerciseEmbeddingIndex()
 ) : AgentTools {
 
@@ -17,10 +21,10 @@ class AgentToolsImpl(
         val query = normalizeExerciseQuery(fuzzyName.trim().lowercase())
         if (query.isEmpty()) return null
 
-        val all = db.exerciseDao().getAll()
+        val all = repos.exercises.getAll()
         if (all.isEmpty()) return null
 
-        fun ExerciseMatch(ex: com.ayman.ecolift.data.room.Exercise, score: Double) =
+        fun ExerciseMatch(ex: com.ayman.ecolift.data.Exercise, score: Double) =
             ExerciseMatch(ex.id, ex.name, ex.isBodyweight, score)
 
         // 0. Exact name match (case-insensitive) - highest priority for @mentions
@@ -58,9 +62,9 @@ class AgentToolsImpl(
     // getRecentSets
 
     override suspend fun getRecentSets(exerciseId: Long, limit: Int): List<SetSummary> {
+        val canonicalExerciseId = repos.exercises.canonicalId(exerciseId)
         val futureDate = "2030-01-01" // Allow seeing future test data
-        return db.workoutSetDao()
-            .getRecentHistoryForExercise(exerciseId, futureDate)
+        return repos.sets.getRecentHistoryForExercise(canonicalExerciseId, futureDate)
             .take(limit)
             .map { set ->
                 SetSummary(
@@ -77,48 +81,52 @@ class AgentToolsImpl(
     // getExerciseHistory
 
     override suspend fun getExerciseHistory(exerciseId: Long, windowDays: Int): HistorySummary {
-        val today = LocalDate.now().plusDays(1)
+        val canonicalExerciseId = repos.exercises.canonicalId(exerciseId)
+        val today = todayLocalDate().plusDays(1)
         val since = today.minusDays(windowDays.toLong()).toString()
-        val futureDate = "2030-01-01" // Allow seeing future test data
-
-        val sets = db.workoutSetDao().getSetsSince(exerciseId, since)
-        val summaries = sets.map { set ->
-            SetSummary(
-                setId = set.id,
-                date = set.date,
-                setNumber = set.setNumber,
-                weightLbs = set.weightLbs,
-                reps = set.reps,
-                isBodyweight = set.isBodyweight
-            )
-        }
-
-        val sessionCount = sets.map { it.date }.distinct().size
-        val topSet = sets.maxByOrNull { it.weightLbs ?: 0 }
-
-        return HistorySummary(
-            exerciseId = exerciseId,
+        val exercise = repos.exercises.getById(canonicalExerciseId)
+        val sets = repos.sets.getSetsSince(canonicalExerciseId, since)
+        return buildHistorySummaryForSuggestion(
+            exerciseId = canonicalExerciseId,
             windowDays = windowDays,
-            sessionCount = sessionCount,
-            topSetWeightLbs = topSet?.weightLbs,
-            topSetReps = topSet?.reps,
-            recentSets = summaries.sortedByDescending { it.date }
+            exerciseName = exercise?.name.orEmpty(),
+            allSets = sets,
+            beforeDate = today.toString(),
         )
     }
 
     // getSimilarExercises
 
     override suspend fun getSimilarExercises(exerciseId: Long, k: Int): List<SimilarExercise> {
-        val target = db.exerciseDao().getById(exerciseId)?.toDomain() ?: return emptyList()
-        val catalog = db.exerciseDao().getAll().map { it.toDomain() }
+        val target = repos.exercises.getById(repos.exercises.canonicalId(exerciseId)) ?: return emptyList()
+        val catalog = repos.exercises.getAll()
         return embeddingIndex.findSimilar(target, catalog, k)
     }
 
     // suggestWeight
 
     override suspend fun suggestWeight(exerciseId: Long, targetReps: Int): WeightSuggestion {
-        val exercise = db.exerciseDao().getById(exerciseId)
-        val history = getExerciseHistory(exerciseId, windowDays = 30)
+        return suggestWeightBeforeDate(
+            exerciseId = exerciseId,
+            targetReps = targetReps,
+            beforeDate = todayLocalDate().plusDays(1).toString(),
+        )
+    }
+
+    override suspend fun suggestWeightBeforeDate(
+        exerciseId: Long,
+        targetReps: Int,
+        beforeDate: String
+    ): WeightSuggestion {
+        val canonicalExerciseId = repos.exercises.canonicalId(exerciseId)
+        val exercise = repos.exercises.getById(canonicalExerciseId)
+        val history = buildHistorySummaryForSuggestion(
+            exerciseId = canonicalExerciseId,
+            exerciseName = exercise?.name.orEmpty(),
+            allSets = repos.sets.sets.value,
+            beforeDate = beforeDate,
+            windowDays = SUGGESTION_WINDOW_DAYS,
+        )
         return WeightRecommender.suggest(history, targetReps, exercise?.isBodyweight ?: false)
     }
 
@@ -128,11 +136,12 @@ class AgentToolsImpl(
         targetExerciseId: Long,
         targetReps: Int
     ): WeightSuggestion {
-        val target = db.exerciseDao().getById(targetExerciseId)
+        val canonicalTargetExerciseId = repos.exercises.canonicalId(targetExerciseId)
+        val target = repos.exercises.getById(canonicalTargetExerciseId)
             ?: return noDataSuggestion(targetExerciseId, targetReps, "Target exercise not found.")
 
         // Find similar exercises that the user has actually logged
-        val similar = getSimilarExercises(targetExerciseId, k = 10)
+        val similar = getSimilarExercises(canonicalTargetExerciseId, k = 10)
         val sourced = similar.firstOrNull { candidate ->
             // Must have recent history
             val h = getExerciseHistory(candidate.exerciseId, windowDays = 60)
@@ -147,8 +156,11 @@ class AgentToolsImpl(
             targetExerciseId, targetReps, "Source exercise has no weight data."
         )
 
-        // Apply transfer ratio if available, else use raw score as proxy
-        val ratio = sourced.similarityScore // Similarity score is used as a transfer ratio proxy.
+        val ratio = sourced.transferRatioToQuery ?: return noDataSuggestion(
+            targetExerciseId,
+            targetReps,
+            "Similar exercise is missing a transfer ratio. Log ${target.name} once to get a recommendation."
+        )
         val estimatedLbs = (WeightLbs.toLbs(sourceWeight) * ratio).toInt().coerceAtLeast(5)
         val roundedLbs = ((estimatedLbs + 2) / 5) * 5
         val rounded = WeightLbs.fromWholePounds(roundedLbs)
@@ -158,18 +170,18 @@ class AgentToolsImpl(
             targetReps = targetReps,
             suggestedWeightLbs = rounded,
             confidence = WeightSuggestion.Confidence.LOW,
-            reasoning = "Transfer from ${sourced.name} (${WeightLbs.formatStored(sourceWeight)}lbs, similarity ${
-                "%.2f".format(sourced.similarityScore)
-            }). Estimated: ${roundedLbs}lbs for $targetReps reps. Log ${target.name} to calibrate."
+            reasoning = "Transfer from ${sourced.name} (${WeightLbs.formatStored(sourceWeight)} lb, ratio ${
+                formatTwoDecimals(ratio)
+            }). Estimated: ${roundedLbs} lb for ${countLabel(targetReps, "rep")}. Log ${target.name} to calibrate."
         )
     }
 
     // getSessionByDate
 
     override suspend fun getSessionByDate(date: String): SessionSnapshot {
-        val sets = db.workoutSetDao().getForDate(date)
+        val sets = repos.sets.getSetsForDate(date)
         val exerciseIds = sets.map { it.exerciseId }.distinct()
-        val exercises = db.exerciseDao().getByIds(exerciseIds).associateBy { it.id }
+        val exercises = exerciseIds.associateWith { repos.exercises.getById(it) }
 
         val snapshots = exerciseIds.mapNotNull { exId ->
             val ex = exercises[exId] ?: return@mapNotNull null
@@ -187,32 +199,31 @@ class AgentToolsImpl(
     // getProgressTrend
 
     override suspend fun getProgressTrend(exerciseId: Long): ProgressTrend {
+        val canonicalExerciseId = repos.exercises.canonicalId(exerciseId)
         val futureDate = "2030-01-01" // Allow seeing future test data
-        val exercise = db.exerciseDao().getById(exerciseId)
-        val sets = db.workoutSetDao().getRecentHistoryForExercise(exerciseId, futureDate)
-
-        fun epley(w: Int, r: Int): Float = WeightLbs.toLbs(w).toFloat() * (1f + r / 30f)
+        val exercise = repos.exercises.getById(canonicalExerciseId)
+        val sets = repos.sets.getRecentHistoryForExercise(canonicalExerciseId, futureDate)
 
         // For trend analysis, use the latest workout date as "today" if it's in the future
-        val latestDate = sets.maxOfOrNull { it.date } ?: LocalDate.now().toString()
-        val referenceDate = if (latestDate > LocalDate.now().toString()) LocalDate.parse(latestDate) else LocalDate.now()
+        val latestDate = sets.maxOfOrNull { it.date } ?: todayLocalDate().toString()
+        val referenceDate = if (latestDate > todayLocalDate().toString()) LocalDate.parse(latestDate) else todayLocalDate()
 
         val cutoff30 = referenceDate.minusDays(30).toString()
         val cutoff60 = referenceDate.minusDays(60).toString()
 
         val recent30Max = sets.filter { it.date >= cutoff30 }
-            .mapNotNull { s -> s.weightLbs?.let { w -> s.reps?.let { r -> if (r > 0) epley(w, r) else null } } }
+            .mapNotNull { s -> s.weightLbs?.let { w -> s.reps?.let { r -> if (r > 0) epleyEstimate(WeightLbs.toLbs(w).toFloat(), r) else null } } }
             .maxOrNull()
 
         val prev30Max = sets.filter { it.date in cutoff60..<cutoff30 }
-            .mapNotNull { s -> s.weightLbs?.let { w -> s.reps?.let { r -> if (r > 0) epley(w, r) else null } } }
+            .mapNotNull { s -> s.weightLbs?.let { w -> s.reps?.let { r -> if (r > 0) epleyEstimate(WeightLbs.toLbs(w).toFloat(), r) else null } } }
             .maxOrNull()
 
         val delta = if (recent30Max != null && prev30Max != null && prev30Max > 0f)
             ((recent30Max - prev30Max) / prev30Max) * 100f else null
 
         val allEst1Rms = sets.mapNotNull { s ->
-            s.weightLbs?.let { w -> s.reps?.let { r -> if (r > 0) epley(w, r) else null } }
+            s.weightLbs?.let { w -> s.reps?.let { r -> if (r > 0) epleyEstimate(WeightLbs.toLbs(w).toFloat(), r) else null } }
         }
         val prSet = sets.maxByOrNull { it.weightLbs ?: 0 }
 
@@ -244,4 +255,16 @@ class AgentToolsImpl(
             confidence = WeightSuggestion.Confidence.NO_DATA,
             reasoning = reason
         )
+
+    /** Replacement for "%.2f".format(value) — not available in wasm. */
+    private fun formatTwoDecimals(value: Double): String {
+        val scaled = (value * 100).toLong()
+        val whole = scaled / 100
+        val frac = (scaled % 100).toInt()
+        return "$whole.${frac.toString().padStart(2, '0')}"
+    }
+
+    private companion object {
+        const val SUGGESTION_WINDOW_DAYS = 3650
+    }
 }

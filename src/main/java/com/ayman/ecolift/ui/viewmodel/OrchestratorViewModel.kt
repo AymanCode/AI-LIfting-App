@@ -14,11 +14,15 @@ import com.ayman.ecolift.agent.WorkoutImportTextParser
 import com.ayman.ecolift.agent.engine.LocalGenAiEngine
 import com.ayman.ecolift.agent.model.AgentTurnLog
 import com.ayman.ecolift.agent.model.DbPatch
+import com.ayman.ecolift.agent.model.InMemoryAuditStore
 import com.ayman.ecolift.agent.model.InMemoryTurnLogStore
 import com.ayman.ecolift.agent.patches.PatchResult
+import com.ayman.ecolift.agent.patches.PatchService
+import com.ayman.ecolift.agent.patches.PatchValidator
 import com.ayman.ecolift.agent.router.IntentRouter
 import com.ayman.ecolift.agent.router.Intent
 import com.ayman.ecolift.agent.router.RuleMatcher
+import com.ayman.ecolift.agent.tools.AgentToolsImpl
 import com.ayman.ecolift.agent.LogSetTextParser
 import com.ayman.ecolift.data.PendingReview
 import com.ayman.ecolift.data.SetQueries
@@ -55,9 +59,10 @@ class OrchestratorViewModel(
     private val engine: LocalGenAiEngine
 ) : ViewModel() {
 
+    private val auditStore  = InMemoryAuditStore()
     private val turnLogStore = InMemoryTurnLogStore()
-    private val service = UnavailablePatchApplier
-    private val tools = UnavailableAgentTools
+    private val service = PatchService(repos, PatchValidator(), auditStore)
+    private val tools   = AgentToolsImpl(repos)
     private val agent   = AgentOrchestrator(
         router       = IntentRouter(engine = engine),
         tools        = tools,
