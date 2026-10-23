@@ -1,4 +1,5 @@
 package com.ayman.ecolift.ui.viewmodel
+import com.ayman.ecolift.data.domain
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -29,7 +30,7 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProgressViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getInstance(application)
-    private val exerciseRepository = ExerciseRepository(database.exerciseDao())
+    private val exerciseRepository = ExerciseRepository(database.exerciseDao().domain())
     private val setRepository = SetRepository(database)
     private val workoutRepository = WorkoutRepository(database)
 

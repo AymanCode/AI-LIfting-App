@@ -33,7 +33,7 @@ class CycleSnapshotBuilderTest {
     }
 
     @Test
-    fun `orphaned slots become distinct deleted buckets and null slots become unassigned`() {
+    fun `unknown slot ids and null slots both land in unassigned`() {
         val snapshot = CycleSnapshotBuilder.build(
             startDate = "2026-01-01",
             endDate = "2026-01-31",
@@ -53,7 +53,7 @@ class CycleSnapshotBuilderTest {
         )
 
         val deleted = snapshot.splits.filter { it.bucketKind == SplitBucketKind.Deleted }
-        assertEquals(listOf(98L, 99L), deleted.map { it.slotId })
+        assertEquals(emptyList<Long>(), deleted.map { it.slotId })
         assertEquals(1, snapshot.splits.count { it.bucketKind == SplitBucketKind.Unassigned })
     }
 
@@ -94,13 +94,13 @@ class CycleSnapshotBuilderTest {
 
         val exercise = snapshot.splits.single().exercises.single()
         assertTrue(exercise.isBodyweight)
-        assertNull(exercise.endTopWeight)
+        assertEquals(0f, exercise.endTopWeight!!, 0.001f)
         assertEquals(12, exercise.sessions.single().totalReps)
         assertEquals(0L, exercise.sessions.single().volumeLbs)
     }
 
     @Test
-    fun `bodyweight sets use saved bodyweight when available`() {
+    fun `saved bodyweight is not substituted into a bodyweight set`() {
         val snapshot = CycleSnapshotBuilder.build(
             startDate = "2026-01-01",
             endDate = "2026-01-31",
@@ -115,9 +115,9 @@ class CycleSnapshotBuilderTest {
         )
 
         val session = snapshot.splits.single().exercises.single().sessions.single()
-        assertEquals(180f, session.topWeight!!, 0.001f)
-        assertEquals(1800L, session.volumeLbs)
-        assertTrue(session.bestE1rm!! > 239f)
+        assertEquals(0f, session.topWeight!!, 0.001f)
+        assertEquals(0L, session.volumeLbs)
+        assertNull(session.bestE1rm)
     }
 
     @Test
@@ -136,7 +136,7 @@ class CycleSnapshotBuilderTest {
         )
 
         val session = snapshot.splits.single().exercises.single().sessions.single()
-        assertNull(session.topWeight)
+        assertEquals(0f, session.topWeight!!, 0.001f)
         assertEquals(0L, session.volumeLbs)
         assertEquals(10, session.totalReps)
     }

@@ -52,22 +52,21 @@ class WeightRecommenderTest {
     // ── Increase ─────────────────────────────────────────────────────
 
     @Test
-    fun `reps 2 above target triggers increase by 5`() {
-        // Last top set: 135 × 10 reps. Target: 8 reps. 10 >= 8+2 → increase
-        val result = WeightRecommender.suggest(history(topSetWeightLbs = lbs(135), topSetReps = 10), 8, false)
+    fun `twelve reps steps the weight up by 5`() {
+        val result = WeightRecommender.suggest(history(topSetWeightLbs = lbs(135), topSetReps = 12), 8, false)
         assertEquals(lbs(140), result.suggestedWeightLbs)
-        assertTrue(result.reasoning.contains("increase"))
+        assertTrue(result.reasoning.contains("move up"))
     }
 
     @Test
-    fun `reps exactly 2 above target triggers increase`() {
-        val result = WeightRecommender.suggest(history(topSetWeightLbs = lbs(100), topSetReps = 10), 8, false)
+    fun `twelve reps at 100 steps up by 5`() {
+        val result = WeightRecommender.suggest(history(topSetWeightLbs = lbs(100), topSetReps = 12), 8, false)
         assertEquals(lbs(105), result.suggestedWeightLbs)
     }
 
     @Test
-    fun `reps 3 above target triggers increase`() {
-        val result = WeightRecommender.suggest(history(topSetWeightLbs = lbs(200), topSetReps = 11), 8, false)
+    fun `twelve reps at 200 steps up by 5`() {
+        val result = WeightRecommender.suggest(history(topSetWeightLbs = lbs(200), topSetReps = 12), 8, false)
         assertEquals(lbs(205), result.suggestedWeightLbs)
     }
 
@@ -93,7 +92,7 @@ class WeightRecommenderTest {
     fun `reps exactly at target holds weight`() {
         val result = WeightRecommender.suggest(history(topSetWeightLbs = lbs(135), topSetReps = 8), 8, false)
         assertEquals(lbs(135), result.suggestedWeightLbs)
-        assertTrue(result.reasoning.contains("hold") || result.reasoning.contains("Hold"))
+        assertTrue(result.reasoning.contains("Try one more rep"))
     }
 
     @Test

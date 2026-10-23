@@ -1,4 +1,5 @@
 package com.ayman.ecolift.ui.viewmodel
+import com.ayman.ecolift.data.domain
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -22,7 +23,7 @@ class GlassSettingsViewModel(application: Application) : AndroidViewModel(applic
 
     init {
         viewModelScope.launch {
-            database.userSettingsDao().observe().collect { settings ->
+            database.userSettingsDao().domain().observe().collect { settings ->
                 _paletteChoice.value = GlassPaletteChoice.fromStorageKey(settings?.glassPaletteChoice)
                 _userBodyweightLbs.value = normalizedUserBodyweightLbs(settings?.userBodyweightLbs)
             }
@@ -52,8 +53,8 @@ class GlassSettingsViewModel(application: Application) : AndroidViewModel(applic
 
     private suspend fun updateSettings(transform: (UserSettings) -> UserSettings) {
         database.withTransaction {
-            val current = database.userSettingsDao().get() ?: UserSettings()
-            database.userSettingsDao().upsert(transform(current))
+            val current = database.userSettingsDao().domain().get() ?: UserSettings()
+            database.userSettingsDao().domain().upsert(transform(current))
         }
     }
 }

@@ -1,4 +1,5 @@
 package com.ayman.ecolift.ui.viewmodel
+import com.ayman.ecolift.data.domain
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -23,8 +24,8 @@ import java.time.LocalDate
 class SplitViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getInstance(application)
     private val repo = WorkoutRepository(database)
-    private val setDao = database.workoutSetDao()
-    private val exerciseDao = database.exerciseDao()
+    private val setDao = database.workoutSetDao().domain()
+    private val exerciseDao = database.exerciseDao().domain()
 
     val uiState: StateFlow<SplitUiState> = combine(
         repo.cycle,

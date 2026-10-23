@@ -1,8 +1,7 @@
 package com.ayman.ecolift.agent.patches
 
 import com.ayman.ecolift.agent.model.DbPatch
-import java.time.LocalDate
-import java.time.format.DateTimeParseException
+import kotlinx.datetime.LocalDate
 
 sealed interface ValidationResult {
     data object Ok : ValidationResult
@@ -90,7 +89,7 @@ class PatchValidator {
     private fun isValidDate(date: String): Boolean = try {
         LocalDate.parse(date)
         true
-    } catch (_: DateTimeParseException) {
+    } catch (_: Exception) {
         false
     }
 

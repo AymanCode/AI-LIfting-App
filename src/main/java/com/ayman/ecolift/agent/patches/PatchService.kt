@@ -6,7 +6,7 @@ import com.ayman.ecolift.agent.model.DbPatch
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.ExerciseDao
 import com.ayman.ecolift.data.WorkoutDayDao
-import com.ayman.ecolift.data.WorkoutSet
+import com.ayman.ecolift.data.room.WorkoutSet
 import com.ayman.ecolift.data.WorkoutSetDao
 import com.ayman.ecolift.data.normalizedBodyweightLoad
 import kotlinx.serialization.encodeToString

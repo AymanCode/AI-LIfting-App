@@ -8,7 +8,10 @@ import com.ayman.ecolift.agent.model.DbPatch
 sealed interface AgentTurn {
 
     /** Read result, clarification question, or simple confirmation. */
-    data class TextResponse(val text: String) : AgentTurn
+    data class TextResponse(
+        val text: String,
+        val card: AgentResponseCard? = null
+    ) : AgentTurn
 
     /** A destructive patch is pending; the UI must ask the user to confirm before calling confirm(). */
     data class NeedsConfirmation(
@@ -54,12 +57,34 @@ sealed interface AgentTurn {
         val text: String,
         val auditId: Long?,
         val appliedPatchCount: Int,
-        val pendingReviews: List<PendingReviewDraft>
+        val pendingReviews: List<PendingReviewDraft>,
+        val changes: List<String> = emptyList()
     ) : AgentTurn
 
     /** Patches were successfully applied. [auditId] can be passed to undo(). */
-    data class Applied(val text: String, val auditId: Long) : AgentTurn
+    data class Applied(
+        val text: String,
+        val auditId: Long,
+        val changes: List<String> = emptyList()
+    ) : AgentTurn
 
     /** Unrecoverable error - show to user and log. */
     data class Error(val message: String) : AgentTurn
 }
+
+sealed interface AgentResponseCard {
+    data class History(
+        val exerciseName: String,
+        val prLine: String?,
+        val sessions: List<HistoryRow>
+    ) : AgentResponseCard
+
+    data class Changes(
+        val changes: List<String>
+    ) : AgentResponseCard
+}
+
+data class HistoryRow(
+    val date: String,
+    val setLabel: String,
+)

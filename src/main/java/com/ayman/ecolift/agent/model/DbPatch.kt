@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * Sealed hierarchy of all mutations the agent can propose.
- * No mutation reaches Room except through PatchService.applyPatches.
+ * No mutation reaches the database except through PatchService.applyPatches.
  */
 @Serializable
 sealed interface DbPatch {
@@ -13,9 +13,9 @@ sealed interface DbPatch {
     @Serializable
     data class LogSet(
         val exerciseId: Long,
-        val date: String, // "YYYY-MM-DD"
+        val date: String,           // "YYYY-MM-DD"
         val setNumber: Int,
-        val weightLbs: Int?, // null for bodyweight
+        val weightLbs: Int?,        // null for bodyweight
         val reps: Int,
         val isBodyweight: Boolean = false,
         val restTimeSeconds: Int? = null,
@@ -38,8 +38,8 @@ sealed interface DbPatch {
     /** Move a workout day to a new date. */
     @Serializable
     data class MoveWorkoutDay(
-        val currentDate: String, // existing WorkoutDay.date PK
-        val newDate: String // "YYYY-MM-DD"
+        val currentDate: String,    // existing WorkoutDay.date PK
+        val newDate: String         // "YYYY-MM-DD"
     ) : DbPatch
 
     /** Rename an exercise. Destructive - requires user confirmation. */

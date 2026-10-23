@@ -4,10 +4,10 @@ import com.ayman.ecolift.agent.tools.AgentToolsImpl
 import com.ayman.ecolift.agent.tools.ExerciseEmbeddingIndex
 import com.ayman.ecolift.agent.tools.WeightSuggestion
 import com.ayman.ecolift.data.AppDatabase
-import com.ayman.ecolift.data.Exercise
+import com.ayman.ecolift.data.room.Exercise
 import com.ayman.ecolift.data.ExerciseDao
 import com.ayman.ecolift.data.WeightLbs
-import com.ayman.ecolift.data.WorkoutSet
+import com.ayman.ecolift.data.room.WorkoutSet
 import com.ayman.ecolift.data.WorkoutSetDao
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
@@ -149,9 +149,9 @@ class AgentToolsImplTest {
         )
         whenever(setDao.getSetsSince(eq(1L), any())).thenReturn(sets)
 
-        // Target 8 reps, last top set 135×10 → 10 >= 8+2 → increase to 140
+        // 135x10 is under the web step-up bar (12 reps, or 10 twice), so the weight stays.
         val result = tools.suggestWeight(1L, targetReps = 8)
-        assertEquals(lbs(140), result.suggestedWeightLbs)
+        assertEquals(lbs(135), result.suggestedWeightLbs)
         assertEquals(WeightSuggestion.Confidence.HIGH, result.confidence)
     }
 
@@ -170,7 +170,7 @@ class AgentToolsImplTest {
         whenever(setDao.getSetsSince(eq(2L), any())).thenReturn(emptyList())
         val result = tools.suggestWeight(2L, targetReps = 10)
         assertNull(result.suggestedWeightLbs)
-        assertEquals(WeightSuggestion.Confidence.MEDIUM, result.confidence)
+        assertEquals(WeightSuggestion.Confidence.NO_DATA, result.confidence)
     }
 
     // ── suggestTransferWeight ─────────────────────────────────────────

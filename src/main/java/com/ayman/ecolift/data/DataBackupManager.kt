@@ -1,5 +1,17 @@
 package com.ayman.ecolift.data
 
+import com.ayman.ecolift.data.room.ArchivedCycle as RoomArchivedCycle
+import com.ayman.ecolift.data.room.CardioSession as RoomCardioSession
+import com.ayman.ecolift.data.room.Cycle as RoomCycle
+import com.ayman.ecolift.data.room.CycleSlot as RoomCycleSlot
+import com.ayman.ecolift.data.room.Exercise as RoomExercise
+import com.ayman.ecolift.data.room.PendingReview as RoomPendingReview
+import com.ayman.ecolift.data.room.SplitExercise as RoomSplitExercise
+import com.ayman.ecolift.data.room.UserSettings as RoomUserSettings
+import com.ayman.ecolift.data.room.WorkoutDay as RoomWorkoutDay
+import com.ayman.ecolift.data.room.WorkoutSet as RoomWorkoutSet
+import com.ayman.ecolift.data.room.TempSessionSwap as RoomTempSessionSwap
+
 import android.content.Context
 import android.net.Uri
 import androidx.room.withTransaction
@@ -31,19 +43,19 @@ data class BackupMetadata(
 @Serializable
 data class UserDataBackup(
     val metadata: BackupMetadata,
-    val cycle: Cycle?,
-    val exercises: List<Exercise>,
-    val workoutDays: List<WorkoutDay>,
-    val workoutSets: List<WorkoutSet>,
-    val pendingReviews: List<PendingReview>,
-    val cycleSlots: List<CycleSlot>,
-    val splitExercises: List<SplitExercise>,
-    val tempSessionSwaps: List<TempSessionSwap>,
+    val cycle: RoomCycle?,
+    val exercises: List<RoomExercise>,
+    val workoutDays: List<RoomWorkoutDay>,
+    val workoutSets: List<RoomWorkoutSet>,
+    val pendingReviews: List<RoomPendingReview>,
+    val cycleSlots: List<RoomCycleSlot>,
+    val splitExercises: List<RoomSplitExercise>,
+    val tempSessionSwaps: List<RoomTempSessionSwap>,
     val auditEntries: List<AuditEntity> = emptyList(),
     val agentTurns: List<AgentTurnLog> = emptyList(),
-    val archivedCycles: List<ArchivedCycle> = emptyList(),
-    val userSettings: UserSettings? = null,
-    val cardioSessions: List<CardioSession> = emptyList(),
+    val archivedCycles: List<RoomArchivedCycle> = emptyList(),
+    val userSettings: RoomUserSettings? = null,
+    val cardioSessions: List<RoomCardioSession> = emptyList(),
 )
 
 data class LocalBackupInfo(

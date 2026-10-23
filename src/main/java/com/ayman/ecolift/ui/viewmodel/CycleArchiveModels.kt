@@ -19,6 +19,9 @@ data class ArchiveCardUi(
     val splitCount: Int,
     val sessionCount: Int,
     val totalVolumeLbs: Long,
+    val startIso: String = "",
+    val endIso: String = "",
+    val weeklySessions: List<Int> = emptyList(),
 )
 
 private val monthDayFormatter: DateTimeFormatter =

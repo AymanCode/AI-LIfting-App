@@ -1,4 +1,5 @@
 package com.ayman.ecolift.ui.viewmodel
+import com.ayman.ecolift.data.domain
 
 import android.app.Application
 import android.net.Uri
@@ -40,7 +41,7 @@ import org.json.JSONObject
 
 class AiViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getInstance(application)
-    private val exerciseRepository = ExerciseRepository(database.exerciseDao())
+    private val exerciseRepository = ExerciseRepository(database.exerciseDao().domain())
     private val workoutRepository = WorkoutRepository(database)
     private val setRepository = SetRepository(database)
     private val tempSessionSwapRepository = TempSessionSwapRepository(database)

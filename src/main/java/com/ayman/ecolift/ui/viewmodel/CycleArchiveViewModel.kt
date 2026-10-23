@@ -1,4 +1,5 @@
 package com.ayman.ecolift.ui.viewmodel
+import com.ayman.ecolift.data.domain
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -31,7 +32,7 @@ class CycleArchiveViewModel(application: Application) : AndroidViewModel(applica
     val archives: StateFlow<List<ArchiveCardUi>> =
         combine(
             repo.observeArchivedCycles(),
-            db.workoutSetDao().observeCompletedSets(),
+            db.workoutSetDao().domain().observeCompletedSets(),
             repo.observeUserBodyweightLbs(),
         ) { rows, _, _ -> rows }
             .map { rows ->

@@ -2,7 +2,7 @@ package com.ayman.ecolift.data
 
 import kotlinx.coroutines.flow.Flow
 
-class ExerciseRepository(private val exerciseDao: ExerciseDao) {
+class ExerciseRepository(private val exerciseDao: DomainExerciseDao) {
     val exercises: Flow<List<Exercise>> = exerciseDao.observeAll()
 
     suspend fun getAll(): List<Exercise> = exerciseDao.getAll()
@@ -94,8 +94,3 @@ class ExerciseRepository(private val exerciseDao: ExerciseDao) {
         exerciseDao.deleteExerciseWithLogs(id)
     }
 }
-
-data class ExerciseSuggestion(
-    val exercise: Exercise,
-    val distance: Int,
-)

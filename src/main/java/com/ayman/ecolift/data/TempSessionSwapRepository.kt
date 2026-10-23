@@ -1,5 +1,7 @@
 package com.ayman.ecolift.data
 
+import com.ayman.ecolift.data.room.TempSessionSwap
+
 import kotlinx.coroutines.flow.Flow
 
 class TempSessionSwapRepository(private val db: AppDatabase) {
@@ -45,15 +47,15 @@ class TempSessionSwapRepository(private val db: AppDatabase) {
             } else {
                 swap.sourceExerciseId
             }
-            db.workoutSetDao().getForDateAndExercise(date, fromExerciseId)
+            db.workoutSetDao().domain().getForDateAndExercise(date, fromExerciseId)
                 .forEach { set ->
-                    db.workoutSetDao().update(set.copy(exerciseId = toExerciseId))
+                    db.workoutSetDao().domain().update(set.copy(exerciseId = toExerciseId))
                 }
         }
     }
 
     suspend fun getSwapNoticesForDate(date: String, slotType: Int): List<SwapNotice> {
-        val exerciseDao = db.exerciseDao()
+        val exerciseDao = db.exerciseDao().domain()
         return getActiveForWeek(date)
             .filter { it.sourceSlotType == slotType || it.targetSlotType == slotType }
             .mapNotNull { swap ->

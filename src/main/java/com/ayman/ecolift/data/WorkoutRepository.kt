@@ -13,74 +13,74 @@ import kotlinx.serialization.json.Json
 import java.time.LocalDate
 
 class WorkoutRepository(private val db: AppDatabase) {
-    val cycle: Flow<Cycle> = db.cycleDao().observeCycle().map { it ?: Cycle() }
+    val cycle: Flow<Cycle> = db.cycleDao().domain().observeCycle().map { it ?: Cycle() }
     private val archiveJson = Json { ignoreUnknownKeys = true }
 
-    fun observeWorkoutDay(date: String): Flow<WorkoutDay?> = db.workoutDayDao().observeByDate(date)
+    fun observeWorkoutDay(date: String): Flow<WorkoutDay?> = db.workoutDayDao().domain().observeByDate(date)
 
-    fun observeAllWorkoutDays(): Flow<List<WorkoutDay>> = db.workoutDayDao().observeAll()
+    fun observeAllWorkoutDays(): Flow<List<WorkoutDay>> = db.workoutDayDao().domain().observeAll()
 
-    fun observeCycleSlots(): Flow<List<CycleSlot>> = db.cycleSlotDao().observeAll()
+    fun observeCycleSlots(): Flow<List<CycleSlot>> = db.cycleSlotDao().domain().observeAll()
 
-    suspend fun getCycleSlots(): List<CycleSlot> = db.cycleSlotDao().getAll()
+    suspend fun getCycleSlots(): List<CycleSlot> = db.cycleSlotDao().domain().getAll()
 
     suspend fun getUserBodyweightLbs(): Int? =
-        normalizedUserBodyweightLbs(db.userSettingsDao().get()?.userBodyweightLbs)
+        normalizedUserBodyweightLbs(db.userSettingsDao().domain().get()?.userBodyweightLbs)
 
     fun observeUserBodyweightLbs(): Flow<Int?> =
-        db.userSettingsDao().observe().map { normalizedUserBodyweightLbs(it?.userBodyweightLbs) }
+        db.userSettingsDao().domain().observe().map { normalizedUserBodyweightLbs(it?.userBodyweightLbs) }
 
     suspend fun setUserBodyweightLbs(bodyweightLbs: Int?) {
         db.withTransaction {
-            val current = db.userSettingsDao().get() ?: UserSettings()
-            db.userSettingsDao().upsert(
+            val current = db.userSettingsDao().domain().get() ?: UserSettings()
+            db.userSettingsDao().domain().upsert(
                 current.copy(userBodyweightLbs = normalizedUserBodyweightLbs(bodyweightLbs))
             )
         }
     }
 
     suspend fun addCycleSlot(name: String): Long = db.withTransaction {
-        val nextOrder = db.cycleSlotDao().getMaxOrderIndex() + 1
-        val id = db.cycleSlotDao().upsert(CycleSlot(name = name, orderIndex = nextOrder))
+        val nextOrder = db.cycleSlotDao().domain().getMaxOrderIndex() + 1
+        val id = db.cycleSlotDao().domain().upsert(CycleSlot(name = name, orderIndex = nextOrder))
         syncCycleSlotCount()
         id
     }
 
     suspend fun deleteCycleSlot(id: Long) = db.withTransaction {
-        db.cycleSlotDao().delete(id)
+        db.cycleSlotDao().domain().delete(id)
         syncCycleSlotCount()
     }
 
     suspend fun renameCycleSlot(id: Long, name: String) {
-        db.cycleSlotDao().updateName(id, name)
+        db.cycleSlotDao().domain().updateName(id, name)
     }
 
     suspend fun reorderCycleSlots(idsInOrder: List<Long>) {
-        db.cycleSlotDao().applyOrder(idsInOrder)
+        db.cycleSlotDao().domain().applyOrder(idsInOrder)
     }
 
     fun observeSplitExercises(splitId: Long) =
-        db.splitExerciseDao().observeForSplit(splitId)
+        db.splitExerciseDao().domain().observeForSplit(splitId)
 
-    fun observeAllSplitExercises() = db.splitExerciseDao().observeAll()
+    fun observeAllSplitExercises() = db.splitExerciseDao().domain().observeAll()
 
     suspend fun saveSplitFromDate(splitId: Long, date: String) = db.withTransaction {
-        val sets = db.workoutSetDao().getForDate(date)
+        val sets = db.workoutSetDao().domain().getForDate(date)
         val orderedIds = sets.sortedBy { it.setNumber }
             .map { it.exerciseId }
             .distinct()
-        db.splitExerciseDao().replaceForSplit(splitId, orderedIds)
+        db.splitExerciseDao().domain().replaceForSplit(splitId, orderedIds)
     }
 
     suspend fun clearSplitExercises(splitId: Long) {
-        db.splitExerciseDao().deleteForSplit(splitId)
+        db.splitExerciseDao().domain().deleteForSplit(splitId)
     }
 
-    suspend fun getCycle(): Cycle = db.cycleDao().getCycle() ?: Cycle()
+    suspend fun getCycle(): Cycle = db.cycleDao().domain().getCycle() ?: Cycle()
 
     suspend fun saveCycle(isActive: Boolean, numTypes: Int) {
         val current = getCycle()
-        db.cycleDao().upsert(
+        db.cycleDao().domain().upsert(
             current.copy(
                 isActive = isActive,
                 numTypes = numTypes.coerceAtLeast(1),
@@ -90,11 +90,11 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     suspend fun setNextSessionType(slotType: Int) {
         val current = getCycle()
-        db.cycleDao().upsert(current.copy(nextSessionType = slotType))
+        db.cycleDao().domain().upsert(current.copy(nextSessionType = slotType))
     }
 
     suspend fun assignCycleSlot(date: String, slotId: Long, alternativeFor: String? = null): WorkoutDay = db.withTransaction {
-        val occurrence = (db.workoutDayDao().getMaxOccurrenceForSlotBefore(date, slotId) ?: 0) + 1
+        val occurrence = (db.workoutDayDao().domain().getMaxOccurrenceForSlotBefore(date, slotId) ?: 0) + 1
         val slotType = getCycleSlots()
             .indexOfFirst { it.id == slotId }
             .takeIf { it >= 0 }
@@ -105,16 +105,16 @@ class WorkoutRepository(private val db: AppDatabase) {
             cycleSlotOccurrence = occurrence,
             alternativeForDate = alternativeFor
         )
-        db.workoutDayDao().upsert(day)
+        db.workoutDayDao().domain().upsert(day)
         day
     }
 
     suspend fun getPreviousOccurrenceDayForSlot(date: String, slotId: Long, occurrence: Int): WorkoutDay? {
         if (occurrence <= 0) return null
-        return db.workoutDayDao().getPreviousOccurrenceForSlot(slotId, occurrence, date)
+        return db.workoutDayDao().domain().getPreviousOccurrenceForSlot(slotId, occurrence, date)
     }
 
-    suspend fun getWorkoutDay(date: String): WorkoutDay? = db.workoutDayDao().getByDate(date)
+    suspend fun getWorkoutDay(date: String): WorkoutDay? = db.workoutDayDao().domain().getByDate(date)
 
     suspend fun resolveSlotType(day: WorkoutDay?): Int? {
         if (day == null) {
@@ -128,16 +128,16 @@ class WorkoutRepository(private val db: AppDatabase) {
     suspend fun getLatestAssignedDayBefore(date: String, slotType: Int): WorkoutDay? {
         val slotId = getCycleSlots().getOrNull(slotType)?.id
         if (slotId != null) {
-            db.workoutDayDao().getLatestForSlotIdBefore(date, slotId)?.let { return it }
+            db.workoutDayDao().domain().getLatestForSlotIdBefore(date, slotId)?.let { return it }
         }
-        return db.workoutDayDao().getLatestForSlotTypeBefore(date, slotType)
+        return db.workoutDayDao().domain().getLatestForSlotTypeBefore(date, slotType)
     }
 
     private suspend fun syncCycleSlotCount() {
         val slots = getCycleSlots()
         val maxIndex = (slots.size - 1).coerceAtLeast(0)
         val current = getCycle()
-        db.cycleDao().upsert(
+        db.cycleDao().domain().upsert(
             current.copy(
                 numTypes = slots.size.coerceAtLeast(1),
                 nextSessionType = current.nextSessionType?.coerceIn(0, maxIndex),
@@ -146,25 +146,25 @@ class WorkoutRepository(private val db: AppDatabase) {
     }
 
     fun observeArchivedCycles(): Flow<List<ArchivedCycle>> =
-        db.archivedCycleDao().observeAll()
+        db.archivedCycleDao().domain().observeAll()
 
     suspend fun getArchivedCycle(id: Long): ArchivedCycle? =
-        db.archivedCycleDao().getById(id)
+        db.archivedCycleDao().domain().getById(id)
 
     suspend fun deleteArchivedCycle(id: Long) {
-        db.archivedCycleDao().deleteById(id)
+        db.archivedCycleDao().domain().deleteById(id)
     }
 
     suspend fun countOverlappingArchives(start: String, end: String): Int =
-        db.archivedCycleDao().countOverlapping(start, end)
+        db.archivedCycleDao().domain().countOverlapping(start, end)
 
     suspend fun getLatestWorkoutDate(): String? =
-        db.workoutSetDao().getLatestCompletedWorkoutDate()
+        db.workoutSetDao().domain().getLatestCompletedWorkoutDate()
 
     suspend fun getActiveCycleStart(): String {
         val current = getCycle()
         return current.startDate
-            ?: db.workoutSetDao().getEarliestCompletedWorkoutDate()
+            ?: db.workoutSetDao().domain().getEarliestCompletedWorkoutDate()
             ?: LocalDate.now().toString()
     }
 
@@ -203,15 +203,15 @@ class WorkoutRepository(private val db: AppDatabase) {
         val userBodyweightLbs = getUserBodyweightLbs()
 
         return db.withTransaction {
-            val sets = db.workoutSetDao().getCompletedSetsInRange(startDate, endDate)
-            val slots = db.cycleSlotDao().getAll()
-            val splitExercises = db.splitExerciseDao().getAll()
-            val workoutDays = db.workoutDayDao().getAll()
+            val sets = db.workoutSetDao().domain().getCompletedSetsInRange(startDate, endDate)
+            val slots = db.cycleSlotDao().domain().getAll()
+            val splitExercises = db.splitExerciseDao().domain().getAll()
+            val workoutDays = db.workoutDayDao().domain().getAll()
             val exerciseIds = sets.map { it.exerciseId }.distinct()
             val exerciseNames = if (exerciseIds.isEmpty()) {
                 emptyMap()
             } else {
-                db.exerciseDao().getByIds(exerciseIds)
+                db.exerciseDao().domain().getByIds(exerciseIds)
                     .associate { exercise ->
                         exercise.id to ExerciseMeta(
                             name = exercise.name,
@@ -229,7 +229,7 @@ class WorkoutRepository(private val db: AppDatabase) {
                 exerciseNames = exerciseNames,
                 userBodyweightLbs = userBodyweightLbs,
             )
-            val archiveId = db.archivedCycleDao().insert(
+            val archiveId = db.archivedCycleDao().domain().insert(
                 ArchivedCycle(
                     name = name,
                     startDate = startDate,
@@ -242,9 +242,9 @@ class WorkoutRepository(private val db: AppDatabase) {
                     snapshotJson = archiveJson.encodeToString(snapshot),
                 )
             )
-            db.splitExerciseDao().deleteAll()
-            db.cycleSlotDao().deleteAll()
-            db.cycleDao().upsert(
+            db.splitExerciseDao().domain().deleteAll()
+            db.cycleSlotDao().domain().deleteAll()
+            db.cycleDao().domain().upsert(
                 getCycle().copy(
                     isActive = false,
                     numTypes = 0,
@@ -259,12 +259,12 @@ class WorkoutRepository(private val db: AppDatabase) {
 
     private suspend fun buildActiveCycleProgress(): CycleProgressCalculator.CoreResult {
         val startDate = getActiveCycleStart()
-        val latestDate = db.workoutSetDao().getLatestCompletedWorkoutDate()
+        val latestDate = db.workoutSetDao().domain().getLatestCompletedWorkoutDate()
         val endDate = latestDate?.takeIf { it >= startDate } ?: startDate
-        val sets = db.workoutSetDao().getCompletedSetsInRange(startDate, endDate)
-        val slots = db.cycleSlotDao().getAll()
-        val splitExercises = db.splitExerciseDao().getAll()
-        val workoutDays = db.workoutDayDao().getAll()
+        val sets = db.workoutSetDao().domain().getCompletedSetsInRange(startDate, endDate)
+        val slots = db.cycleSlotDao().domain().getAll()
+        val splitExercises = db.splitExerciseDao().domain().getAll()
+        val workoutDays = db.workoutDayDao().domain().getAll()
         val userBodyweightLbs = getUserBodyweightLbs()
         val snapshot = CycleSnapshotBuilder.build(
             startDate = startDate,
@@ -285,12 +285,12 @@ class WorkoutRepository(private val db: AppDatabase) {
     }
 
     private suspend fun buildArchivedCycleProgress(archiveId: Long): CycleProgressCalculator.CoreResult {
-        val archive = requireNotNull(db.archivedCycleDao().getById(archiveId)) {
+        val archive = requireNotNull(db.archivedCycleDao().domain().getById(archiveId)) {
             "Archived cycle not found: $archiveId"
         }
         val userBodyweightLbs = getUserBodyweightLbs()
         val snapshot = buildMutableArchivedSnapshot(archive, userBodyweightLbs)
-        val sets = db.workoutSetDao().getCompletedSetsInRange(archive.startDate, archive.endDate)
+        val sets = db.workoutSetDao().domain().getCompletedSetsInRange(archive.startDate, archive.endDate)
         return CycleProgressCalculator.buildCore(
             snapshot = snapshot,
             sets = sets.map { it.toProgressInput() },
@@ -300,7 +300,7 @@ class WorkoutRepository(private val db: AppDatabase) {
     }
 
     suspend fun archivedCycleSnapshot(archiveId: Long): CycleSnapshot {
-        val archive = requireNotNull(db.archivedCycleDao().getById(archiveId)) {
+        val archive = requireNotNull(db.archivedCycleDao().domain().getById(archiveId)) {
             "Archived cycle not found: $archiveId"
         }
         return buildMutableArchivedSnapshot(archive, getUserBodyweightLbs())
@@ -337,7 +337,7 @@ class WorkoutRepository(private val db: AppDatabase) {
                     )
                 }
             }
-        val sets = db.workoutSetDao().getCompletedSetsInRange(archive.startDate, archive.endDate)
+        val sets = db.workoutSetDao().domain().getCompletedSetsInRange(archive.startDate, archive.endDate)
         val snapshotMeta = archivedSnapshot.splits
             .flatMap { it.exercises }
             .associate { exercise ->
@@ -352,7 +352,7 @@ class WorkoutRepository(private val db: AppDatabase) {
             endDate = archive.endDate,
             slots = slots,
             splitExercises = splitExercises,
-            workoutDays = db.workoutDayDao().getAll(),
+            workoutDays = db.workoutDayDao().domain().getAll(),
             sets = sets,
             exerciseNames = snapshotMeta + liveMeta,
             userBodyweightLbs = userBodyweightLbs,
@@ -364,7 +364,7 @@ class WorkoutRepository(private val db: AppDatabase) {
         beforeDate: String,
     ): Map<Long, List<CycleProgressCalculator.SetInput>> =
         exerciseIds.distinct().associateWith { exerciseId ->
-            db.workoutSetDao()
+            db.workoutSetDao().domain()
                 .getHistoryBeforeDate(exerciseId, beforeDate)
                 .map { it.toProgressInput() }
         }
@@ -372,7 +372,7 @@ class WorkoutRepository(private val db: AppDatabase) {
     private suspend fun exerciseMetaFor(exerciseIds: List<Long>): Map<Long, ExerciseMeta> {
         val ids = exerciseIds.distinct()
         if (ids.isEmpty()) return emptyMap()
-        return db.exerciseDao().getByIds(ids).associate { exercise ->
+        return db.exerciseDao().domain().getByIds(ids).associate { exercise ->
             exercise.id to ExerciseMeta(
                 name = exercise.name,
                 isBodyweight = exercise.isBodyweight,

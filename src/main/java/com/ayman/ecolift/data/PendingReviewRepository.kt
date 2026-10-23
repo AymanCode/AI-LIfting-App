@@ -3,10 +3,10 @@ package com.ayman.ecolift.data
 import kotlinx.coroutines.flow.Flow
 
 class PendingReviewRepository(private val db: AppDatabase) {
-    val unresolved: Flow<List<PendingReview>> = db.pendingReviewDao().observeUnresolved()
+    val unresolved: Flow<List<PendingReview>> = db.pendingReviewDao().domain().observeUnresolved()
 
     suspend fun add(rawInput: String, dateLogged: String) {
-        db.pendingReviewDao().insert(
+        db.pendingReviewDao().domain().insert(
             PendingReview(
                 rawInput = rawInput.trim(),
                 dateLogged = dateLogged,
@@ -15,6 +15,6 @@ class PendingReviewRepository(private val db: AppDatabase) {
     }
 
     suspend fun markResolved(id: Long) {
-        db.pendingReviewDao().markResolved(id)
+        db.pendingReviewDao().domain().markResolved(id)
     }
 }

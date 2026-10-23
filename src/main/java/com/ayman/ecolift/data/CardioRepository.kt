@@ -5,15 +5,15 @@ import java.time.LocalDate
 import java.util.UUID
 
 class CardioRepository(private val db: AppDatabase) {
-    fun observeSessions(): Flow<List<CardioSession>> = db.cardioSessionDao().observeAll()
+    fun observeSessions(): Flow<List<CardioSession>> = db.cardioSessionDao().domain().observeAll()
 
-    fun observeSessionsForDate(date: String): Flow<List<CardioSession>> = db.cardioSessionDao().observeForDate(date)
+    fun observeSessionsForDate(date: String): Flow<List<CardioSession>> = db.cardioSessionDao().domain().observeForDate(date)
 
-    fun observeCaloriesForDate(date: String): Flow<Int> = db.cardioSessionDao().observeCaloriesForDate(date)
+    fun observeCaloriesForDate(date: String): Flow<Int> = db.cardioSessionDao().domain().observeCaloriesForDate(date)
 
-    suspend fun getAll(): List<CardioSession> = db.cardioSessionDao().getAll()
+    suspend fun getAll(): List<CardioSession> = db.cardioSessionDao().domain().getAll()
 
-    suspend fun getForDate(date: String): List<CardioSession> = db.cardioSessionDao().getForDate(date)
+    suspend fun getForDate(date: String): List<CardioSession> = db.cardioSessionDao().domain().getForDate(date)
 
     suspend fun saveManual(
         date: String = LocalDate.now().toString(),
@@ -60,7 +60,7 @@ class CardioRepository(private val db: AppDatabase) {
             createdAt = now,
             updatedAt = now,
         )
-        val id = db.cardioSessionDao().insert(session)
+        val id = db.cardioSessionDao().domain().insert(session)
         return session.copy(id = id)
     }
 
@@ -115,20 +115,20 @@ class CardioRepository(private val db: AppDatabase) {
             createdAt = now,
             updatedAt = now,
         )
-        val id = db.cardioSessionDao().insert(session)
+        val id = db.cardioSessionDao().domain().insert(session)
         return session.copy(id = id)
     }
 
     suspend fun upsertHealthConnect(session: CardioSession): CardioSession {
         val hcUid = session.hcUid
         if (hcUid.isNullOrBlank()) {
-            val id = db.cardioSessionDao().insert(session)
+            val id = db.cardioSessionDao().domain().insert(session)
             return session.copy(id = id)
         }
 
-        val existing = db.cardioSessionDao().getByHealthConnectUid(hcUid)
+        val existing = db.cardioSessionDao().domain().getByHealthConnectUid(hcUid)
         if (existing == null) {
-            val id = db.cardioSessionDao().insert(session)
+            val id = db.cardioSessionDao().domain().insert(session)
             return session.copy(id = id)
         }
 
@@ -180,19 +180,19 @@ class CardioRepository(private val db: AppDatabase) {
             notes = if (session.notes.isNotBlank()) session.notes else existing.notes,
             updatedAt = System.currentTimeMillis(),
         )
-        db.cardioSessionDao().update(merged)
+        db.cardioSessionDao().domain().update(merged)
         return merged
     }
 
-    suspend fun getById(id: Long): CardioSession? = db.cardioSessionDao().getById(id)
+    suspend fun getById(id: Long): CardioSession? = db.cardioSessionDao().domain().getById(id)
 
     suspend fun update(session: CardioSession): CardioSession {
         val updated = session.copy(updatedAt = System.currentTimeMillis())
-        db.cardioSessionDao().update(updated)
+        db.cardioSessionDao().domain().update(updated)
         return updated
     }
 
     suspend fun delete(id: Long) {
-        db.cardioSessionDao().deleteById(id)
+        db.cardioSessionDao().domain().deleteById(id)
     }
 }

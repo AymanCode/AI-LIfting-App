@@ -58,8 +58,8 @@ object LogSetTextParser {
             val range = match.range
             if (range.overlaps(consumed)) continue
 
-            val weight = match.groupValues[1].toStorageWeightOrNull() ?: continue
-            val reps = NUMBER.findAll(match.groupValues[2])
+            val weight = match.groupValues[1].toStorageWeightOrNull(unit = match.groupValues[2]) ?: continue
+            val reps = NUMBER.findAll(match.groupValues[3])
                 .mapNotNull { it.value.toIntOrNull() }
                 .filter { it in 1..100 }
                 .toList()
@@ -123,13 +123,13 @@ object LogSetTextParser {
             if (range.overlaps(consumed)) continue
 
             val weightRaw = match.groupValues[1]
-            val reps = match.groupValues[2].toIntOrNull() ?: continue
+            val reps = match.groupValues[3].toIntOrNull() ?: continue
             if (reps !in 1..100) continue
 
             val firstNumber = weightRaw.toDoubleOrNull() ?: continue
             if (firstNumber <= 20.0) continue
 
-            val weight = weightRaw.toStorageWeightOrNull() ?: continue
+            val weight = weightRaw.toStorageWeightOrNull(unit = match.groupValues[2]) ?: continue
             sets.add(ParsedSet(weightLbs = weight, reps = reps))
             consumed.add(range)
         }
@@ -150,7 +150,7 @@ object LogSetTextParser {
             for (i in start..end) chars[i] = ' '
         }
 
-        return String(chars)
+        return chars.concatToString()
             .replace(STOP_WORDS, " ")
             .replace(NUMBER, " ")
             .replace(UNIT_WORDS, " ")
@@ -159,24 +159,28 @@ object LogSetTextParser {
             .trim()
     }
 
-    private fun String.toStorageWeightOrNull(): Int? {
+    /** Storage is pounds, so a kilogram weight ([unit] "kg" or "kilo(s)") is converted first. */
+    private fun String.toStorageWeightOrNull(unit: String = ""): Int? {
         val value = trim().trimStart('.')
         if (value.isBlank()) return null
-        return WeightLbs.parseInputToStorage(value)
+        if (!unit.startsWith("k", ignoreCase = true)) return WeightLbs.parseInputToStorage(value)
+        val kilograms = value.toDoubleOrNull() ?: return null
+        return WeightLbs.fromLbs(kilograms * LBS_PER_KG)
     }
 
     private fun IntRange.overlaps(ranges: List<IntRange>): Boolean {
         return ranges.any { first <= it.last && it.first <= last }
     }
 
+    private const val LBS_PER_KG = 2.20462
     private val WEIGHT_REP_LIST = Regex(
-        """(?i)(\d+(?:\.\d+)?)\s*(?:lbs?|pounds?|pound|kg|kilos?)\b(?:\s+or\s+(?:lbs?|pounds?|pound|kg|kilos?))?\s*(?:for|x|by)\s+(\d{1,3}(?:\s*reps?)?(?:(?:\s*,\s*|\s+and\s+|\s+)\d{1,3}(?:\s*reps?)?)*)"""
+        """(?i)(\d+(?:\.\d+)?)\s*(lbs?|pounds?|pound|kg|kilos?)\b(?:\s+or\s+(?:lbs?|pounds?|pound|kg|kilos?))?\s*(?:for|x|by)\s+(\d{1,3}(?:\s*reps?)?(?:(?:\s*,\s*|\s+and\s+|\s+)\d{1,3}(?:\s*reps?)?)*)"""
     )
     private val BARE_WEIGHT_REP_LIST = Regex(
         """(?i)(?<![\d.])(\d{2,4}(?:\.\d+)?)\s*(?:for|x)\s+(\d{1,3}(?:\s*reps?)?(?:(?:\s*,\s*|\s+and\s+|\s+)\d{1,3}(?:\s*reps?)?)+)"""
     )
     private val BARE_WEIGHT_REP_PAIR = Regex(
-        """(?i)(?<![\d.])(\d{2,4}(?:\.\d+)?)\s*(?:lbs?|pounds?|pound|kg|kilos?)?\s*(?:for|x)\s+(\d{1,3})(?!\d)"""
+        """(?i)(?<![\d.])(\d{2,4}(?:\.\d+)?)\s*(lbs?|pounds?|pound|kg|kilos?)?\s*(?:for|x)\s+(\d{1,3})(?!\d)"""
     )
     private val COMPACT_WEIGHT_REPS = Regex("""(?i)(?<![\d.])(\d{1,4}(?:\.\d+)?)\s*x\s*(\d{1,3})(?!\d)""")
     private val SET_COUNT = Regex("""(?i)\b(\d{1,2})\s+sets?\b""")

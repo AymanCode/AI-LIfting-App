@@ -5,7 +5,7 @@ data class ExerciseMatch(
     val exerciseId: Long,
     val name: String,
     val isBodyweight: Boolean,
-    val score: Double // 0.0 = perfect match, higher = worse
+    val score: Double  // 0.0 = perfect match, higher = worse
 )
 
 /** One set from history, summarized for agent consumption. */
@@ -18,22 +18,35 @@ data class SetSummary(
     val isBodyweight: Boolean
 )
 
+/** The top set for one completed session, selected by estimated 1RM. */
+data class SessionTopSet(
+    val date: String,
+    val weightLbs: Int?,
+    val reps: Int?
+)
+
 /** Rolling history summary for an exercise over a time window. */
 data class HistorySummary(
     val exerciseId: Long,
     val windowDays: Int,
     val sessionCount: Int,
-    val topSetWeightLbs: Int?, // max weight seen in window
-    val topSetReps: Int?, // reps at that max weight
-    val recentSets: List<SetSummary>
+    val topSetWeightLbs: Int?,   // max weight seen in window
+    val topSetReps: Int?,        // reps at that max weight
+    val recentSets: List<SetSummary>,
+    val exerciseName: String = "",
+    val topSetsBySession: List<SessionTopSet> = emptyList(), // newest first
+    val distinctCompletedWeights: List<Int> = emptyList(),
+    val previousTopRepsAtLatestWeight: Int? = null,
 )
 
 /** An exercise deemed similar to a query exercise. */
 data class SimilarExercise(
     val exerciseId: Long,
     val name: String,
-    val similarityScore: Double, // higher = more similar
-    val sharedPattern: String
+    val similarityScore: Double,  // higher = more similar
+    val sharedPattern: String,
+    /** queryWeight ~= this exercise's weight * transferRatioToQuery */
+    val transferRatioToQuery: Double? = null,
 )
 
 /**
@@ -43,9 +56,10 @@ data class SimilarExercise(
 data class WeightSuggestion(
     val exerciseId: Long,
     val targetReps: Int,
-    val suggestedWeightLbs: Int?, // null = bodyweight or no data
+    val suggestedWeightLbs: Int?,   // null = bodyweight or no data
     val confidence: Confidence,
-    val reasoning: String
+    val reasoning: String,
+    val suggestedReps: Int? = null,
 ) {
     enum class Confidence { HIGH, MEDIUM, LOW, NO_DATA }
 }
@@ -70,8 +84,8 @@ data class ProgressTrend(
     val sessionCount: Int,
     val prWeightLbs: Int?,
     val prDate: String?,
-    val est1Rm: Int?, // Epley formula on best set
-    val deltaPercent: Float?, // % change in est 1RM: last 30 days vs prior 30 days
+    val est1Rm: Int?,          // Epley formula on best set
+    val deltaPercent: Float?,  // % change in est 1RM: last 30 days vs prior 30 days
     val recentSessions: List<String> // compact "date: WxR" strings, newest first
 )
 
@@ -94,6 +108,10 @@ interface AgentTools {
 
     /** Suggest a working weight based on recent history. */
     suspend fun suggestWeight(exerciseId: Long, targetReps: Int): WeightSuggestion
+
+    /** Suggest a working weight from history strictly before [beforeDate] (ISO yyyy-MM-dd). */
+    suspend fun suggestWeightBeforeDate(exerciseId: Long, targetReps: Int, beforeDate: String): WeightSuggestion =
+        suggestWeight(exerciseId, targetReps)
 
     /**
      * Suggest a weight for an exercise the user has never logged,

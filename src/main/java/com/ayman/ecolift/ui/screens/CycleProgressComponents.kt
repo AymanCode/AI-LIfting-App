@@ -1138,7 +1138,7 @@ internal fun TrendGrid(
             }
         }
         Spacer(Modifier.height(12.dp))
-        val groups = core.lifts.groupBy { it.splitName }
+        val groups = core.liftsBySplit.groupBy { it.splitName }
         if (groups.isEmpty()) {
             Text(
                 "No lifts in this archived cycle.",

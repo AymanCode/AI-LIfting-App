@@ -5,9 +5,10 @@ import com.ayman.ecolift.data.ExerciseSnapshot
 import com.ayman.ecolift.data.SessionPoint
 import com.ayman.ecolift.data.SplitBucketKind
 import com.ayman.ecolift.data.WeightLbs
+import com.ayman.ecolift.data.epleyEstimate
 import com.ayman.ecolift.data.normalizedUserBodyweightLbs
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import com.ayman.ecolift.web.util.minusMonths
+import kotlinx.datetime.LocalDate
 import kotlin.math.roundToInt
 
 object CycleProgressCalculator {
@@ -22,14 +23,13 @@ object CycleProgressCalculator {
         val reps: Int?,
         val isBodyweight: Boolean,
         val completed: Boolean,
+        val isWarmup: Boolean = false,
     )
-
-    data class LiftKey(val exerciseId: Long, val splitSlotId: Long)
 
     data class CoreResult(
         val core: CycleProgressCore,
         val realSlotCount: Int,
-        val totalSetsByLift: Map<LiftKey, Int>,
+        val totalSetsByExerciseId: Map<Long, Int>,
     )
 
     data class Regression(
@@ -57,13 +57,13 @@ object CycleProgressCalculator {
         userBodyweightLbs: Int?,
         realSlotCount: Int = snapshot.splits.count { it.bucketKind == SplitBucketKind.Real },
     ): CoreResult {
-        val normalizedBodyweight = normalizedUserBodyweightLbs(userBodyweightLbs)
+        val normalizedBodyweight: Int? = null
         val sessionDateSet = snapshot.splits
             .flatMap { split -> split.exercises.flatMap { exercise -> exercise.sessions.map { it.date } } }
             .toSet()
         val scopedSets = sets
             .asSequence()
-            .filter { it.completed && it.date in snapshot.startDate..snapshot.endDate }
+            .filter { it.completed && !it.isWarmup && it.date in snapshot.startDate..snapshot.endDate }
             .filter { sessionDateSet.isEmpty() || it.date in sessionDateSet }
             .sortedWith(setInputOrder())
             .toList()
@@ -74,15 +74,15 @@ object CycleProgressCalculator {
         }
         val spanDays = spanDays(snapshot.startDate, snapshot.endDate)
 
-        val totalSetsByLift = mutableMapOf<LiftKey, Int>()
-        val lifts = snapshot.splits
-            .sortedWith(compareBy({ it.orderIndex }, { it.slotId }))
+        val totalSetsByExerciseId = mutableMapOf<Long, Int>()
+        val orderedSplits = snapshot.splits.sortedWith(compareBy({ it.orderIndex }, { it.slotId }))
+        val liftsBySplit = orderedSplits
             .flatMap { split ->
                 split.exercises.map { exercise ->
-                    val key = LiftKey(exercise.exerciseId, split.slotId)
                     val exerciseDates = exercise.sessions.map { it.date }.toSet()
                     val liftSets = scopedSets.filter { it.exerciseId == exercise.exerciseId && it.date in exerciseDates }
-                    totalSetsByLift[key] = liftSets.size
+                    totalSetsByExerciseId[exercise.exerciseId] =
+                        totalSetsByExerciseId.getOrElse(exercise.exerciseId) { 0 } + liftSets.size
                     val series = sessionSeries(
                         sets = liftSets,
                         isBodyweight = exercise.isBodyweight,
@@ -106,6 +106,39 @@ object CycleProgressCalculator {
                     )
                 }
             }
+        val exerciseSnapshotsById = orderedSplits
+            .flatMap { it.exercises }
+            .groupBy { it.exerciseId }
+        val lifts = liftsBySplit
+            .distinctBy { it.exerciseId }
+            .map { firstLift ->
+                val exerciseSnapshots = exerciseSnapshotsById[firstLift.exerciseId].orEmpty()
+                val exerciseDates = exerciseSnapshots
+                    .flatMap { exercise -> exercise.sessions.map { it.date } }
+                    .toSet()
+                val liftSets = scopedSets.filter {
+                    it.exerciseId == firstLift.exerciseId && it.date in exerciseDates
+                }
+                val series = sessionSeries(
+                    sets = liftSets,
+                    isBodyweight = firstLift.isBodyweight,
+                    userBodyweightLbs = normalizedBodyweight,
+                    forcedMetric = null,
+                ) ?: snapshotSeries(exerciseSnapshots)
+                val metric = series?.metric ?: if (firstLift.isBodyweight) LiftMetric.REPS else LiftMetric.E1RM
+                val points = series?.points.orEmpty()
+                val regression = linreg(points)
+                ExerciseLiftTrend(
+                    exerciseId = firstLift.exerciseId,
+                    name = firstLift.name,
+                    metric = metric,
+                    isBodyweight = firstLift.isBodyweight,
+                    points = points,
+                    slopePerWeek = regression?.slopePerDay?.times(7f),
+                    r2 = regression?.r2,
+                    unitLabel = unitLabel(metric),
+                )
+            }
 
         val core = CycleProgressCore(
             startDate = snapshot.startDate,
@@ -116,12 +149,13 @@ object CycleProgressCalculator {
             sessionDates = sessionDates,
             totalSets = scopedSets.size,
             repBuckets = repBuckets(scopedSets),
+            liftsBySplit = liftsBySplit,
             lifts = lifts,
         )
         return CoreResult(
             core = core,
             realSlotCount = realSlotCount,
-            totalSetsByLift = totalSetsByLift,
+            totalSetsByExerciseId = totalSetsByExerciseId,
         )
     }
 
@@ -131,14 +165,14 @@ object CycleProgressCalculator {
         window: ComparisonWindow,
         userBodyweightLbs: Int?,
     ): CycleComparison {
-        val normalizedBodyweight = normalizedUserBodyweightLbs(userBodyweightLbs)
+        val normalizedBodyweight: Int? = null
         val core = coreResult.core
         val start = parseDate(core.startDate) ?: return emptyComparison(window)
         val windowStart = start.minusMonths(window.months.toLong()).toString()
         val comparisons = core.lifts.map { lift ->
             val priorSets = priorSetsByExerciseId[lift.exerciseId].orEmpty()
                 .asSequence()
-                .filter { it.completed && it.date >= windowStart && it.date < core.startDate }
+                .filter { it.completed && !it.isWarmup && it.date >= windowStart && it.date < core.startDate }
                 .sortedWith(setInputOrder())
                 .toList()
             val priorSeries = sessionSeries(
@@ -180,7 +214,7 @@ object CycleProgressCalculator {
                 priorRatePctPerMonth = priorRate,
                 momentumScore = momentumScore,
                 movement = movement(vsPct),
-                totalSets = coreResult.totalSetsByLift[LiftKey(lift.exerciseId, lift.splitSlotId)] ?: 0,
+                totalSets = coreResult.totalSetsByExerciseId[lift.exerciseId] ?: 0,
             )
         }
 
@@ -223,7 +257,7 @@ object CycleProgressCalculator {
         val firstDate = parseDate(sorted.first().date) ?: return null
         val xs = sorted.map { point ->
             val date = parseDate(point.date) ?: return null
-            ChronoUnit.DAYS.between(firstDate, date).toDouble()
+            (date.toEpochDays() - firstDate.toEpochDays()).toDouble()
         }
         val ys = sorted.map { it.value.toDouble() }
         val xMean = xs.average()
@@ -252,7 +286,7 @@ object CycleProgressCalculator {
     fun project(regression: Regression, date: String): Float {
         val firstDate = parseDate(regression.firstDate) ?: return regression.intercept
         val targetDate = parseDate(date) ?: return regression.intercept
-        val x = ChronoUnit.DAYS.between(firstDate, targetDate).toFloat()
+        val x = (targetDate.toEpochDays() - firstDate.toEpochDays()).toFloat()
         return regression.intercept + regression.slopePerDay * x
     }
 
@@ -283,11 +317,20 @@ object CycleProgressCalculator {
         return SessionSeries(metric = metric, points = points)
     }
 
-    private fun snapshotSeries(exercise: ExerciseSnapshot): SessionSeries? {
-        val metric = if (exercise.isBodyweight) LiftMetric.REPS else LiftMetric.E1RM
-        val points = exercise.sessions.mapNotNull { session ->
-            snapshotValue(session, metric)?.let { value -> TrendPoint(session.date, value) }
-        }
+    private fun snapshotSeries(exercise: ExerciseSnapshot): SessionSeries? =
+        snapshotSeries(listOf(exercise))
+
+    private fun snapshotSeries(exercises: List<ExerciseSnapshot>): SessionSeries? {
+        val firstExercise = exercises.firstOrNull() ?: return null
+        val metric = if (firstExercise.isBodyweight) LiftMetric.REPS else LiftMetric.E1RM
+        val points = exercises
+            .flatMap { exercise ->
+                exercise.sessions.mapNotNull { session ->
+                    snapshotValue(session, metric)?.let { value -> TrendPoint(session.date, value) }
+                }
+            }
+            .groupBy { it.date }
+            .map { (date, datePoints) -> TrendPoint(date, datePoints.maxOf { it.value }) }
         if (points.isEmpty()) return null
         return SessionSeries(metric = metric, points = points.sortedBy { it.date })
     }
@@ -311,28 +354,19 @@ object CycleProgressCalculator {
             return ResolvedValue(
                 date = set.date,
                 metric = LiftMetric.E1RM,
-                value = (load * (1.0 + reps / 30.0)).toFloat(),
+                value = epleyEstimate(load, reps).toFloat(),
             )
         }
 
+        // Historical bodyweight was not captured; only recorded added load is comparable.
         val addedStored = set.weightLbs?.takeIf { it > 0 }
         if (addedStored != null) {
             val addedLbs = WeightLbs.toLbs(addedStored)
-            val normalizedBodyweight = normalizedUserBodyweightLbs(userBodyweightLbs)
-            return if (normalizedBodyweight != null) {
-                val load = normalizedBodyweight + addedLbs
-                ResolvedValue(
-                    date = set.date,
-                    metric = LiftMetric.E1RM,
-                    value = (load * (1.0 + reps / 30.0)).toFloat(),
-                )
-            } else {
-                ResolvedValue(
-                    date = set.date,
-                    metric = LiftMetric.ADDED_WEIGHT,
-                    value = addedLbs.toFloat(),
-                )
-            }
+            return ResolvedValue(
+                date = set.date,
+                metric = LiftMetric.ADDED_WEIGHT,
+                value = addedLbs.toFloat(),
+            )
         }
 
         return ResolvedValue(
@@ -422,7 +456,7 @@ object CycleProgressCalculator {
 
     private fun spanDays(startDate: String, endDate: String): Int =
         runCatching {
-            (ChronoUnit.DAYS.between(LocalDate.parse(startDate), LocalDate.parse(endDate)) + 1)
+            (LocalDate.parse(endDate).toEpochDays() - LocalDate.parse(startDate).toEpochDays() + 1)
                 .toInt()
                 .coerceAtLeast(0)
         }.getOrDefault(0)

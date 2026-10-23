@@ -1,7 +1,7 @@
 package com.ayman.ecolift.agent
 
 import com.ayman.ecolift.data.WeightLbs
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 
 /**
  * Parses pasted workout notes into dated import entries.
@@ -43,8 +43,7 @@ object WorkoutImportTextParser {
         val lines = normalizedLines(text)
         if (lines.isEmpty()) return false
         val today = LocalDate.parse(defaultDate)
-        return lines.size > 1 &&
-            lines.any { extractDatePrefix(it, today) != null } ||
+        return lines.size > 1 && lines.any { extractDatePrefix(it, today) != null } ||
             lines.any { line ->
                 val datePrefix = extractDatePrefix(line, today)
                 datePrefix != null && datePrefix.remainder.isNotBlank() && line.contains(";")
@@ -176,7 +175,7 @@ object WorkoutImportTextParser {
                 yearRaw.length == 2 -> 2000 + yearRaw.toInt()
                 else -> yearRaw.toInt()
             }
-            val date = runCatching { LocalDate.of(year, month, day) }.getOrNull() ?: return null
+            val date = runCatching { LocalDate(year, month, day) }.getOrNull() ?: return null
             return DatePrefix(date.toString(), match.groupValues[4].trim())
         }
 
@@ -189,7 +188,7 @@ object WorkoutImportTextParser {
                 yearRaw.length == 2 -> 2000 + yearRaw.toInt()
                 else -> yearRaw.toInt()
             }
-            val date = runCatching { LocalDate.of(year, month, day) }.getOrNull() ?: return null
+            val date = runCatching { LocalDate(year, month, day) }.getOrNull() ?: return null
             return DatePrefix(date.toString(), match.groupValues[4].trim())
         }
 

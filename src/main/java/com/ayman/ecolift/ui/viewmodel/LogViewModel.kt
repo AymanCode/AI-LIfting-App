@@ -1,9 +1,9 @@
 package com.ayman.ecolift.ui.viewmodel
+import com.ayman.ecolift.data.domain
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.ayman.ecolift.BuildConfig
 import com.ayman.ecolift.ai.ExerciseMuscleClassifier
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.Cycle
@@ -37,15 +37,11 @@ import java.time.LocalDate
 @OptIn(ExperimentalCoroutinesApi::class)
 class LogViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getInstance(application)
-    private val exerciseRepository = ExerciseRepository(database.exerciseDao())
+    private val exerciseRepository = ExerciseRepository(database.exerciseDao().domain())
     private val workoutRepository = WorkoutRepository(database)
     private val setRepository = SetRepository(database)
     private val pendingReviewRepository = PendingReviewRepository(database)
-    private val muscleClassifier = ExerciseMuscleClassifier(
-        apiKey = BuildConfig.GROQ_API_KEY,
-        baseUrl = BuildConfig.GROQ_API_BASE_URL,
-        model = BuildConfig.GROQ_MODEL,
-    )
+    private val muscleClassifier = ExerciseMuscleClassifier()
 
     private val currentDate = MutableStateFlow(WorkoutDates.today())
     private val _sessionSets = MutableStateFlow<List<WorkoutSet>>(emptyList())
@@ -65,7 +61,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Every day with at least one logged set. Drives the calendar's worked-day marks. */
     val workedDays: StateFlow<Set<LocalDate>> =
-        database.workoutSetDao().observeAllDistinctDates()
+        database.workoutSetDao().domain().observeAllDistinctDates()
             .map { dates ->
                 dates.mapNotNullTo(mutableSetOf()) { runCatching { LocalDate.parse(it) }.getOrNull() }
             }
@@ -254,7 +250,7 @@ class LogViewModel(application: Application) : AndroidViewModel(application) {
             val assignedDay = workoutRepository.assignCycleSlot(currentDate.value, slotId)
 
             // 1. Check if there are manually saved exercises for this split
-            val savedExercises = database.splitExerciseDao().getForSplit(slotId)
+            val savedExercises = database.splitExerciseDao().domain().getForSplit(slotId)
 
             if (savedExercises.isNotEmpty()) {
                 // Priority 1: Load from manually saved template, skipping already-logged exercises

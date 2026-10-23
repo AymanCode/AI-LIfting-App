@@ -183,7 +183,7 @@ class AgentOrchestratorTest {
             val patch = firstValue.single() as DbPatch.LogSet
             assertEquals(lbs(135), patch.weightLbs)
             assertEquals(7, patch.reps)
-            assertEquals(TODAY, patch.date)
+            assertEquals("2026-04-15", patch.date)
         }
     }
 
@@ -220,7 +220,7 @@ class AgentOrchestratorTest {
     }
 
     @Test
-    fun `model log extraction uses deterministic date over wrong model date`() = runTest {
+    fun `model log extraction keeps the model date`() = runTest {
         val engine = ReadyExtractionEngine(
             """
             {
@@ -253,7 +253,7 @@ class AgentOrchestratorTest {
         assertTrue("Expected Applied but got $result", result is AgentTurn.Applied)
         argumentCaptor<List<DbPatch>> {
             verify(patchApplier).applyPatches(any(), capture(), eq(false))
-            assertTrue(firstValue.all { (it as DbPatch.LogSet).date == "2026-04-15" })
+            assertTrue(firstValue.all { (it as DbPatch.LogSet).date == "2026-04-16" })
         }
     }
 

@@ -26,8 +26,8 @@ object DebugDataHelper {
 
     suspend fun seed(context: Context) = withContext(Dispatchers.IO) {
         val db = AppDatabase.getInstance(context)
-        val exDao = db.exerciseDao()
-        val setDao = db.workoutSetDao()
+        val exDao = db.exerciseDao().domain()
+        val setDao = db.workoutSetDao().domain()
         val rng = Random(System.currentTimeMillis())
         val today = LocalDate.now()
 
@@ -135,9 +135,9 @@ object DebugDataHelper {
 
     suspend fun seedRequestedData(context: Context) = withContext(Dispatchers.IO) {
         val db = AppDatabase.getInstance(context)
-        val exDao = db.exerciseDao()
-        val setDao = db.workoutSetDao()
-        val dayDao = db.workoutDayDao()
+        val exDao = db.exerciseDao().domain()
+        val setDao = db.workoutSetDao().domain()
+        val dayDao = db.workoutDayDao().domain()
 
         suspend fun getOrCreateEx(name: String, muscles: String = "CHEST · TRICEPS", bw: Boolean = false): Long {
             return exDao.getByExactName(name)?.id

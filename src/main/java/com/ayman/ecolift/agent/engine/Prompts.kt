@@ -1,6 +1,7 @@
 package com.ayman.ecolift.agent.engine
 
-import java.time.LocalDate
+import com.ayman.ecolift.web.util.minusDays
+import kotlinx.datetime.LocalDate
 
 /**
  * Prompt templates for the agent engine.

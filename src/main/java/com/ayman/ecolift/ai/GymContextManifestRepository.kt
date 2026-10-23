@@ -1,4 +1,5 @@
 package com.ayman.ecolift.ai
+import com.ayman.ecolift.data.domain
 
 import android.content.Context
 import com.ayman.ecolift.data.AppDatabase
@@ -22,18 +23,18 @@ class GymContextManifestRepository(
     }
 
     suspend fun buildManifest(today: String = WorkoutDates.today()): JSONObject {
-        val cycle = db.cycleDao().getCycle()
-        val cycleSlots = db.cycleSlotDao().getAll()
+        val cycle = db.cycleDao().domain().getCycle()
+        val cycleSlots = db.cycleSlotDao().domain().getAll()
         val slotOrder = cycleSlots.mapIndexed { index, slot -> slot.id to index }.toMap()
-        val workoutDays = db.workoutDayDao().getAll().map { day ->
+        val workoutDays = db.workoutDayDao().domain().getAll().map { day ->
             ResolvedWorkoutDay(
                 date = day.date,
                 slotType = day.cycleSlotType ?: day.cycleSlotId?.let(slotOrder::get),
                 occurrence = day.cycleSlotOccurrence,
             )
         }
-        val exercisesById = db.exerciseDao().getAll().associateBy(Exercise::id)
-        val setsByDate = db.workoutSetDao().getAll().groupBy(WorkoutSet::date)
+        val exercisesById = db.exerciseDao().domain().getAll().associateBy(Exercise::id)
+        val setsByDate = db.workoutSetDao().domain().getAll().groupBy(WorkoutSet::date)
         val numTypes = cycle?.numTypes ?: cycleSlots.size
 
         return JSONObject()

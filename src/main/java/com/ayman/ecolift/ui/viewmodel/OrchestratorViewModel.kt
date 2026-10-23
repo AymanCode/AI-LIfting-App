@@ -1,4 +1,5 @@
 package com.ayman.ecolift.ui.viewmodel
+import com.ayman.ecolift.data.domain
 
 import android.app.Application
 import android.os.Build
@@ -55,10 +56,10 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
         engine = engine
     )
     private val turnLogDao = db.agentTurnLogDao()
-    private val pendingReviewDao = db.pendingReviewDao()
+    private val pendingReviewDao = db.pendingReviewDao().domain()
 
-    private val workoutSetDao = db.workoutSetDao()
-    private val exerciseDao = db.exerciseDao()
+    private val workoutSetDao = db.workoutSetDao().domain()
+    private val exerciseDao = db.exerciseDao().domain()
 
     // Track which review IDs have already been surfaced so the chat does not repeat them.
     private val notifiedReviewIds = mutableSetOf<Long>()

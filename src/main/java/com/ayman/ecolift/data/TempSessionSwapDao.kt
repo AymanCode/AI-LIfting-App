@@ -1,5 +1,7 @@
 package com.ayman.ecolift.data
 
+import com.ayman.ecolift.data.room.TempSessionSwap as RoomTempSessionSwap
+
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -9,13 +11,13 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface TempSessionSwapDao {
     @Insert
-    suspend fun insert(swap: TempSessionSwap): Long
+    suspend fun insert(swap: RoomTempSessionSwap): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(swaps: List<TempSessionSwap>)
+    suspend fun insertAll(swaps: List<RoomTempSessionSwap>)
 
     @Query("SELECT * FROM temp_session_swap ORDER BY createdAt DESC")
-    suspend fun getAll(): List<TempSessionSwap>
+    suspend fun getAll(): List<RoomTempSessionSwap>
 
     @Query(
         """
@@ -24,7 +26,7 @@ interface TempSessionSwapDao {
         ORDER BY createdAt DESC
         """
     )
-    fun observeActiveForWeek(weekStartDate: String): Flow<List<TempSessionSwap>>
+    fun observeActiveForWeek(weekStartDate: String): Flow<List<RoomTempSessionSwap>>
 
     @Query(
         """
@@ -33,7 +35,7 @@ interface TempSessionSwapDao {
         ORDER BY createdAt DESC
         """
     )
-    suspend fun getActiveForWeek(weekStartDate: String): List<TempSessionSwap>
+    suspend fun getActiveForWeek(weekStartDate: String): List<RoomTempSessionSwap>
 
     @Query(
         """

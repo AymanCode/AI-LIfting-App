@@ -3,6 +3,7 @@ package com.ayman.ecolift.agent.tools
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.FuzzyMatcher
 import com.ayman.ecolift.data.WeightLbs
+import com.ayman.ecolift.data.room.toDomain
 import java.time.LocalDate
 
 class AgentToolsImpl(
@@ -19,7 +20,7 @@ class AgentToolsImpl(
         val all = db.exerciseDao().getAll()
         if (all.isEmpty()) return null
 
-        fun ExerciseMatch(ex: com.ayman.ecolift.data.Exercise, score: Double) =
+        fun ExerciseMatch(ex: com.ayman.ecolift.data.room.Exercise, score: Double) =
             ExerciseMatch(ex.id, ex.name, ex.isBodyweight, score)
 
         // 0. Exact name match (case-insensitive) - highest priority for @mentions
@@ -108,8 +109,8 @@ class AgentToolsImpl(
     // getSimilarExercises
 
     override suspend fun getSimilarExercises(exerciseId: Long, k: Int): List<SimilarExercise> {
-        val target = db.exerciseDao().getById(exerciseId) ?: return emptyList()
-        val catalog = db.exerciseDao().getAll()
+        val target = db.exerciseDao().getById(exerciseId)?.toDomain() ?: return emptyList()
+        val catalog = db.exerciseDao().getAll().map { it.toDomain() }
         return embeddingIndex.findSimilar(target, catalog, k)
     }
 

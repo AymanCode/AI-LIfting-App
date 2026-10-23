@@ -8,12 +8,12 @@ import kotlin.random.Random
 object WorkoutDataGenerator {
 
     suspend fun generateFakeData(db: AppDatabase) {
-        val exerciseDao = db.exerciseDao()
-        val cycleDao = db.cycleDao()
-        val cycleSlotDao = db.cycleSlotDao()
-        val splitExerciseDao = db.splitExerciseDao()
-        val workoutDayDao = db.workoutDayDao()
-        val workoutSetDao = db.workoutSetDao()
+        val exerciseDao = db.exerciseDao().domain()
+        val cycleDao = db.cycleDao().domain()
+        val cycleSlotDao = db.cycleSlotDao().domain()
+        val splitExerciseDao = db.splitExerciseDao().domain()
+        val workoutDayDao = db.workoutDayDao().domain()
+        val workoutSetDao = db.workoutSetDao().domain()
 
         // 1. Setup Exercise Definitions
         val exerciseDefinitions = mapOf(
