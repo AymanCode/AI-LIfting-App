@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -2103,6 +2104,7 @@ fun LogScreen(
     chromeReveal.hideDistancePx = with(density) { 80.dp.toPx() }
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val imeInsets = WindowInsets.ime
     val selectedCalendarDate = remember(currentDate) {
         runCatching { LocalDate.parse(currentDate) }.getOrDefault(todayLocalDate())
     }
@@ -2695,7 +2697,7 @@ fun LogScreen(
             modifier = modifier
                 .fillMaxSize()
                 .onGloballyPositioned { coordinates ->
-                    underBarPx = (windowHeightPx - coordinates.boundsInWindow().bottom).roundToInt().coerceAtLeast(0)
+                    underBarPx = (windowHeightPx - coordinates.boundsInWindow().bottom - imeInsets.getBottom(density)).roundToInt().coerceAtLeast(0)
                 }
         ) {
             // The open clipboard fills the room between the masthead and the bottom nav.

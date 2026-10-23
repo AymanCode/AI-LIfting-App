@@ -17,12 +17,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -213,10 +215,21 @@ fun CardioLogScreen(
         )
     }
 
+    val formListState = rememberLazyListState()
+    var notesFocused by remember { mutableStateOf(false) }
+    var formHeightPx by remember { mutableIntStateOf(0) }
+    LaunchedEffect(notesFocused, formHeightPx, draft.notes) {
+        val lastItem = formListState.layoutInfo.totalItemsCount - 1
+        if (notesFocused && lastItem >= 0 && formListState.canScrollForward) {
+            formListState.animateScrollToItem(lastItem)
+        }
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
+            state = formListState,
             modifier = Modifier
                 .fillMaxSize()
+                .onSizeChanged { formHeightPx = it.height }
                 .statusBarsPadding()
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -359,7 +372,7 @@ fun CardioLogScreen(
                                 value = draft.notes,
                                 onValueChange = { viewModel.setNotes(it) },
                                 label = { Text("Notes", fontFamily = LogUiFontFamily, fontSize = 12.sp) },
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().onFocusChanged { notesFocused = it.isFocused },
                                 shape = RoundedCornerShape(12.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedContainerColor = DawnPalette.panel,

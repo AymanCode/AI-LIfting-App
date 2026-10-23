@@ -30,10 +30,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -1002,6 +1004,7 @@ private fun IronMindSettingsSheet(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
             .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -1437,8 +1440,8 @@ fun IronMindScreen(
     val deskListState = rememberLazyListState()
     val conversationListState = rememberLazyListState()
     val listState = if (showDesk) deskListState else conversationListState
-    val countOnEntry = remember { listItems.size }
-    LaunchedEffect(showDesk, conversationTarget, listItems.size, isThinking) {
+    var viewportHeightPx by remember { mutableStateOf(0) }
+    LaunchedEffect(showDesk, conversationTarget, listItems.size, isThinking, viewportHeightPx) {
         if (showDesk) return@LaunchedEffect
         val target = conversationTarget
         if (target != null) {
@@ -1448,7 +1451,7 @@ fun IronMindScreen(
             if (index >= 0) {
                 conversationListState.scrollToItem(index)
             }
-        } else if (listItems.size > countOnEntry) {
+        } else if (listItems.isNotEmpty()) {
             conversationListState.animateScrollToItem((listItems.size + if (isThinking) 1 else 0) - 1)
         }
     }
@@ -1486,7 +1489,7 @@ fun IronMindScreen(
             }
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().onSizeChanged { viewportHeightPx = it.height },
                 contentPadding = PaddingValues(
                     start = 16.dp,
                     end = 16.dp,
