@@ -1,11 +1,11 @@
 package com.ayman.ecolift.ui.viewmodel
 
-import com.ayman.ecolift.data.ArchiveSummary
 import com.ayman.ecolift.data.ArchivedCycle
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
+import com.ayman.ecolift.web.supabase.ArchiveSummary
+import com.ayman.ecolift.web.util.MONTH_ABBREV
+import kotlinx.datetime.LocalDate
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 enum class SplitTabMode {
     CURRENT,
@@ -15,19 +15,15 @@ enum class SplitTabMode {
 data class ArchiveCardUi(
     val id: Long,
     val name: String,
+    val startIso: String,
+    val endIso: String,
     val dateRangeLabel: String,
     val splitCount: Int,
     val sessionCount: Int,
     val totalVolumeLbs: Long,
-    val startIso: String = "",
-    val endIso: String = "",
+    /** Sessions per week across the cycle, for the album art; empty until loaded or when loading fails. */
     val weeklySessions: List<Int> = emptyList(),
 )
-
-private val monthDayFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("MMM d", Locale.US)
-private val monthDayYearFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US)
 
 fun formatArchiveDateRange(startIso: String, endIso: String): String {
     val start = runCatching { LocalDate.parse(startIso) }.getOrNull()
@@ -35,16 +31,18 @@ fun formatArchiveDateRange(startIso: String, endIso: String): String {
     if (start == null || end == null) return "$startIso - $endIso"
 
     val startLabel = if (start.year == end.year) {
-        start.format(monthDayFormatter)
+        "${MONTH_ABBREV[start.month.ordinal]} ${start.dayOfMonth}"
     } else {
-        start.format(monthDayYearFormatter)
+        "${MONTH_ABBREV[start.month.ordinal]} ${start.dayOfMonth}, ${start.year}"
     }
-    return "$startLabel - ${end.format(monthDayYearFormatter)}"
+    return "$startLabel - ${MONTH_ABBREV[end.month.ordinal]} ${end.dayOfMonth}, ${end.year}"
 }
 
 fun ArchivedCycle.toCardUi(): ArchiveCardUi = ArchiveCardUi(
     id = id,
     name = name,
+    startIso = startDate,
+    endIso = endDate,
     dateRangeLabel = formatArchiveDateRange(startDate, endDate),
     splitCount = splitCount,
     sessionCount = totalSessions,
@@ -54,14 +52,16 @@ fun ArchivedCycle.toCardUi(): ArchiveCardUi = ArchiveCardUi(
 fun ArchivedCycle.toCardUi(summary: ArchiveSummary): ArchiveCardUi = ArchiveCardUi(
     id = id,
     name = name,
+    startIso = startDate,
+    endIso = endDate,
     dateRangeLabel = formatArchiveDateRange(startDate, endDate),
     splitCount = summary.splitCount,
     sessionCount = summary.totalSessions,
-    totalVolumeLbs = summary.totalVolumeLbs,
+    totalVolumeLbs = totalVolumeLbs,
 )
 
 fun formatSignedLbs(delta: Float): String = when {
     abs(delta) < 0.5f -> "no change"
-    delta > 0f -> "+%.0f lb".format(Locale.US, delta)
-    else -> "%.0f lb".format(Locale.US, delta)
+    delta > 0f -> "+${delta.roundToInt()} lb"
+    else -> "${delta.roundToInt()} lb"
 }

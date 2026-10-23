@@ -1,33 +1,56 @@
 package com.ayman.ecolift.ui
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.lifecycle.lifecycleScope
-import com.ayman.ecolift.data.DebugDataHelper
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.ayman.ecolift.android.platform.AndroidHost
 import com.ayman.ecolift.ui.navigation.AppNavigation
-import com.ayman.ecolift.ui.theme.DarkTheme
-import kotlinx.coroutines.launch
+import com.ayman.ecolift.ui.theme.loadAppFonts
+import com.ayman.ecolift.web.LocalAppServices
+import com.ayman.ecolift.web.LocalRepos
+import com.ayman.ecolift.web.PhotoPickerBridge
+import com.ayman.ecolift.web.demo.DemoAppServices
+import com.ayman.ecolift.web.demo.DemoRepos
+import com.ayman.ecolift.web.util.WebHapticFeedback
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Populate requested data
-        lifecycleScope.launch {
-            DebugDataHelper.seedRequestedData(applicationContext)
-        }
-
+        AndroidHost.install(this)
+        PhotoPickerBridge.register(this)
         enableEdgeToEdge()
         setContent {
-            DarkTheme {
-                Surface(color = MaterialTheme.colorScheme.background) {
-                    AppNavigation()
-                }
+            var fontsReady by remember { mutableStateOf(false) }
+            LaunchedEffect(Unit) {
+                loadAppFonts()
+                fontsReady = true
+            }
+            if (!fontsReady) return@setContent
+            val repos = remember { DemoRepos() }
+            val services = remember { DemoAppServices() }
+            val haptics = remember { WebHapticFeedback() }
+            CompositionLocalProvider(
+                LocalRepos provides repos,
+                LocalAppServices provides services,
+                LocalHapticFeedback provides haptics,
+            ) {
+                AppNavigation()
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        AndroidHost.install(this)
     }
 }

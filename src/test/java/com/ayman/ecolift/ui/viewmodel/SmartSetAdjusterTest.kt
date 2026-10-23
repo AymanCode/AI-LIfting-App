@@ -5,7 +5,7 @@ import org.junit.Test
 
 class SmartSetAdjusterTest {
     @Test
-    fun dropsLaterSetRepsConservativelyFromLoadedPattern() {
+    fun shiftsOtherSetsByTheSameRepDifference() {
         assertEquals(
             4,
             calculateSmartSuggestedReps(
@@ -18,7 +18,7 @@ class SmartSetAdjusterTest {
         )
 
         assertEquals(
-            3,
+            2,
             calculateSmartSuggestedReps(
                 sourceNewReps = 5,
                 sourceBaselineReps = 8,
@@ -30,9 +30,9 @@ class SmartSetAdjusterTest {
     }
 
     @Test
-    fun neverSuggestsMoreRepsForLaterSetsThanSourceSet() {
+    fun keepsALaterSetsOffsetWhenTheEditedSetGoesUp() {
         assertEquals(
-            10,
+            12,
             calculateSmartSuggestedReps(
                 sourceNewReps = 10,
                 sourceBaselineReps = 8,
@@ -44,9 +44,9 @@ class SmartSetAdjusterTest {
     }
 
     @Test
-    fun earlierSetsAreCappedAtTheirLoadedBaseline() {
+    fun movesAnEarlierSetByTheSameRepDifference() {
         assertEquals(
-            8,
+            13,
             calculateSmartSuggestedReps(
                 sourceNewReps = 10,
                 sourceBaselineReps = 5,

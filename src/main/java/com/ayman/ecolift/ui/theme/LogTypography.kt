@@ -8,12 +8,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.ayman.ecolift.R
 
+// These four families are built here. FontLoader assigns the quiet, highlight, and sheet families.
 val LogUiFontFamily = FontFamily(
     Font(R.font.satoshi_regular, FontWeight.Normal),
     Font(R.font.satoshi_medium, FontWeight.Medium),
     Font(R.font.satoshi_bold, FontWeight.Bold),
 )
-
 val LogDisplayFontFamily = FontFamily(
     Font(R.font.clash_grotesk_semibold, FontWeight.SemiBold),
     Font(R.font.clash_grotesk_bold, FontWeight.Bold),
@@ -21,10 +21,10 @@ val LogDisplayFontFamily = FontFamily(
 
 // Archive "Discography" poster typefaces. Archivo Black ships a single black
 // weight; Caveat is the handwritten marker voice for annotations.
-val PosterFontFamily = FontFamily(Font(R.font.archivo_black))
-val MarkerFontFamily = FontFamily(Font(R.font.caveat_variable))
+val PosterFontFamily = FontFamily(Font(R.font.archivo_black, FontWeight.Normal))
+val MarkerFontFamily = FontFamily(Font(R.font.caveat_variable, FontWeight.Normal))
 
-val LogMaterialTypography = Typography(
+val LogMaterialTypography: Typography by lazy { Typography(
     headlineLarge = TextStyle(
         fontFamily = LogDisplayFontFamily,
         fontWeight = FontWeight.Bold,
@@ -95,7 +95,7 @@ val LogMaterialTypography = Typography(
         lineHeight = 13.sp,
         letterSpacing = 0.sp,
     ),
-)
+) }
 
 object LogType {
     val exerciseTitle = TextStyle(
