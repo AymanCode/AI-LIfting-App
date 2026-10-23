@@ -29,6 +29,10 @@ const val APP_DATABASE_VERSION = 20
         com.ayman.ecolift.data.room.WorkoutExerciseCard::class,
         com.ayman.ecolift.data.room.ExerciseAlias::class,
         com.ayman.ecolift.data.room.ExerciseDistinctPair::class,
+        com.ayman.ecolift.data.room.SplitAlternativeRow::class,
+        com.ayman.ecolift.data.room.ExerciseSwapReceiptRow::class,
+        com.ayman.ecolift.data.room.WorkoutDayState::class,
+        com.ayman.ecolift.data.room.SwapAlternativeQueueRow::class,
     ],
     version = APP_DATABASE_VERSION,
     exportSchema = true,
@@ -50,6 +54,10 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun workoutExerciseCardDao(): WorkoutExerciseCardDao
     abstract fun exerciseAliasDao(): ExerciseAliasDao
     abstract fun exerciseDistinctPairDao(): ExerciseDistinctPairDao
+    abstract fun splitAlternativeDao(): SplitAlternativeDao
+    abstract fun exerciseSwapReceiptDao(): ExerciseSwapReceiptDao
+    abstract fun workoutDayStateDao(): WorkoutDayStateDao
+    abstract fun swapAlternativeQueueDao(): SwapAlternativeQueueDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null

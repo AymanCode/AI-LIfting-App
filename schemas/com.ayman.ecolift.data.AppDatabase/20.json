@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 20,
-    "identityHash": "f4b571255bf050828446f7ffdbcb788e",
+    "identityHash": "e1117ff9da0d1beda5c64e463d5b93af",
     "entities": [
       {
         "tableName": "exercise",
@@ -1282,11 +1282,246 @@
             ]
           }
         ]
+      },
+      {
+        "tableName": "split_alternative",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`splitId` INTEGER NOT NULL, `sourceId` INTEGER NOT NULL, `alternativeId` INTEGER NOT NULL, `replacesSlot` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`splitId`, `sourceId`, `alternativeId`), FOREIGN KEY(`splitId`) REFERENCES `cycle_slot`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`sourceId`) REFERENCES `exercise`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`alternativeId`) REFERENCES `exercise`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "splitId",
+            "columnName": "splitId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "alternativeId",
+            "columnName": "alternativeId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "replacesSlot",
+            "columnName": "replacesSlot",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "splitId",
+            "sourceId",
+            "alternativeId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_split_alternative_sourceId",
+            "unique": false,
+            "columnNames": [
+              "sourceId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_split_alternative_sourceId` ON `${TABLE_NAME}` (`sourceId`)"
+          },
+          {
+            "name": "index_split_alternative_alternativeId",
+            "unique": false,
+            "columnNames": [
+              "alternativeId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_split_alternative_alternativeId` ON `${TABLE_NAME}` (`alternativeId`)"
+          },
+          {
+            "name": "index_split_alternative_splitId",
+            "unique": false,
+            "columnNames": [
+              "splitId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_split_alternative_splitId` ON `${TABLE_NAME}` (`splitId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "cycle_slot",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "splitId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "exercise",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sourceId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "exercise",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "alternativeId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "exercise_swap_receipt",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`requestId` TEXT NOT NULL, `date` TEXT NOT NULL, `sourceId` INTEGER NOT NULL, `targetId` INTEGER NOT NULL, `splitId` INTEGER, `beforeSourceSetsJson` TEXT NOT NULL, `beforeCardsJson` TEXT NOT NULL, `targetExisted` INTEGER NOT NULL, `afterRevision` INTEGER NOT NULL, `undone` INTEGER NOT NULL, PRIMARY KEY(`requestId`))",
+        "fields": [
+          {
+            "fieldPath": "requestId",
+            "columnName": "requestId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetId",
+            "columnName": "targetId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "splitId",
+            "columnName": "splitId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "beforeSourceSetsJson",
+            "columnName": "beforeSourceSetsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "beforeCardsJson",
+            "columnName": "beforeCardsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetExisted",
+            "columnName": "targetExisted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "afterRevision",
+            "columnName": "afterRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "undone",
+            "columnName": "undone",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "requestId"
+          ]
+        }
+      },
+      {
+        "tableName": "workout_day_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date` TEXT NOT NULL, `revision` INTEGER NOT NULL, PRIMARY KEY(`date`))",
+        "fields": [
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "date"
+          ]
+        }
+      },
+      {
+        "tableName": "swap_alternative_queue",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`splitId` INTEGER NOT NULL, `sourceId` INTEGER NOT NULL, `alternativeId` INTEGER NOT NULL, PRIMARY KEY(`splitId`, `sourceId`, `alternativeId`))",
+        "fields": [
+          {
+            "fieldPath": "splitId",
+            "columnName": "splitId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "alternativeId",
+            "columnName": "alternativeId",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "splitId",
+            "sourceId",
+            "alternativeId"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f4b571255bf050828446f7ffdbcb788e')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e1117ff9da0d1beda5c64e463d5b93af')"
     ]
   }
 }

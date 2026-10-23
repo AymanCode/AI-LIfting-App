@@ -14,8 +14,10 @@ import com.ayman.ecolift.data.UserSettings
 import com.ayman.ecolift.data.WorkoutDay
 import com.ayman.ecolift.data.WorkoutExerciseCard
 import com.ayman.ecolift.data.WorkoutSet
+import com.ayman.ecolift.data.room.WorkoutDayState
 import com.ayman.ecolift.data.room.toDomain
 import com.ayman.ecolift.data.room.toRoom
+import com.ayman.ecolift.data.splits.SplitAlternative
 import com.ayman.ecolift.web.supabase.sync.PreparedSplitReplacement
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,6 +52,7 @@ class RoomStore(val db: AppDatabase) {
     private val _reviews = MutableStateFlow<List<PendingReview>>(emptyList())
     private val _cardio = MutableStateFlow<List<CardioSession>>(emptyList())
     private val _journal = MutableStateFlow<Map<String, PreparedSplitReplacement>>(emptyMap())
+    private val _alternatives = MutableStateFlow<List<SplitAlternative>>(emptyList())
 
     val exercises: StateFlow<List<Exercise>> = _exercises
     val aliases: StateFlow<List<ExerciseAlias>> = _aliases
@@ -64,6 +67,7 @@ class RoomStore(val db: AppDatabase) {
     val archives: StateFlow<List<ArchivedCycle>> = _archives
     val reviews: StateFlow<List<PendingReview>> = _reviews
     val cardio: StateFlow<List<CardioSession>> = _cardio
+    val alternatives: StateFlow<List<SplitAlternative>> = _alternatives
 
     fun exercisesNow(): List<Exercise> = active?.exercises ?: _exercises.value
     fun setsNow(): List<WorkoutSet> = active?.sets ?: _sets.value
@@ -99,7 +103,11 @@ class RoomStore(val db: AppDatabase) {
             active = draft
             try {
                 withContext(WriteToken()) {
-                    val result = db.withTransaction { draft.block() }
+                    val result = db.withTransaction {
+                        val value = draft.block()
+                        draft.reconcileDayRevisions()
+                        value
+                    }
                     publish(draft)
                     result
                 }
@@ -125,6 +133,7 @@ class RoomStore(val db: AppDatabase) {
         reviews = _reviews.value,
         cardio = _cardio.value,
         journal = _journal.value,
+        alternatives = _alternatives.value,
     )
 
     private fun publish(draft: RoomDraft) {
@@ -146,6 +155,7 @@ class RoomStore(val db: AppDatabase) {
                 .thenByDescending { it.id },
         )
         _journal.value = draft.journal
+        _alternatives.value = draft.alternatives
     }
 }
 
@@ -165,7 +175,10 @@ class RoomDraft(
     var reviews: List<PendingReview>,
     var cardio: List<CardioSession>,
     var journal: Map<String, PreparedSplitReplacement>,
+    var alternatives: List<SplitAlternative>,
 ) {
+    private var setsAtOpen: List<WorkoutSet> = sets
+    private val bumpedDays = mutableSetOf<String>()
     suspend fun reloadAll() {
         exercises = db.exerciseDao().getAll().map { it.toDomain() }
         aliases = db.exerciseAliasDao().getAll().map { it.toDomain() }
@@ -179,7 +192,11 @@ class RoomDraft(
         archives = db.archivedCycleDao().getAll().map { it.toDomain() }
         reviews = db.pendingReviewDao().getAll().map { it.toDomain() }
         cardio = db.cardioSessionDao().getAll().map { it.toDomain() }
+        alternatives = db.splitAlternativeDao().getAll().map { row ->
+            SplitAlternative(row.splitId, row.sourceId, row.alternativeId, row.replacesSlot)
+        }
         settings = readSettings()
+        setsAtOpen = sets
     }
 
     suspend fun reloadRoutine() {
@@ -297,6 +314,65 @@ class RoomDraft(
         sets = sets.filterNot { it.id in ids } + next
     }
 
+    suspend fun removeSets(ids: Collection<Long>) {
+        if (ids.isEmpty()) return
+        ids.forEach { db.workoutSetDao().deleteById(it) }
+        val drop = ids.toSet()
+        sets = sets.filterNot { it.id in drop }
+    }
+
+    suspend fun bumpDay(date: String): Long {
+        if (!bumpedDays.add(date)) return db.workoutDayStateDao().revision(date) ?: 0L
+        val next = (db.workoutDayStateDao().revision(date) ?: 0L) + 1
+        db.workoutDayStateDao().upsert(WorkoutDayState(date, next))
+        return next
+    }
+
+    suspend fun reconcileDayRevisions() {
+        val before = setsAtOpen.groupBy { it.date }
+        val after = sets.groupBy { it.date }
+        for (date in before.keys + after.keys) {
+            val left = before[date].orEmpty().sortedBy { it.id }
+            val right = after[date].orEmpty().sortedBy { it.id }
+            if (left != right) bumpDay(date)
+        }
+    }
+
+    // The unique date and position index is checked immediately, so cards move through a high position first.
+    suspend fun rewriteDayCards(date: String, finalCards: List<WorkoutExerciseCard>) {
+        val finalIds = finalCards.map { it.id }.toSet()
+        deleteCards(cards.filter { it.date == date && it.id !in finalIds }.map { it.id })
+        cards.filter { it.date == date }.forEachIndexed { index, card ->
+            val parked = card.copy(position = PARKED_CARD_POSITION + index)
+            db.workoutExerciseCardDao().update(parked.toRoom())
+            cards = cards.map { if (it.id == parked.id) parked else it }
+        }
+        val present = cards.filter { it.date == date }.map { it.id }.toSet()
+        finalCards.filter { it.id !in present }.forEachIndexed { index, card ->
+            val parked = card.copy(position = NEW_CARD_POSITION + index)
+            db.workoutExerciseCardDao().insert(parked.toRoom())
+            cards = cards + parked
+        }
+        finalCards.forEach { card ->
+            val current = cards.first { it.id == card.id }
+            if (
+                current.position == card.position &&
+                current.displayMode == card.displayMode &&
+                current.origin == card.origin &&
+                current.sourcePlanId == card.sourcePlanId &&
+                current.createdAt == card.createdAt &&
+                current.updatedAt == card.updatedAt &&
+                current.exerciseId == card.exerciseId &&
+                current.rowRevision == card.rowRevision &&
+                current.date == card.date
+            ) {
+                return@forEach
+            }
+            db.workoutExerciseCardDao().update(card.toRoom())
+            cards = cards.map { if (it.id == card.id) card else it }
+        }
+    }
+
     suspend fun deleteSetRow(id: Long) {
         val existing = sets.firstOrNull { it.id == id } ?: return
         db.workoutSetDao().deleteById(id)
@@ -353,6 +429,18 @@ class RoomDraft(
         db.cycleSlotDao().delete(id)
         slots = slots.filterNot { it.id == id }
         splitExercises = splitExercises.filterNot { it.splitId == id }
+    }
+
+    suspend fun markSplitMemberUserAdded(id: Long) {
+        db.splitExerciseDao().markUserAdded(id)
+        splitExercises = splitExercises.map { if (it.id == id) it.copy(userAdded = true) else it }
+    }
+
+    suspend fun insertSplitMember(row: SplitExercise): SplitExercise {
+        val id = db.splitExerciseDao().insert(row.copy(id = 0).toRoom())
+        val stored = row.copy(id = id)
+        splitExercises = splitExercises + stored
+        return stored
     }
 
     suspend fun replaceSplitMembers(slotId: Long, rows: List<SplitExercise>) {
@@ -425,6 +513,9 @@ private fun untouchedDefaults(settings: UserSettings): Boolean =
 
 fun deviceTimeZone(): String =
     runCatching { ZoneId.systemDefault().id }.getOrNull()?.takeIf { it.isNotBlank() } ?: "UTC"
+
+private const val PARKED_CARD_POSITION = 1_000_000
+private const val NEW_CARD_POSITION = 2_000_000
 
 private class WriteToken : AbstractCoroutineContextElement(WriteToken) {
     companion object : Key<WriteToken>

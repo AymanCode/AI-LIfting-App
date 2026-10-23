@@ -373,6 +373,39 @@ object Migrations {
                     "ON `exercise_distinct_pair` (`exerciseIdB`)",
             )
             backfillLegacyCards(db)
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `split_alternative` (`splitId` INTEGER NOT NULL, " +
+                    "`sourceId` INTEGER NOT NULL, `alternativeId` INTEGER NOT NULL, `replacesSlot` INTEGER NOT NULL, " +
+                    "`createdAt` INTEGER NOT NULL, PRIMARY KEY(`splitId`, `sourceId`, `alternativeId`), " +
+                    "FOREIGN KEY(`splitId`) REFERENCES `cycle_slot`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , " +
+                    "FOREIGN KEY(`sourceId`) REFERENCES `exercise`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , " +
+                    "FOREIGN KEY(`alternativeId`) REFERENCES `exercise`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_split_alternative_sourceId` ON `split_alternative` (`sourceId`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_split_alternative_alternativeId` ON `split_alternative` (`alternativeId`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_split_alternative_splitId` ON `split_alternative` (`splitId`)",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `exercise_swap_receipt` (`requestId` TEXT NOT NULL, `date` TEXT NOT NULL, " +
+                    "`sourceId` INTEGER NOT NULL, `targetId` INTEGER NOT NULL, `splitId` INTEGER, " +
+                    "`beforeSourceSetsJson` TEXT NOT NULL, `beforeCardsJson` TEXT NOT NULL, " +
+                    "`targetExisted` INTEGER NOT NULL, `afterRevision` INTEGER NOT NULL, `undone` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`requestId`))",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `workout_day_state` (`date` TEXT NOT NULL, `revision` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`date`))",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `swap_alternative_queue` (`splitId` INTEGER NOT NULL, " +
+                    "`sourceId` INTEGER NOT NULL, `alternativeId` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`splitId`, `sourceId`, `alternativeId`))",
+            )
         }
     }
 

@@ -11,7 +11,6 @@ import com.ayman.ecolift.web.supabase.ExerciseSwapRepository
 import com.ayman.ecolift.web.supabase.LearnedSplitsCoordinator
 import com.ayman.ecolift.web.supabase.LearnedSplitsSource
 import com.ayman.ecolift.web.supabase.NoAssistantChangeRepository
-import com.ayman.ecolift.web.supabase.NoExerciseSwapRepository
 import com.ayman.ecolift.web.supabase.PendingReviewRepository
 import com.ayman.ecolift.web.supabase.SetRepository
 import com.ayman.ecolift.web.supabase.SplitReplacementCoordinator
@@ -40,7 +39,9 @@ class RoomRepos(
     private var learnedJob: Job? = null
     private var learnedStarted = false
 
-    override val exerciseSwaps: ExerciseSwapRepository = NoExerciseSwapRepository
+    override val exerciseSwaps: ExerciseSwapRepository = RoomExerciseSwapRepository(store) {
+        learned.requestRun()
+    }
     override val exercises: ExerciseRepository = exerciseRepository
     override val sets: SetRepository = setRepository
     private val settingsRepository = RoomUserSettingsRepository(store) { enabled ->
@@ -98,6 +99,7 @@ class RoomRepos(
             workout = workout,
             persist = true,
             isOnline = { true },
+            alternatives = { exerciseSwaps.alternatives.value },
             smartSuggest = smartSuggest,
         )
         learned.bind(child, coordinator)
