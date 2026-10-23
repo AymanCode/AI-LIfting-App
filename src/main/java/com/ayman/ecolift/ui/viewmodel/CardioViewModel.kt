@@ -472,6 +472,46 @@ class CardioViewModel(
             }
         }
         refreshScansLeft()
+        repos.dataGeneration?.let { generation ->
+            val initial = generation.changes.value
+            viewModelScope.launch {
+                var observed = initial
+                generation.changes.collect { current ->
+                    if (current != observed) {
+                        observed = current
+                        currentScanToken = ScanRequest()
+                        draftsByMachine.clear()
+                        _uiState.update {
+                            it.copy(
+                                draft = null,
+                                expandedField = null,
+                                typingField = null,
+                                saveState = SaveState.IDLE,
+                                saveError = null,
+                                selectedSessionId = null,
+                                daySheetDate = null,
+                                scanning = false,
+                                scanPhotoBase64 = null,
+                                scanPhotoMime = null,
+                                scanReadCount = 0,
+                                scanFieldCount = 0,
+                                scanLowConfidence = false,
+                                toast = null,
+                                lastSavedId = null,
+                                undoDeadlineMillis = null,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun dataGeneration(): Long = repos.dataGeneration?.changes?.value ?: 0L
+
+    private suspend fun <T : Any> withDataGeneration(expected: Long, block: suspend () -> T): T? {
+        val generation = repos.dataGeneration ?: return block()
+        return generation.withCurrent(expected, block)
     }
 
     fun startNewDraft() {
@@ -638,15 +678,65 @@ class CardioViewModel(
         if (DemoGuard.blockIfDemo()) return
         val draft = _uiState.value.draft ?: return
         if (!CardioDraftLogic.canSave(draft)) return
+        val expected = dataGeneration()
 
         _uiState.update { it.copy(saveState = SaveState.SAVING, saveError = null) }
         viewModelScope.launch {
             try {
                 val write = CardioDraftLogic.toWrite(draft, todayLocalDate())
-                val savedSession = if (draft.editingId != null) {
-                    val orig = draft.editingSessionOriginal ?: repository.getById(draft.editingId)
-                    if (orig != null) {
-                        val updated = orig.copy(
+                val savedSession = withDataGeneration(expected) {
+                    if (draft.editingId != null) {
+                        val orig = draft.editingSessionOriginal ?: repository.getById(draft.editingId)
+                        if (orig != null) {
+                            val updated = orig.copy(
+                                activityType = write.activityType,
+                                activityLabel = write.activityLabel,
+                                durationSec = write.durationSec,
+                                distanceM = write.distanceM,
+                                calories = write.calories,
+                                avgHeartRate = write.avgHeartRate,
+                                maxHeartRate = write.maxHeartRate,
+                                avgSpeed = write.avgSpeed,
+                                avgInclinePercent = write.avgInclinePercent,
+                                cadenceRpm = write.cadenceRpm,
+                                resistanceLevel = write.resistanceLevel,
+                                avgPowerWatts = write.avgPowerWatts,
+                                strokeRateSpm = write.strokeRateSpm,
+                                paceSecPer500m = write.paceSecPer500m,
+                                floors = write.floors,
+                                steps = write.steps,
+                                notes = write.notes,
+                            )
+                            repository.update(updated)
+                        } else {
+                            error("Session not found")
+                        }
+                    } else if (draft.fromPhoto) {
+                        repository.saveOcrConfirmed(
+                            date = write.date,
+                            activityType = write.activityType,
+                            activityLabel = write.activityLabel,
+                            durationSec = write.durationSec,
+                            distanceM = write.distanceM,
+                            calories = write.calories,
+                            avgHeartRate = write.avgHeartRate,
+                            maxHeartRate = write.maxHeartRate,
+                            avgSpeed = write.avgSpeed,
+                            avgInclinePercent = write.avgInclinePercent,
+                            cadenceRpm = write.cadenceRpm,
+                            resistanceLevel = write.resistanceLevel,
+                            avgPowerWatts = write.avgPowerWatts,
+                            strokeRateSpm = write.strokeRateSpm,
+                            paceSecPer500m = write.paceSecPer500m,
+                            floors = write.floors,
+                            steps = write.steps,
+                            machineType = write.machineType,
+                            ocrConfidence = write.ocrConfidence,
+                            notes = write.notes,
+                        )
+                    } else {
+                        repository.saveManual(
+                            date = write.date,
                             activityType = write.activityType,
                             activityLabel = write.activityLabel,
                             durationSec = write.durationSec,
@@ -665,55 +755,14 @@ class CardioViewModel(
                             steps = write.steps,
                             notes = write.notes,
                         )
-                        repository.update(updated)
-                    } else {
-                        error("Session not found")
                     }
-                } else if (draft.fromPhoto) {
-                    repository.saveOcrConfirmed(
-                        date = write.date,
-                        activityType = write.activityType,
-                        activityLabel = write.activityLabel,
-                        durationSec = write.durationSec,
-                        distanceM = write.distanceM,
-                        calories = write.calories,
-                        avgHeartRate = write.avgHeartRate,
-                        maxHeartRate = write.maxHeartRate,
-                        avgSpeed = write.avgSpeed,
-                        avgInclinePercent = write.avgInclinePercent,
-                        cadenceRpm = write.cadenceRpm,
-                        resistanceLevel = write.resistanceLevel,
-                        avgPowerWatts = write.avgPowerWatts,
-                        strokeRateSpm = write.strokeRateSpm,
-                        paceSecPer500m = write.paceSecPer500m,
-                        floors = write.floors,
-                        steps = write.steps,
-                        machineType = write.machineType,
-                        ocrConfidence = write.ocrConfidence,
-                        notes = write.notes,
-                    )
-                } else {
-                    repository.saveManual(
-                        date = write.date,
-                        activityType = write.activityType,
-                        activityLabel = write.activityLabel,
-                        durationSec = write.durationSec,
-                        distanceM = write.distanceM,
-                        calories = write.calories,
-                        avgHeartRate = write.avgHeartRate,
-                        maxHeartRate = write.maxHeartRate,
-                        avgSpeed = write.avgSpeed,
-                        avgInclinePercent = write.avgInclinePercent,
-                        cadenceRpm = write.cadenceRpm,
-                        resistanceLevel = write.resistanceLevel,
-                        avgPowerWatts = write.avgPowerWatts,
-                        strokeRateSpm = write.strokeRateSpm,
-                        paceSecPer500m = write.paceSecPer500m,
-                        floors = write.floors,
-                        steps = write.steps,
-                        notes = write.notes,
-                    )
+                } ?: run {
+                    _uiState.update { state ->
+                        if (state.saveState == SaveState.SAVING) state.copy(saveState = SaveState.IDLE) else state
+                    }
+                    return@launch
                 }
+                if (dataGeneration() != expected) return@launch
 
                 val isEdit = draft.editingId != null
                 val dayName = todayLocalDate().dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }
@@ -755,9 +804,14 @@ class CardioViewModel(
     fun undoLastSave() {
         if (DemoGuard.blockIfDemo()) return
         val id = _uiState.value.lastSavedId ?: return
+        val expected = dataGeneration()
         viewModelScope.launch {
             try {
-                repository.delete(id)
+                withDataGeneration(expected) {
+                    repository.delete(id)
+                    true
+                } ?: return@launch
+                if (dataGeneration() != expected) return@launch
                 _uiState.update {
                     it.copy(
                         lastSavedId = null,
