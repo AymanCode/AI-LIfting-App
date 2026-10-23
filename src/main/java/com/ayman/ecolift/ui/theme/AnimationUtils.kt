@@ -1,16 +1,15 @@
 package com.ayman.ecolift.ui.theme
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,6 +20,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 
@@ -173,7 +174,7 @@ private fun formatVolumeForAnimation(v: Int): String =
     if (v >= 1000) "${v / 1000}.${(v % 1000) / 100}k" else "$v"
 
 /**
- * Performs a light haptic tick, ideal for stepper buttons and frequent interactions.
+ * Performs a light haptic tick — ideal for stepper buttons and frequent interactions.
  */
 @Composable
 fun rememberLightHaptic(): () -> Unit {
@@ -184,7 +185,7 @@ fun rememberLightHaptic(): () -> Unit {
 }
 
 /**
- * Performs a heavy haptic burst, ideal for completing workouts and terminal actions.
+ * Performs a heavy haptic burst — ideal for completing workouts and terminal actions.
  */
 @Composable
 fun rememberHeavyHaptic(): () -> Unit {

@@ -2,29 +2,34 @@ package com.ayman.ecolift.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import com.ayman.ecolift.R
 
-val LogUiFontFamily = FontFamily(
-    Font(R.font.satoshi_regular, FontWeight.Normal),
-    Font(R.font.satoshi_medium, FontWeight.Medium),
-    Font(R.font.satoshi_bold, FontWeight.Bold),
-)
-
-val LogDisplayFontFamily = FontFamily(
-    Font(R.font.clash_grotesk_semibold, FontWeight.SemiBold),
-    Font(R.font.clash_grotesk_bold, FontWeight.Bold),
-)
+// Font families are loaded from bytes before the UI starts (see FontLoader.kt).
+// lateinit keeps every existing reference compiling unchanged.
+lateinit var LogUiFontFamily: FontFamily
+lateinit var LogDisplayFontFamily: FontFamily
 
 // Archive "Discography" poster typefaces. Archivo Black ships a single black
 // weight; Caveat is the handwritten marker voice for annotations.
-val PosterFontFamily = FontFamily(Font(R.font.archivo_black))
-val MarkerFontFamily = FontFamily(Font(R.font.caveat_variable))
+lateinit var PosterFontFamily: FontFamily
+lateinit var MarkerFontFamily: FontFamily
 
-val LogMaterialTypography = Typography(
+// Progress Highlights uses a deliberately narrow, high-impact display face.
+// Keep it separate from the archive poster face: the approved reel frames depend
+// on the 75%-width League Gothic instance's live glyph metrics and should not
+// inherit unrelated poster changes.
+lateinit var HighlightsDisplayFontFamily: FontFamily
+lateinit var HighlightsImpactFontFamily: FontFamily
+lateinit var HighlightsCondensedImpactFontFamily: FontFamily
+
+// The month sheet's two faces, and the only two it is allowed. Fraunces carries the hero,
+// the asides and the percentages; Space Grotesk carries everything else.
+lateinit var SheetSerifFontFamily: FontFamily
+lateinit var SheetSansFontFamily: FontFamily
+
+val LogMaterialTypography: Typography by lazy { Typography(
     headlineLarge = TextStyle(
         fontFamily = LogDisplayFontFamily,
         fontWeight = FontWeight.Bold,
@@ -95,7 +100,7 @@ val LogMaterialTypography = Typography(
         lineHeight = 13.sp,
         letterSpacing = 0.sp,
     ),
-)
+) }
 
 object LogType {
     val exerciseTitle = TextStyle(
