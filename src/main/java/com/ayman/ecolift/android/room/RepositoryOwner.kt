@@ -10,20 +10,24 @@ import com.ayman.ecolift.android.platform.RestoreSource
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.DataBackupManager
 import com.ayman.ecolift.ui.theme.loadAppFonts
+import com.ayman.ecolift.web.AppRepos
+import com.ayman.ecolift.web.DataGeneration
 import com.ayman.ecolift.web.demo.DemoData
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-data class LoadedRepositories(val database: AppDatabase, val repos: RoomRepos)
+data class LoadedRepositories(val database: AppDatabase, val repos: AppRepos)
 
 class RepositoryOwner(application: Application) : AndroidViewModel(application) {
     private val context = application.applicationContext
     private var initialization: Deferred<LoadedRepositories>? = null
     private var graph: RoomRepos? = null
+    private val generation = DataGeneration()
     val backups = BackupActions()
     val healthSessionsAdded = MutableStateFlow<Int?>(null)
 
@@ -38,7 +42,9 @@ class RepositoryOwner(application: Application) : AndroidViewModel(application) 
             }
             repos.loadAll()
             refreshLocalBackups()
-            LoadedRepositories(database, repos)
+            LoadedRepositories(database, object : AppRepos by repos {
+                override val dataGeneration = generation
+            })
         }.also { initialization = it }
     }
 
@@ -57,11 +63,14 @@ class RepositoryOwner(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             backups.confirmRestore { source ->
                 val loaded = requireNotNull(initialization).await()
-                val result = when (source) {
-                    is RestoreSource.Document -> DataBackupManager.importFromUri(context, loaded.database, Uri.parse(source.uri))
-                    is RestoreSource.Local -> DataBackupManager.restoreAutomaticBackup(context, loaded.database, source.fileName)
+                val result = withContext(NonCancellable) {
+                    generation.replace(reload = { loaded.repos.loadAll() }) {
+                        when (source) {
+                            is RestoreSource.Document -> DataBackupManager.importFromUri(context, loaded.database, Uri.parse(source.uri))
+                            is RestoreSource.Local -> DataBackupManager.restoreAutomaticBackup(context, loaded.database, source.fileName)
+                        }
+                    }
                 }
-                loaded.repos.loadAll()
                 refreshLocalBackups()
                 "Imported ${result.entryCount} records."
             }

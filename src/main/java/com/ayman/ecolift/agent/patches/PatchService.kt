@@ -35,10 +35,12 @@ class PatchService(
     private val validator: PatchValidator,
     private val auditStore: InMemoryAuditStore
 ) : PatchApplier {
+    private val generation = repos.dataGeneration
+    private val expectedGeneration = generation?.changes?.value ?: 0L
     private val json = Json { prettyPrint = false }
     private val atomicRepository = repos.sets as? AtomicPatchRepository
     private data class UndoStep(val patch: DbPatch, val restore: PatchUndo? = null)
-    private val undoActions = mutableMapOf<Long, List<UndoStep>>()
+    private val undoActions = linkedMapOf<Long, List<UndoStep>>()
     private val inverseComputer by lazy {
         InverseComputer(repos.sets, repos.exercises)
     }
@@ -47,7 +49,19 @@ class PatchService(
         requestId: String,
         patches: List<DbPatch>,
         userConfirmed: Boolean
-    ): PatchResult = applyBatch(requestId, patches, userConfirmed)
+    ): PatchResult = withGeneration { applyBatch(requestId, patches, userConfirmed) }
+
+    fun clearUndo() {
+        synchronized(undoActions) { undoActions.clear() }
+    }
+
+    private suspend fun withGeneration(block: suspend () -> PatchResult): PatchResult {
+        val owner = generation ?: return block()
+        return owner.withCurrent(expectedGeneration, block) ?: run {
+            clearUndo()
+            PatchResult.Rejected("Workout data was replaced. Send the request again.")
+        }
+    }
 
     private suspend fun applyBatch(
         requestId: String,
@@ -96,7 +110,10 @@ class PatchService(
                 )
                 val commit: () -> Unit = {
                     val auditId = auditStore.insert(audit)
-                    synchronized(undoActions) { undoActions[auditId] = undo }
+                    synchronized(undoActions) {
+                        undoActions[auditId] = undo
+                        while (undoActions.size > 50) undoActions.remove(undoActions.keys.first())
+                    }
                     applied = PatchResult.Applied(auditId = auditId, patchCount = patches.size)
                 }
                 commit
@@ -111,17 +128,24 @@ class PatchService(
     }
 
     /** Undo a previously applied set of patches by applying the stored inverse. */
-    override suspend fun undo(auditId: Long): PatchResult {
+    override suspend fun undo(auditId: Long): PatchResult = withGeneration {
         val audit = auditStore.getById(auditId)
-            ?: return PatchResult.Failed("Audit entry $auditId not found")
-
-        val inversePatches = json.decodeFromString<List<DbPatch>>(audit.serializedInverse)
-        return applyBatch(
+            ?: return@withGeneration PatchResult.Failed("Audit entry $auditId not found")
+        val steps = synchronized(undoActions) { undoActions[auditId] }
+            ?: return@withGeneration PatchResult.Failed("Nothing to undo.")
+        val result = applyBatch(
             requestId = "undo-${audit.requestId}",
-            patches = inversePatches,
+            patches = steps.map { it.patch },
             userConfirmed = true,
-            restores = synchronized(undoActions) { undoActions[auditId].orEmpty() },
+            restores = steps,
         )
+        if (result is PatchResult.Applied) {
+            synchronized(undoActions) {
+                undoActions.remove(auditId)
+                undoActions.remove(result.auditId)
+            }
+        }
+        result
     }
 
     // Per-patch application
