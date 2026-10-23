@@ -15,6 +15,7 @@ import com.ayman.ecolift.data.DataBackupManager
 import com.ayman.ecolift.data.room.CardioSession
 import com.ayman.ecolift.ui.MainActivity
 import com.ayman.ecolift.ui.viewmodel.CardioViewModel
+import com.ayman.ecolift.web.AppRepos
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -174,7 +175,7 @@ class BackupLifecycleTest {
         assertEquals(message, owner.backups.state.value.message)
     }
 
-    private suspend fun awaitGraph(scenario: ActivityScenario<MainActivity>): RoomRepos = withTimeout(30_000) {
+    private suspend fun awaitGraph(scenario: ActivityScenario<MainActivity>): AppRepos = withTimeout(30_000) {
         lateinit var loaded: Deferred<LoadedRepositories>
         scenario.onActivity { loaded = it.repositoryOwner.initialize(false) }
         loaded.await().repos

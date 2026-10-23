@@ -63,14 +63,38 @@ class OrchestratorViewModel(
 
     private val auditStore  = InMemoryAuditStore()
     private val turnLogStore = InMemoryTurnLogStore()
-    private val service = PatchService(repos, PatchValidator(), auditStore)
-    private val tools   = AgentToolsImpl(repos)
-    private val agent   = AgentOrchestrator(
-        router       = IntentRouter(engine = engine),
-        tools        = tools,
-        patchApplier = service,
-        engine       = engine
-    )
+    private val tools = AgentToolsImpl(repos)
+    private data class Session(val generation: Long, val service: PatchService, val agent: AgentOrchestrator)
+    private var session = newSession()
+
+    private fun newSession(): Session {
+        val service = PatchService(repos, PatchValidator(), auditStore)
+        return Session(
+            repos.dataGeneration?.changes?.value ?: 0L,
+            service,
+            AgentOrchestrator(
+                router = IntentRouter(engine = engine),
+                tools = tools,
+                patchApplier = service,
+                engine = engine,
+            ),
+        )
+    }
+
+    private fun currentSession(): Session {
+        if (session.generation != (repos.dataGeneration?.changes?.value ?: 0L)) {
+            session.service.clearUndo()
+            session = newSession()
+            _confirm.value = null
+            _busy.value = false
+            _msgs.value = listOf(WELCOME)
+            _input.value = ""
+            _reviewError.value = null
+            _recentTurns.value = emptyList()
+            notifiedReviewIds.clear()
+        }
+        return session
+    }
 
     // Track which review IDs have already been surfaced so the chat does not repeat them.
     private val notifiedReviewIds = mutableSetOf<Long>()
@@ -227,13 +251,22 @@ class OrchestratorViewModel(
     private val _recentTurns = MutableStateFlow<List<AgentTurnLog>>(emptyList())
     val recentTurns: StateFlow<List<AgentTurnLog>> = _recentTurns
 
+    init {
+        repos.dataGeneration?.let { generation ->
+            viewModelScope.launch {
+                generation.changes.collect { currentSession() }
+            }
+        }
+    }
+
     // Actions
 
-    fun updateInput(text: String) { _input.value = text }
+    fun updateInput(text: String) { currentSession(); _input.value = text }
 
-    fun applyShortcut(prompt: String) { _input.value = prompt }
+    fun applyShortcut(prompt: String) { currentSession(); _input.value = prompt }
 
     fun sendMessage() {
+        val session = currentSession()
         val text = _input.value.trim().ifEmpty { return }
         _input.value = ""
         push(isUser = true, text = text)
@@ -249,14 +282,16 @@ class OrchestratorViewModel(
         viewModelScope.launch {
             _busy.value = true
             val t0  = nowMillis()
-            val turn = agent.process(
+            val turn = session.agent.process(
                 text,
                 AgentProcessingOptions(allowModelFallback = false)
             )
             val ms  = nowMillis() - t0
-            handleTurn(turn)
-            logTurn(text, turn, ms)
-            _busy.value = false
+            handleTurn(turn, session = session)
+            if (session.generation == currentSession().generation) {
+                logTurn(text, turn, ms)
+                _busy.value = false
+            }
         }
     }
 
@@ -264,6 +299,7 @@ class OrchestratorViewModel(
      * Batch-resolves pending import rows as one exercise.
      */
     private fun cleanupPendingReviewsAs(exerciseQuery: String) {
+        val session = currentSession()
         if (DemoGuard.blockIfDemo()) return
         viewModelScope.launch {
             _busy.value = true
@@ -314,20 +350,30 @@ class OrchestratorViewModel(
                 return@launch
             }
 
-            when (val result = service.applyPatches(Uuid.random().toString(), patches, userConfirmed = false)) {
+            when (val result = session.service.applyPatches(Uuid.random().toString(), patches, userConfirmed = false)) {
                 is PatchResult.Applied -> {
+                    if (session.generation != currentSession().generation) return@launch
                     var rows = 0
-                    for (id in resolvedReviewIds) {
-                        try {
-                            repos.pendingReviews.markResolved(id)
-                            rows += 1
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        } catch (t: Throwable) {
-                            push(isUser = false, text = "Couldn't save your answer. Try again.")
-                            break
+                    val resolve: suspend () -> Unit = {
+                        for (id in resolvedReviewIds) {
+                            try {
+                                repos.pendingReviews.markResolved(id)
+                                rows += 1
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (t: Throwable) {
+                                push(isUser = false, text = "Couldn't save your answer. Try again.")
+                                break
+                            }
                         }
                     }
+                    val generation = repos.dataGeneration
+                    if (generation == null) {
+                        resolve()
+                    } else {
+                        generation.withCurrent(session.generation, resolve) ?: return@launch
+                    }
+                    if (session.generation != currentSession().generation) return@launch
                     push(
                         isUser = false,
                         text = "Saved ${countLabel(rows, "set")} as ${exercise.name}.",
@@ -345,7 +391,7 @@ class OrchestratorViewModel(
                 is PatchResult.Rejected -> push(isUser = false, text = "Couldn't clean up pending rows: ${result.reason}")
                 is PatchResult.Failed -> push(isUser = false, text = result.error, isError = true)
             }
-            _busy.value = false
+            if (session.generation == currentSession().generation) _busy.value = false
         }
     }
 
@@ -359,13 +405,14 @@ class OrchestratorViewModel(
     }
 
     fun confirmPending() {
+        val session = currentSession()
         val pending = _confirm.value ?: return
         if (DemoGuard.blockIfDemo()) return
         _confirm.value = null
         viewModelScope.launch {
             _busy.value = true
-            handleTurn(agent.confirm(pending.requestId, pending.patches))
-            _busy.value = false
+            handleTurn(session.agent.confirm(pending.requestId, pending.patches), session = session)
+            if (session.generation == currentSession().generation) _busy.value = false
         }
     }
 
@@ -375,9 +422,10 @@ class OrchestratorViewModel(
     }
 
     fun undo(auditId: Long) {
+        val session = currentSession()
         if (DemoGuard.blockIfDemo()) return
         viewModelScope.launch {
-            handleTurn(agent.undo(auditId), offerUndo = false)
+            handleTurn(session.agent.undo(auditId), offerUndo = false, session = session)
         }
     }
 
@@ -411,26 +459,30 @@ class OrchestratorViewModel(
     }
 
     fun tryRecoveryWithModel(originalText: String) {
+        val session = currentSession()
         val text = originalText.trim()
         if (text.isBlank()) return
         if (DemoGuard.blockIfDemo()) return
         viewModelScope.launch {
             _busy.value = true
             val t0 = nowMillis()
-            val turn = agent.process(
+            val turn = session.agent.process(
                 text,
                 AgentProcessingOptions(allowModelFallback = true)
             )
             val ms = nowMillis() - t0
-            handleTurn(turn)
-            logTurn(text, turn, ms)
-            _busy.value = false
+            handleTurn(turn, session = session)
+            if (session.generation == currentSession().generation) {
+                logTurn(text, turn, ms)
+                _busy.value = false
+            }
         }
     }
 
     // Internal helpers
 
-    private fun handleTurn(turn: AgentTurn, offerUndo: Boolean = true) {
+    private fun handleTurn(turn: AgentTurn, offerUndo: Boolean = true, session: Session) {
+        if (session.generation != currentSession().generation) return
         if (DemoGuard.isDemo && turn.hasWriteEffect()) {
             _confirm.value = null
             DemoGuard.notifyBlocked()
@@ -469,7 +521,7 @@ class OrchestratorViewModel(
                     text = turn.text,
                     card = turn.changes.takeIf { it.isNotEmpty() }?.let(::AiChangesCardUi)
                 )
-                persistPendingReviewDrafts(turn.pendingReviews)
+                persistPendingReviewDrafts(turn.pendingReviews, session)
                 if (turn.auditId != null) {
                     _undoEvent.tryEmit(AgentTurn.Applied(turn.text, turn.auditId))
                 }
@@ -498,12 +550,19 @@ class OrchestratorViewModel(
             else -> false
         }
 
-    private fun persistPendingReviewDrafts(drafts: List<AgentTurn.PendingReviewDraft>) {
+    private fun persistPendingReviewDrafts(drafts: List<AgentTurn.PendingReviewDraft>, session: Session) {
         if (drafts.isEmpty()) return
         viewModelScope.launch {
             for (draft in drafts) {
                 try {
-                    repos.pendingReviews.add(rawInput = draft.rawInput, dateLogged = draft.dateLogged)
+                    val generation = repos.dataGeneration
+                    if (generation == null) {
+                        repos.pendingReviews.add(rawInput = draft.rawInput, dateLogged = draft.dateLogged)
+                    } else {
+                        generation.withCurrent(session.generation) {
+                            repos.pendingReviews.add(rawInput = draft.rawInput, dateLogged = draft.dateLogged)
+                        } ?: return@launch
+                    }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (t: Throwable) {

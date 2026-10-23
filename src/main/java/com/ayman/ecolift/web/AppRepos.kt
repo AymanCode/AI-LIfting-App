@@ -15,9 +15,14 @@ import com.ayman.ecolift.web.supabase.UserSettingsRepository
 import com.ayman.ecolift.web.supabase.WorkoutRepository
 import com.ayman.ecolift.web.supabase.sync.QueuedSet
 import com.ayman.ecolift.web.supabase.sync.SyncStatus
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 interface AppRepos {
+    val dataGeneration: DataGeneration? get() = null
     val exerciseSwaps: com.ayman.ecolift.web.supabase.ExerciseSwapRepository
         get() = com.ayman.ecolift.web.supabase.NoExerciseSwapRepository
     val exercises: ExerciseRepository
@@ -49,4 +54,24 @@ interface AppRepos {
 
     suspend fun loadAll()
     fun close()
+}
+
+class DataGeneration {
+    private val mutex = Mutex()
+    private val current = MutableStateFlow(0L)
+    val changes: StateFlow<Long> = current.asStateFlow()
+
+    suspend fun <T> withCurrent(expected: Long, block: suspend () -> T): T? = mutex.withLock {
+        if (current.value != expected) null else block()
+    }
+
+    suspend fun <T> replace(reload: suspend () -> Unit = {}, block: suspend () -> T): T = mutex.withLock {
+        val result = block()
+        try {
+            reload()
+        } finally {
+            current.value += 1
+        }
+        result
+    }
 }
