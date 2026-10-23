@@ -1,6 +1,7 @@
 package com.ayman.ecolift.android.room
 
 import com.ayman.ecolift.data.AppDatabase
+import com.ayman.ecolift.data.room.Exercise as RoomExercise
 import com.ayman.ecolift.data.WorkoutCardDisplayMode
 import com.ayman.ecolift.data.WorkoutCardOrigin
 import com.ayman.ecolift.data.WorkoutExerciseCard
@@ -151,8 +152,98 @@ class RoomRepos(
 
 internal const val SEED_DEMO_EXTRA = "seedDemo"
 
-internal fun shouldSeedDemo(debug: Boolean, requested: Boolean, hasSets: Boolean): Boolean =
-    debug && requested && !hasSets
+/**
+ * A fresh install already contains the packaged exercise catalog. That catalog is the empty
+ * exercise state. Any other personal row, or any change to those exercises, means the database
+ * is somebody's data and must not be replaced by the demo.
+ */
+internal data class DemoSeedOccupancy(
+    val exercisesAreShippedCatalog: Boolean = true,
+    val hasCycleSlots: Boolean = false,
+    val hasSplitChoices: Boolean = false,
+    val hasCardioSessions: Boolean = false,
+    val hasSplitMembers: Boolean = false,
+    val hasSettings: Boolean = false,
+    val hasCycle: Boolean = false,
+    val hasWorkoutDays: Boolean = false,
+    val hasCards: Boolean = false,
+    val hasPendingReviews: Boolean = false,
+    val hasArchives: Boolean = false,
+    val hasAliases: Boolean = false,
+    val hasDistinctPairs: Boolean = false,
+    val hasSplitAlternatives: Boolean = false,
+) {
+    val occupied: Boolean
+        get() = !exercisesAreShippedCatalog ||
+            hasCycleSlots ||
+            hasSplitChoices ||
+            hasCardioSessions ||
+            hasSplitMembers ||
+            hasSettings ||
+            hasCycle ||
+            hasWorkoutDays ||
+            hasCards ||
+            hasPendingReviews ||
+            hasArchives ||
+            hasAliases ||
+            hasDistinctPairs ||
+            hasSplitAlternatives
+}
+
+internal fun shouldSeedDemo(
+    debug: Boolean,
+    requested: Boolean,
+    hasSets: Boolean,
+    occupancy: DemoSeedOccupancy = DemoSeedOccupancy(),
+): Boolean = debug && requested && !hasSets && !occupancy.occupied
+
+private const val SHIPPED_MUSCLE_GROUPS = "CHEST · TRICEPS"
+
+/** Identities copied from assets/database/ecolift.db. A fresh open always has exactly these rows. */
+internal val SHIPPED_EXERCISE_CATALOG: List<RoomExercise> = listOf(
+    RoomExercise(1, "Dip Machine Weighted", SHIPPED_MUSCLE_GROUPS, false, 1776720714660, null),
+    RoomExercise(2, "Lateral Raise Dumbell", SHIPPED_MUSCLE_GROUPS, false, 1776720765657, null),
+    RoomExercise(3, "Pull Up", SHIPPED_MUSCLE_GROUPS, false, 1776720799292, null),
+    RoomExercise(4, "Row Machine", SHIPPED_MUSCLE_GROUPS, false, 1776720836561, null),
+    RoomExercise(5, "Seated Dip", SHIPPED_MUSCLE_GROUPS, false, 1777509663679, null),
+    RoomExercise(6, "Dip Machine", SHIPPED_MUSCLE_GROUPS, false, 1777509688906, null),
+    RoomExercise(7, "Lateral Raise Machine", SHIPPED_MUSCLE_GROUPS, false, 1777510512774, null),
+    RoomExercise(8, "Standing Calf Raise Machine", SHIPPED_MUSCLE_GROUPS, false, 1777510979540, null),
+    RoomExercise(9, "One Legged Extension Machine", SHIPPED_MUSCLE_GROUPS, false, 1777511853615, null),
+    RoomExercise(10, "Standing Behind The Back Skull Crusher", SHIPPED_MUSCLE_GROUPS, false, 1777511883653, null),
+    RoomExercise(11, "Rear Tether", SHIPPED_MUSCLE_GROUPS, false, 1777512219358, null),
+    RoomExercise(12, "Leaning Dumbell Curl", SHIPPED_MUSCLE_GROUPS, false, 1777512822868, null),
+)
+
+internal fun isShippedExerciseCatalog(rows: List<RoomExercise>): Boolean {
+    if (rows.size != SHIPPED_EXERCISE_CATALOG.size) return false
+    val byId = rows.associateBy { it.id }
+    return SHIPPED_EXERCISE_CATALOG.all { expected ->
+        val row = byId[expected.id] ?: return false
+        row.name == expected.name &&
+            row.muscleGroups == expected.muscleGroups &&
+            !row.isBodyweight &&
+            row.createdAt == expected.createdAt &&
+            row.mergedIntoId == null
+    }
+}
+
+internal suspend fun readDemoSeedOccupancy(db: AppDatabase): DemoSeedOccupancy = DemoSeedOccupancy(
+    exercisesAreShippedCatalog = isShippedExerciseCatalog(db.exerciseDao().getAll()),
+    hasCycleSlots = db.cycleSlotDao().getAll().isNotEmpty(),
+    hasSplitChoices = db.splitMemberChoiceDao().getAll().isNotEmpty(),
+    hasCardioSessions = db.cardioSessionDao().getAll().isNotEmpty(),
+    hasSplitMembers = db.splitExerciseDao().getAll().isNotEmpty(),
+    hasSettings = db.userSettingsDao().get() != null,
+    hasCycle = db.cycleDao().getCycle() != null,
+    hasWorkoutDays = db.workoutDayDao().getAll().isNotEmpty(),
+    hasCards = db.workoutExerciseCardDao().getAll().isNotEmpty(),
+    hasPendingReviews = db.pendingReviewDao().getAll().isNotEmpty(),
+    hasArchives = db.archivedCycleDao().getAll().isNotEmpty(),
+    hasAliases = db.exerciseAliasDao().getAll().isNotEmpty(),
+    hasDistinctPairs = db.exerciseDistinctPairDao().getAll().isNotEmpty(),
+    hasSplitAlternatives = db.splitAlternativeDao().getAll().isNotEmpty(),
+)
 
 private fun demoSessionCards(sets: List<WorkoutSet>): List<WorkoutExerciseCard> {
     val seen = mutableSetOf<Pair<String, Long>>()

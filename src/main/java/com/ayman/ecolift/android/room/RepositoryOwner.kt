@@ -37,7 +37,8 @@ class RepositoryOwner(application: Application) : AndroidViewModel(application) 
             val database = AppDatabase.getInstance(context)
             val repos = RoomRepos(database, viewModelScope)
             graph = repos
-            if (shouldSeedDemo(BuildConfig.DEBUG, seedRequested, database.workoutSetDao().hasAny())) {
+            val occupancy = readDemoSeedOccupancy(database)
+            if (shouldSeedDemo(BuildConfig.DEBUG, seedRequested, database.workoutSetDao().hasAny(), occupancy)) {
                 repos.installDemoSeed(DemoData.generate())
             }
             repos.loadAll()
