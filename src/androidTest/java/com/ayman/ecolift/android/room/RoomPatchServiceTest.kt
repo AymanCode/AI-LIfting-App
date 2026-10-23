@@ -29,6 +29,24 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class RoomPatchServiceTest {
     @Test
+    fun delete_undo_restores_card_after_another_lift_reuses_its_position() = withFixture { repos, _, service ->
+        repos.sets.insert(WorkoutSet(exerciseId = 1, date = DATE, setNumber = 1, weightLbs = 1350, reps = 8))
+        val deleted = repos.sets.getAllSets().single()
+        val originalCard = repos.sets.cards.value.single()
+        val applied = service.applyPatches("delete", listOf(DbPatch.DeleteSet(deleted.id)), true) as PatchResult.Applied
+        repos.sets.insert(WorkoutSet(exerciseId = 2, date = DATE, setNumber = 1, weightLbs = 2250, reps = 5))
+        val unrelated = repos.sets.getAllSets().single()
+        assertEquals(originalCard.position, repos.sets.cards.value.single().position)
+        val undo = service.undo(applied.auditId)
+        assertTrue(undo.toString(), undo is PatchResult.Applied)
+        assertEquals(listOf(deleted, unrelated), repos.sets.getAllSets().sortedBy { it.exerciseId })
+        assertEquals(listOf(1L, 2L), repos.sets.cards.value.sortedBy { it.position }.map { it.exerciseId })
+        assertEquals(listOf(0, 1), repos.sets.cards.value.sortedBy { it.position }.map { it.position })
+        repos.sets.refresh()
+        assertEquals(listOf(deleted, unrelated), repos.sets.getAllSets().sortedBy { it.exerciseId })
+    }
+
+    @Test
     fun rename_publishes_after_commit_and_a_failed_batch_keeps_the_old_name() = withFixture { repos, audit, service ->
         val failed = service.applyPatches(
             "rename-fail",

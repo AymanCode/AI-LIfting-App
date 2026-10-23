@@ -35,6 +35,11 @@ val LocalDate.isoDayNumber: Int get() = dayOfWeek.isoDayNumber
  */
 object DateExtractor {
 
+    fun withoutDateReferences(text: String, today: LocalDate = todayLocalDate()): String =
+        dateReference.replace(text) { match ->
+            if (extract(match.value, today) != null) " " else match.value
+        }
+
     fun extract(text: String, today: LocalDate = todayLocalDate()): String? {
         val t = text.lowercase()
 
@@ -63,9 +68,6 @@ object DateExtractor {
         }
 
         // "April 5th", "march 12", "January 1"
-        val monthDayRe = Regex(
-            """(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?"""
-        )
         monthDayRe.find(t)?.let { m ->
             val monthNames = listOf(
                 "january", "february", "march", "april", "may", "june",
@@ -86,4 +88,12 @@ object DateExtractor {
 
         return null
     }
+
+    private val monthDayRe = Regex(
+        """(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?"""
+    )
+    private val dateReference = Regex(
+        """\b(?:yesterday|today|(?:last\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|${monthDayRe.pattern}|\d{4}-\d{2}-\d{2})\b""",
+        RegexOption.IGNORE_CASE,
+    )
 }
