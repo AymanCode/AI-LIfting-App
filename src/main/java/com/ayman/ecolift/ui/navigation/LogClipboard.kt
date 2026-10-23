@@ -432,6 +432,11 @@ private class ClipboardState {
     }
 }
 
+internal fun clipboardCloseNotifiesQuery(
+    queryDraft: String,
+    query: String,
+): Boolean = queryDraft.isNotEmpty() || query.isNotEmpty()
+
 @Composable
 internal fun LogClipboard(
     currentDate: String,
@@ -528,9 +533,9 @@ internal fun LogClipboard(
     fun close(afterAdd: Boolean = false) {
         closing = true
         focusManager.clearFocus()
-        val typed = state.queryDraft.isNotEmpty() || query.isNotEmpty()
+        val notify = clipboardCloseNotifiesQuery(state.queryDraft, query)
         state.queryDraft = ""
-        if (typed && !afterAdd) onQueryChange("")
+        if (notify) onQueryChange("")
         scope.launch {
             height.animateTo(ClipRestHeight.value, tween(if (afterAdd) 440 else 320, easing = FastOutSlowInEasing))
             state.mode = ClipMode.Rest

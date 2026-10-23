@@ -1297,7 +1297,14 @@ class LogViewModel(
             ?: slot?.name?.trim()?.takeIf { it.isNotEmpty() }
             ?: group?.let { learnedGroupLabel(it, exerciseRepository.exercises.value.associateBy { exercise -> exercise.id }) }
             ?: "Workout"
-        return seedDayFromProposal(currentDate.value, members.inSplit.filterNot { it in skippedExerciseIds }, name, slotId, intent)
+        val present = exerciseRepository.exercises.value.mapTo(HashSet()) { it.id }
+        return seedDayFromProposal(
+            currentDate.value,
+            members.inSplit.filterNot { it in skippedExerciseIds }.filter { it in present },
+            name,
+            slotId,
+            intent,
+        )
     }
 
     /** Suspends until [slotId]'s board can start: read, and not being saved. */

@@ -7,6 +7,8 @@ import com.ayman.ecolift.agent.model.AgentTurnLog
 import com.ayman.ecolift.agent.model.AuditEntity
 import com.ayman.ecolift.android.room.RoomSplitMemberChoice
 import com.ayman.ecolift.android.room.toChoice
+import com.ayman.ecolift.android.room.toRoomChoice
+import com.ayman.ecolift.data.splits.EffectiveSplitMembers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -272,7 +274,7 @@ object DataBackupManager {
             if (snapshot.exercises.isNotEmpty()) db.exerciseDao().insertAll(snapshot.exercises)
             snapshot.cycle?.let { db.cycleDao().upsert(it) }
             if (snapshot.cycleSlots.isNotEmpty()) db.cycleSlotDao().insertAll(snapshot.cycleSlots)
-            snapshot.splitMemberChoices.forEach { db.splitMemberChoiceDao().upsert(it) }
+            keptSplitBoards(snapshot).forEach { db.splitMemberChoiceDao().upsert(it) }
             if (snapshot.workoutDays.isNotEmpty()) db.workoutDayDao().insertAll(snapshot.workoutDays)
             if (snapshot.exerciseAliases.isNotEmpty()) db.exerciseAliasDao().insertAll(snapshot.exerciseAliases)
             if (snapshot.exerciseDistinctPairs.isNotEmpty()) {
@@ -299,6 +301,27 @@ object DataBackupManager {
             snapshot.userSettings?.let { db.userSettingsDao().upsert(it) }
             if (snapshot.cardioSessions.isNotEmpty()) db.cardioSessionDao().insertAll(snapshot.cardioSessions)
             Migrations.backfillLegacyCards(db.openHelper.writableDatabase)
+        }
+    }
+
+    private fun keptSplitBoards(snapshot: UserDataBackup): List<RoomSplitMemberChoice> {
+        val slotIds = snapshot.cycleSlots.mapTo(HashSet()) { it.id }
+        val exerciseIds = snapshot.exercises.mapTo(HashSet()) { it.id }
+        return snapshot.splitMemberChoices.mapNotNull { row ->
+            if (row.splitId !in slotIds) return@mapNotNull null
+            val choice = row.toChoice()
+            if (choice.board.inSplit.isEmpty() && choice.board.otherOptions.isEmpty()) {
+                return@mapNotNull row
+            }
+            val board = EffectiveSplitMembers.of(
+                choice.board.inSplit.filter { it in exerciseIds },
+                choice.board.otherOptions.filter { it in exerciseIds },
+            )
+            if (board.inSplit.isEmpty() && board.otherOptions.isEmpty()) {
+                null
+            } else {
+                choice.copy(board = board).toRoomChoice()
+            }
         }
     }
 

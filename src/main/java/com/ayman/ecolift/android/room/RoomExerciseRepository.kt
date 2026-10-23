@@ -60,7 +60,9 @@ class RoomExerciseRepository(
             ?: rows.associateBy { it.id }.also { canonicalSnapshot = rows to it }
         var current = id
         repeat(16) {
-            val next = byId[current]?.mergedIntoId ?: return current
+            val row = byId[current] ?: return current
+            val next = row.mergedIntoId ?: return current
+            if (next !in byId) return current
             current = next
         }
         if (byId[current]?.mergedIntoId != null) {

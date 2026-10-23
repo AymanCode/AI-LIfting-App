@@ -148,7 +148,7 @@ fun AiScreen(
             viewModel.updateInput(text)
         },
         onSend = {
-            viewModel.sendMessage()
+            viewModel.sendMessage(chatDraft)
             chatDraft = ""
         },
         onQuickAction = { action ->

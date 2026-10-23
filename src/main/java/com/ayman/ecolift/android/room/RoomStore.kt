@@ -169,6 +169,16 @@ class RoomStore(val db: AppDatabase) {
     }
 }
 
+private fun mergeChainEndsAt(start: Long, keeper: Long, mergedInto: Map<Long, Long?>): Boolean {
+    var current = start
+    val seen = HashSet<Long>()
+    while (true) {
+        if (current == keeper) return true
+        if (!seen.add(current)) return false
+        current = mergedInto[current] ?: return false
+    }
+}
+
 class RoomDraft(
     val db: AppDatabase,
     var exercises: List<Exercise>,
@@ -245,13 +255,16 @@ class RoomDraft(
     }
 
     suspend fun deleteExerciseRow(id: Long) {
+        val mergedInto = exercises.associate { it.id to it.mergedIntoId }
+        val removing = exercises.map { it.id }.filterTo(HashSet()) { mergeChainEndsAt(it, id, mergedInto) }
+        removing += id
         val choices = db.splitMemberChoiceDao().getAll()
         var changed = false
         for (row in choices) {
             val choice = row.toChoice()
             val board = EffectiveSplitMembers.of(
-                choice.board.inSplit.filterNot { it == id },
-                choice.board.otherOptions.filterNot { it == id },
+                choice.board.inSplit.filterNot { it in removing },
+                choice.board.otherOptions.filterNot { it in removing },
             )
             if (board != choice.board) {
                 db.splitMemberChoiceDao().upsert(choice.copy(revision = choice.revision + 1L, board = board).toRoomChoice())
@@ -259,13 +272,13 @@ class RoomDraft(
             }
         }
         if (changed) splitChoicesAfterCommit = db.splitMemberChoiceDao().getAll()
-        db.exerciseDao().deleteById(id)
-        exercises = exercises.filterNot { it.id == id }
-        aliases = aliases.filterNot { it.exerciseId == id }
-        pairs = pairs.filterNot { it.exerciseIdA == id || it.exerciseIdB == id }
-        sets = sets.filterNot { it.exerciseId == id }
-        cards = cards.filterNot { it.exerciseId == id }
-        splitExercises = splitExercises.filterNot { it.exerciseId == id }
+        for (removed in removing) db.exerciseDao().deleteById(removed)
+        exercises = exercises.filterNot { it.id in removing }
+        aliases = aliases.filterNot { it.exerciseId in removing }
+        pairs = pairs.filterNot { it.exerciseIdA in removing || it.exerciseIdB in removing }
+        sets = sets.filterNot { it.exerciseId in removing }
+        cards = cards.filterNot { it.exerciseId in removing }
+        splitExercises = splitExercises.filterNot { it.exerciseId in removing }
     }
 
     suspend fun insertAlias(alias: ExerciseAlias): ExerciseAlias? {
