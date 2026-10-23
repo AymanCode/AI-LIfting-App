@@ -1,6 +1,9 @@
 package com.ayman.ecolift.ui.viewmodel
 
+import com.ayman.ecolift.android.room.PendingReviewSet
 import com.ayman.ecolift.data.Exercise
+import com.ayman.ecolift.data.PendingReview
+import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutSet
 import com.ayman.ecolift.data.hub.HubBuild
 import com.ayman.ecolift.data.hub.UncheckedSetsItem
@@ -54,11 +57,25 @@ data class NoticedUi(
 
 data class AskedUi(val messageId: Long, val question: String, val dateLabel: String)
 
+internal fun pendingReviewSet(exercise: Exercise?, weightInput: String, repsInput: String): PendingReviewSet? {
+    exercise ?: return null
+    val reps = repsInput.toIntOrNull()?.takeIf { it in 1..100 } ?: return null
+    val weight = if (exercise.isBodyweight && weightInput.isBlank()) {
+        null
+    } else {
+        val pounds = weightInput.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0 && it < Int.MAX_VALUE / 10.0 }
+            ?: return null
+        WeightLbs.fromLbs(pounds).takeIf { it > 0 } ?: return null
+    }
+    return PendingReviewSet(exercise.id, weight, reps)
+}
+
 data class IronMindDeskUi(
     val decisions: List<DeskDecisionUi> = emptyList(),
     val noticed: List<NoticedUi> = emptyList(),
     val asked: List<AskedUi> = emptyList(),
     val uncheckedSets: Int = 0,
+    val pendingReviews: List<PendingReview> = emptyList(),
 ) {
     val decisionCount: Int get() = decisions.size
 }

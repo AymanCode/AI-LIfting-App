@@ -2137,7 +2137,7 @@ private fun SketchProgressChart(
             val latestX = xFor(values.lastIndex)
             val latestY = yFor(values.last())
             val label = textMeasurer.measure(
-                formatWholeNumber(values.last()),
+                formatMetricValue(values.last(), selectedMetric),
                 style = TextStyle(
                     color = EspressoPalette.ink,
                     fontSize = 13.sp,

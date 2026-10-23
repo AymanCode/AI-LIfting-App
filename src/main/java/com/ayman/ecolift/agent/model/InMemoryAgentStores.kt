@@ -4,16 +4,20 @@ class InMemoryAuditStore {
     private val entries = mutableListOf<AuditEntity>()
     private var nextId = 1L
 
+    @Synchronized
     fun insert(entity: AuditEntity): Long {
         val id = nextId++
         entries += entity.copy(id = id)
         return id
     }
 
+    @Synchronized
     fun getById(id: Long): AuditEntity? = entries.firstOrNull { it.id == id }
 
+    @Synchronized
     fun getRecent(limit: Int): List<AuditEntity> = entries.takeLast(limit).reversed()
 
+    @Synchronized
     fun all(): List<AuditEntity> = entries.toList()
 }
 

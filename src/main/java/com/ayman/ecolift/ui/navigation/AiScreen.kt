@@ -1,5 +1,8 @@
 package com.ayman.ecolift.ui.navigation
 
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -20,6 +23,7 @@ import com.ayman.ecolift.web.LocalAppServices
 import com.ayman.ecolift.web.LocalRepos
 import com.ayman.ecolift.web.demo.DemoGuard
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -45,6 +49,21 @@ fun AiScreen(
         OrchestratorViewModel(repos, services.genAiEngine())
     }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val reviewError by viewModel.reviewError.collectAsStateWithLifecycle()
+    val exercises by repos.exercises.exercises.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var reviewTarget by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(viewModel, snackbarHostState) {
+        viewModel.undoEvent.collectLatest { applied ->
+            val result = snackbarHostState.showSnackbar(
+                message = applied.text,
+                actionLabel = "Undo",
+                withDismissAction = true,
+                duration = SnackbarDuration.Long,
+            )
+            if (result == SnackbarResult.ActionPerformed) viewModel.undo(applied.auditId)
+        }
+    }
 
     // The hub lives on this screen, so its state is collected here rather than in
     // AppNavigation, which only needs the badge count.
@@ -80,17 +99,7 @@ fun AiScreen(
                 text = msg.text,
                 timestamp = clockLabel(msg.timestampMillis),
                 timestampMillis = msg.timestampMillis,
-                card = msg.card?.toIronMindCard() ?: if (uiState.pendingAction != null && msg == uiState.messages.last()) {
-                    StatsPayload(
-                        exerciseName = "Needs review",
-                        pr = null,
-                        estimatedOneRm = null,
-                        lastSession = uiState.pendingAction?.title,
-                        sessionCount = null
-                    )
-                } else {
-                    null
-                },
+                card = msg.card?.toIronMindCard(),
                 recovery = msg.recovery?.let {
                     RecoveryPayload(
                         title = it.title,
@@ -143,6 +152,13 @@ fun AiScreen(
         onSignOut = { },
         hubBuild = hubBuild,
         desk = desk,
+        pendingAction = uiState.pendingAction,
+        onApplyPending = viewModel::confirmPending,
+        onCancelPending = viewModel::dismissPending,
+        onResolveReview = { review -> reviewTarget = review.id; viewModel.clearReviewError() },
+        onDismissReview = viewModel::dismissSavedReview,
+        reviewError = if (reviewTarget == null) reviewError else null,
+        snackbarHostState = snackbarHostState,
         onKeepGroup = { if (!DemoGuard.blockIfDemo()) renameTarget = it },
         onRetireGroup = { if (!DemoGuard.blockIfDemo()) retireTarget = it },
         onOpenGroup = onOpenGroup,
@@ -171,6 +187,19 @@ fun AiScreen(
         onSettingsOpenedOnStart = onSettingsOpenedOnStart,
         modifier = modifier
     )
+    LaunchedEffect(reviewTarget, desk.pendingReviews) {
+        if (reviewTarget != null && desk.pendingReviews.none { it.id == reviewTarget }) reviewTarget = null
+    }
+    desk.pendingReviews.firstOrNull { it.id == reviewTarget }?.let { review ->
+        SavedReviewSheet(
+            review = review,
+            exercises = exercises,
+            busy = uiState.isWorking,
+            error = reviewError,
+            onApply = { viewModel.resolveSavedReview(review.id, it) },
+            onDismiss = { reviewTarget = null; viewModel.clearReviewError() },
+        )
+    }
     renameTarget?.let { target ->
         RenameSplitSheet(initialName = "", onDismiss = { renameTarget = null }, onConfirm = { name ->
             hubViewModel.nameDeskGroup(target.slotId, name)

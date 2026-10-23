@@ -110,6 +110,7 @@ class RoomStore(val db: AppDatabase) {
                         value
                     }
                     publish(draft)
+                    draft.afterCommit.forEach { it() }
                     result
                 }
             }
@@ -176,6 +177,7 @@ class RoomDraft(
     var journal: Map<String, PreparedSplitReplacement>,
     var alternatives: List<SplitAlternative>,
 ) {
+    internal val afterCommit = mutableListOf<() -> Unit>()
     private var setsAtOpen: List<WorkoutSet> = sets
     private val bumpedDays = mutableSetOf<String>()
     suspend fun reloadAll() {

@@ -32,21 +32,27 @@ class AgentToolsImpl(
             ?.let { return ExerciseMatch(it, 0.0) }
 
         // 1. Exact substring
-        all.firstOrNull { it.name.lowercase().contains(query) || query.contains(it.name.lowercase()) }
+        all.firstOrNull { it.name.lowercase().contains(query) }
             ?.let { return ExerciseMatch(it, 0.0) }
 
-        // 2. Word-level - any significant query word (>2 chars) appears in exercise name
+        // Every query word must match; one shared word cannot identify an exercise.
         val queryWords = query.split(Regex("\\s+")).filter { it.length > 2 }
         all.firstOrNull { ex ->
-            val exLower = ex.name.lowercase()
-            queryWords.any { qw -> exLower.contains(qw) }
+            val words = ex.name.lowercase().split(Regex("\\s+"))
+            queryWords.isNotEmpty() &&
+                queryWords.all { queryWord ->
+                words.any { word ->
+                    word == queryWord ||
+                        (queryWord.length >= 5 && FuzzyMatcher.levenshteinDistance(queryWord, word) <= 2)
+                }
+            }
         }?.let { return ExerciseMatch(it, 1.0) }
 
         // 3. Levenshtein fallback on full query string
         val best = all.minByOrNull { FuzzyMatcher.levenshteinDistance(query, it.name.lowercase()) }
             ?: return null
         val score = FuzzyMatcher.levenshteinDistance(query, best.name.lowercase()).toDouble()
-        if (score > (query.length / 2.0).coerceAtLeast(3.0)) return null
+        if (score > (query.length / 4.0).coerceIn(1.0, 2.0)) return null
 
         return ExerciseMatch(best, score)
     }

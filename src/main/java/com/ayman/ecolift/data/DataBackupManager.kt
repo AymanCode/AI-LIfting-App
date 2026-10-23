@@ -18,6 +18,7 @@ import java.io.IOException
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import com.ayman.ecolift.data.room.ArchivedCycle as RoomArchivedCycle
 import com.ayman.ecolift.data.room.CardioSession as RoomCardioSession
@@ -108,10 +109,10 @@ object DataBackupManager {
 
     suspend fun importFromUri(context: Context, db: AppDatabase, uri: Uri): BackupResult =
         withContext(Dispatchers.IO) {
-            createAutomaticBackup(context, db, reason = "pre-import", force = true)
             val snapshot = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
                 json.decodeFromString<UserDataBackup>(reader.readText())
             } ?: throw IOException("Unable to read backup file.")
+            createAutomaticBackup(context, db, reason = "pre-import", force = true)
             restoreSnapshot(db, snapshot)
             snapshot.toResult()
         }
@@ -131,7 +132,7 @@ object DataBackupManager {
 
         val snapshot = buildSnapshot(db, source = "automatic-$reason")
         val directory = automaticBackupDirectory(context).apply { mkdirs() }
-        val fileName = "ecolift-auto-${timestampFormatter.format(Instant.ofEpochMilli(snapshot.metadata.createdAtEpochMs))}.json"
+        val fileName = "ecolift-auto-${timestampFormatter.format(Instant.ofEpochMilli(snapshot.metadata.createdAtEpochMs))}-${UUID.randomUUID()}.json"
         val file = File(directory, fileName)
         file.writeText(json.encodeToString(snapshot))
         trimFiles(directory, AUTO_BACKUP_RETENTION)
@@ -147,12 +148,12 @@ object DataBackupManager {
         db: AppDatabase,
         fileName: String,
     ): BackupResult = withContext(Dispatchers.IO) {
-        createAutomaticBackup(context, db, reason = "pre-restore", force = true)
         val file = File(automaticBackupDirectory(context), fileName)
         if (!file.exists()) {
             throw IOException("Backup file not found: $fileName")
         }
         val snapshot = json.decodeFromString<UserDataBackup>(file.readText())
+        createAutomaticBackup(context, db, reason = "pre-restore", force = true)
         restoreSnapshot(db, snapshot)
         snapshot.toResult()
     }

@@ -15,7 +15,6 @@ shot progress
 tap-xy 333 2198
 wait-text Find exercise
 wait 1500
-swipe 540 1500 540 1000 700
 wait 1200
 
 shot splits

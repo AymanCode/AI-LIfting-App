@@ -51,13 +51,13 @@ internal fun buildHeldSections(
     fun row(lift: Long, faded: Boolean): HeldLiftRowUi? {
         val exercise = byId[lift] ?: return null
         if (needle.isNotEmpty() && needle !in exercise.name.lowercase()) return null
-        val report = reportBefore(setsByLift[lift].orEmpty(), exercise.isBodyweight, day)
+        val report = ticketHistoryBefore(setsByLift[lift].orEmpty(), exercise.isBodyweight, day)
         return HeldLiftRowUi(
             exerciseId = lift,
             name = exercise.name,
             primaryGroup = primaryGroupOf(exercise.muscleGroups),
             topSetLabel = report.topSet?.let { formatTicketTopSet(it, exercise.isBodyweight) },
-            stake = stakeFrom(report, exercise.isBodyweight),
+            stake = report.stake,
             faded = faded,
         )
     }

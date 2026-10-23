@@ -1,5 +1,7 @@
 package com.ayman.ecolift.android.room
 
+import com.ayman.ecolift.agent.patches.AtomicPatchRepository
+import com.ayman.ecolift.agent.patches.PatchUndo
 import com.ayman.ecolift.data.DateVolume
 import com.ayman.ecolift.data.ExerciseMaxWeight
 import com.ayman.ecolift.data.ExerciseProgressSummary
@@ -14,6 +16,7 @@ import com.ayman.ecolift.data.isCheckedWorking
 import com.ayman.ecolift.data.normalizedBodyweightLoad
 import com.ayman.ecolift.data.room.toDomain
 import com.ayman.ecolift.data.room.toRoom
+import com.ayman.ecolift.web.supabase.ExerciseRepository
 import com.ayman.ecolift.web.supabase.SetRepository
 import com.ayman.ecolift.web.supabase.sync.LocalCommit
 import kotlinx.coroutines.flow.Flow
@@ -22,9 +25,58 @@ import kotlinx.coroutines.flow.map
 
 class RoomSetRepository(
     private val store: RoomStore,
-) : SetRepository {
+) : SetRepository, AtomicPatchRepository {
     override val sets: StateFlow<List<WorkoutSet>> = store.sets
     override val cards: StateFlow<List<WorkoutExerciseCard>> = store.cards
+
+    override suspend fun applyAtomically(exercises: ExerciseRepository, prepare: suspend () -> (() -> Unit)) {
+        store.write {
+            val commitAudit = prepare()
+            afterCommit += {
+                commitAudit()
+                (exercises as? RoomExerciseRepository)?.publishVisible()
+            }
+        }
+    }
+
+    override suspend fun deleteWithUndo(setId: Long): PatchUndo = store.write {
+        val row = sets.first { it.id == setId }
+        val before = captureGroup(row.date, row.exerciseId)
+        deleteSetRow(setId)
+        groupUndo(before, captureGroup(row.date, row.exerciseId))
+    }
+
+    private fun groupUndo(desired: SetGroup, expected: SetGroup): PatchUndo = PatchUndo {
+        store.write {
+            val current = captureGroup(desired.date, desired.exerciseId)
+            check(current.sameContents(expected)) { "These sets changed after the assistant edit. Undo was not applied." }
+            removeSets(current.rows.map { it.id })
+            deleteCards(current.cards.map { it.id })
+            desired.cards.forEach { insertCard(it) }
+            desired.rows.forEach { row ->
+                db.workoutSetDao().insert(row.toRoom())
+                sets = sets + row
+            }
+            groupUndo(current, captureGroup(desired.date, desired.exerciseId))
+        }
+    }
+
+    private fun RoomDraft.captureGroup(date: String, exerciseId: Long) = SetGroup(
+        date,
+        exerciseId,
+        sets.filter { it.date == date && it.exerciseId == exerciseId }.sortedBy { it.id },
+        cards.filter { it.date == date && it.exerciseId == exerciseId }.sortedBy { it.id },
+    )
+
+    private data class SetGroup(
+        val date: String,
+        val exerciseId: Long,
+        val rows: List<WorkoutSet>,
+        val cards: List<WorkoutExerciseCard>,
+    ) {
+        fun sameContents(other: SetGroup): Boolean =
+            rows.map { it.copy(rowRevision = 0) } == other.rows.map { it.copy(rowRevision = 0) } && cards == other.cards
+    }
 
     override suspend fun refresh() {
         store.write {
