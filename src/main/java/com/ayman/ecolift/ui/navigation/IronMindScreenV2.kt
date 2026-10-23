@@ -1137,12 +1137,14 @@ private fun IronMindSettingsSheet(
 
         val deviceActions = LocalAndroidDeviceActions.current
         if (deviceActions != null) {
-            SettingsActionRow(label = "Backup", onClick = deviceActions.backup)
-            SettingsActionRow(label = "Restore", onClick = deviceActions.restore)
+            SettingsActionRow(label = "Backup", onClick = deviceActions.backup, enabled = !deviceActions.busy)
+            SettingsActionRow(label = "Restore", onClick = deviceActions.restore, enabled = !deviceActions.busy)
+            SettingsActionRow(label = "Local backups", onClick = deviceActions.localBackups, enabled = !deviceActions.busy)
             SettingsActionRow(
                 label = "Health Connect",
                 onClick = deviceActions.importHealth,
                 trailing = deviceActions.healthSessionsAdded?.toString(),
+                enabled = !deviceActions.busy,
             )
         }
 
@@ -1225,14 +1227,14 @@ private fun IronMindSettingsSheet(
 }
 
 @Composable
-private fun SettingsActionRow(label: String, onClick: () -> Unit, trailing: String? = null) {
+private fun SettingsActionRow(label: String, onClick: () -> Unit, trailing: String? = null, enabled: Boolean = true) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(EspressoShape.card)
             .background(EspressoPalette.panel)
             .semantics { role = Role.Button; contentDescription = label }
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
