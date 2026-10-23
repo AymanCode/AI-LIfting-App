@@ -119,7 +119,7 @@ class PickerRetireTest {
                 override val model: StateFlow<LearnedModel> = MutableStateFlow(MODEL)
             }
         }
-        return LogViewModel(repos, isOnline = { false })
+        return LogViewModel(repos, isOnline = { false }, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
     }
 
     private companion object {

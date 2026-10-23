@@ -52,6 +52,7 @@ class MuscleGroupFailureTest {
         val viewModel = LogViewModel(
             object : AppRepos by base { override val exercises: ExerciseRepository = failing },
             isOnline = { false },
+            derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate,
         )
 
         val message = async(start = CoroutineStart.UNDISPATCHED) {

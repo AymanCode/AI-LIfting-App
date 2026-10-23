@@ -97,7 +97,7 @@ class LogViewModelMutationTest {
             WorkoutSet(102L, 10L, DATE, 2, 100, 8, syncId = "mutation-set-2"),
         )
         val data = ViewModelMutationTestRepos(initial)
-        val vm = LogViewModel(data.repos, isOnline = { false })
+        val vm = LogViewModel(data.repos, isOnline = { false }, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
 
         suspend fun showDate() {
             vm.selectDate(DATE)

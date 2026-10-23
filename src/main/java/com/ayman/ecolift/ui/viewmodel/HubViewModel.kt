@@ -17,12 +17,14 @@ import com.ayman.ecolift.web.AppRepos
 import com.ayman.ecolift.web.supabase.AssistantChangeRow
 import com.ayman.ecolift.web.supabase.sync.orThrow
 import com.ayman.ecolift.web.util.todayLocalDate
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -30,6 +32,7 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.minus
+import kotlin.coroutines.CoroutineContext
 
 data class HubTopSets(val last: String?, val best: String?)
 
@@ -126,6 +129,7 @@ internal object AssistantChangeSeenStore {
 
 class HubViewModel(
     private val repos: AppRepos,
+    private val derivationContext: CoroutineContext = Dispatchers.Default,
 ) : ViewModel() {
 
     private val _claudeChanges = MutableStateFlow<List<ClaudeChangeUi>>(emptyList())
@@ -180,7 +184,7 @@ class HubViewModel(
             individualReviewFrom = individualReviewFrom(today),
         )
         HubSnapshot(sets, exercises, hub)
-    }.stateIn(
+    }.flowOn(derivationContext).stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
         HubSnapshot(emptyList(), emptyList(), HubBuild(days = emptyList(), backlog = null, count = 0)),
@@ -224,7 +228,7 @@ class HubViewModel(
         repos.learnedSplits.model, snapshot, dismissedItemIds, sessionMessages,
     ) { model, current, dismissed, messages ->
         projectIronMindDesk(model, current.sets, current.exercises, current.build.withoutItems(dismissed), messages, todayLocalDate())
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), IronMindDeskUi())
+    }.flowOn(derivationContext).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), IronMindDeskUi())
 
     /** The masthead and navigation badge count decisions, never observations or cleanup. */
     val count: StateFlow<Int> = desk
@@ -249,6 +253,7 @@ class HubViewModel(
             }
             result
         }
+        .flowOn(derivationContext)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private val _hubMessage = MutableStateFlow<String?>(null)

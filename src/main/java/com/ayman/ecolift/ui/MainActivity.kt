@@ -2,7 +2,9 @@ package com.ayman.ecolift.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -19,6 +21,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
 import com.ayman.ecolift.BuildConfig
+import com.ayman.ecolift.R
 import com.ayman.ecolift.android.platform.AndroidDeviceActions
 import com.ayman.ecolift.android.platform.AndroidHost
 import com.ayman.ecolift.android.platform.LocalAndroidDeviceActions
@@ -32,8 +35,6 @@ import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.CardioRepository
 import com.ayman.ecolift.data.DataBackupManager
 import com.ayman.ecolift.ui.navigation.AppNavigation
-import com.ayman.ecolift.ui.theme.EspressoGlassPalette
-import com.ayman.ecolift.ui.theme.GlassAmbientBackground
 import com.ayman.ecolift.ui.theme.loadAppFonts
 import com.ayman.ecolift.web.LocalAppServices
 import com.ayman.ecolift.web.LocalRepos
@@ -51,24 +52,24 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         AndroidHost.install(this)
         PhotoPickerBridge.register(this)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         val seedRequested = intent.getBooleanExtra(SEED_DEMO_EXTRA, false)
-        setContent {
-            GlassAmbientBackground(EspressoGlassPalette)
-        }
+        setContentView(View(this).apply { setBackgroundColor(getColor(R.color.startup_espresso)) })
         lifecycleScope.launch {
-            loadAppFonts()
-            val database = withContext(Dispatchers.IO) {
-                AppDatabase.getInstance(this@MainActivity)
-            }
-            val roomRepos = RoomRepos(db = database, scope = lifecycleScope)
-            repos = roomRepos
-            withContext(Dispatchers.IO) {
+            val (database, roomRepos) = withContext(Dispatchers.IO) {
+                loadAppFonts()
+                val database = AppDatabase.getInstance(this@MainActivity)
+                val roomRepos = RoomRepos(db = database, scope = lifecycleScope)
                 if (shouldSeedDemo(BuildConfig.DEBUG, seedRequested, database.workoutSetDao().hasAny())) {
                     roomRepos.installDemoSeed(DemoData.generate())
                 }
                 roomRepos.loadAll()
+                database to roomRepos
             }
+            repos = roomRepos
             setContent {
                 LoadedApp(repos = roomRepos, database = database)
             }

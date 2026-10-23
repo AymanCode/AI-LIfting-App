@@ -29,6 +29,9 @@ class RoomExerciseRepository(
 ) : ExerciseRepository {
     private val visible = MutableStateFlow<List<Exercise>>(emptyList())
 
+    @Volatile
+    private var canonicalSnapshot: Pair<List<Exercise>, Map<Long, Exercise>>? = null
+
     override val exercises: StateFlow<List<Exercise>> = visible
 
     override fun observeAliases(): StateFlow<List<ExerciseAlias>> = store.aliases
@@ -52,7 +55,9 @@ class RoomExerciseRepository(
         store.exercisesNow().associate { it.id to it.mergedIntoId }
 
     override fun canonicalId(id: Long): Long {
-        val byId = store.exercisesNow().associateBy { it.id }
+        val rows = store.exercisesNow()
+        val byId = canonicalSnapshot?.takeIf { it.first === rows }?.second
+            ?: rows.associateBy { it.id }.also { canonicalSnapshot = rows to it }
         var current = id
         repeat(16) {
             val next = byId[current]?.mergedIntoId ?: return current

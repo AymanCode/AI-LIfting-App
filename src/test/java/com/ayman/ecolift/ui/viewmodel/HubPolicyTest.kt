@@ -211,7 +211,7 @@ class HubPolicyTest {
         val checked = captured.copy(completed = true, rowRevision = 2L)
         data.currentSets.value = listOf(checked, stillOpen)
 
-        HubViewModel(data.repos).clearOpenSets(item)
+        HubViewModel(data.repos, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate).clearOpenSets(item)
         withTimeout(2_000L) { data.deletedIds.first { stillOpen.id in it } }
 
         assertEquals(listOf(checked), data.currentSets.value)
@@ -227,7 +227,7 @@ class HubPolicyTest {
         val current = captured.copy(id = 41L, weightLbs = 1_250, reps = 10, rowRevision = 3L)
         data.currentSets.value = listOf(current)
 
-        HubViewModel(data.repos).confirmItem(item)
+        HubViewModel(data.repos, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate).confirmItem(item)
         withTimeout(2_000L) { data.currentSets.first { rows -> rows.single().completed } }
 
         assertEquals(listOf(current.copy(completed = true)), data.currentSets.value)
@@ -244,7 +244,7 @@ class HubPolicyTest {
         data.currentSets.value = listOf(checked, stillOpen)
         val backlog = BacklogItem("backlog", captured.date, captured.date, 2, 1)
 
-        HubViewModel(data.repos).clearBacklog(backlog, snapshot)
+        HubViewModel(data.repos, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate).clearBacklog(backlog, snapshot)
         withTimeout(2_000L) { data.deletedIds.first { stillOpen.id in it } }
 
         assertEquals(listOf(checked), data.currentSets.value)

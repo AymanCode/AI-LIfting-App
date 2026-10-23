@@ -273,6 +273,7 @@ class CatalogRefusalViewModelTest {
                 override val sets: SetRepository = this@AddHarness.sets
             },
             isOnline = { online },
+            derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate,
         )
 
         suspend fun showDate() {
@@ -322,6 +323,7 @@ class CatalogRefusalViewModelTest {
                 override val sets: SetRepository = this@BackfillHarness.sets
             },
             isOnline = { false },
+            derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate,
         )
 
         suspend fun showDate() {
@@ -454,6 +456,7 @@ class CatalogRefusalViewModelTest {
                     MuscleClassification(BETA, "CALVES", 0.93),
                 )
             },
+            derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate,
         )
 
         suspend fun showDate() {
@@ -526,6 +529,7 @@ class CatalogRefusalViewModelTest {
                 override val workout: WorkoutRepository = this@SwitchHarness.workout
                 override val splitReplacement: SplitReplacementCoordinator = coordinator
             },
+            derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate,
         )
 
         suspend fun showDate() {

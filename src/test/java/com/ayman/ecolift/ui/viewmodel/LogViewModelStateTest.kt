@@ -561,6 +561,7 @@ class LogViewModelStateTest {
             isOnline = { false },
             stepCommitContext = stepCommitContext,
             restNowMillis = restNowMillis,
+            derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate,
         )
 
         init {

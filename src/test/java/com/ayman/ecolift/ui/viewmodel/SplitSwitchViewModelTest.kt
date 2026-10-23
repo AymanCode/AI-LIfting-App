@@ -537,7 +537,7 @@ class SplitSwitchViewModelTest {
             override val workout: WorkoutRepository = workoutRepository
             override val splitReplacement: SplitReplacementCoordinator = coordinator
         }
-        val viewModel = LogViewModel(repos)
+        val viewModel = LogViewModel(repos, derivationContext = kotlinx.coroutines.Dispatchers.Main.immediate)
 
         suspend fun showDate(date: String = DATE, expectedSetCount: Int = setRepository.forDate(DATE).size) {
             viewModel.selectDate(date)
