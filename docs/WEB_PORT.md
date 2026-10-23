@@ -19,13 +19,16 @@ Resource calls change at the copy. `Res.drawable.name` becomes `R.drawable.name`
 - The Health Connect reader, ML Kit OCR, `GeminiNanoEngine`, and `GroqCloudAgent` stay.
 - `MainActivity` and `PermissionsRationaleActivity` stay.
 
-## Divergences
+## Android divergences
 
 - There is no login, no sync, and no offline queue. `CurrentAppMode` stays authenticated, so `DemoGuard` does not block. `syncStatus` stays up to date. `assistantChanges` is `NoAssistantChangeRepository`.
 - Exercise swap is local. `exerciseSwaps` is `RoomExerciseSwapRepository`.
 - `CardioViewModel` reads the Android photo pair as mime then base64. `photo.first` is the mime type and `photo.second` is the base64 payload. The snapshot reads base64 then mime.
 - Compose BOM `2025.09.01` resolves `androidx.compose.material3:material3` 1.4.0. `SplitEditorSheet` passes `sheetGesturesEnabled = dragId == null`. Dragging a split row does not dismiss the sheet. Material3 1.3.2, from BOM `2025.08.00`, has no such parameter.
 - `ProgressViewModel` takes `derivationDispatcher` and runs both derived flows on it. The default is `Dispatchers.Default`, so the first Progress open does not block the main thread for several seconds. Unit tests pass the `Main` dispatcher they install.
+- IM-2. IronMind shows the pending action's summary with Apply and Cancel on the desk and in chat. `AiScreen` wires `confirmPending` and `dismissPending` instead of projecting the action as statistics.
+- IM-3. `AiScreen` collects applied chat changes and offers Undo through the existing snackbar host. Undo remains session-only and does not offer another Undo after success.
+- IM-6. `HubViewModel` reads unresolved saved reviews directly from the repository, independently of session messages. Desk rows offer Resolve and Dismiss after restart, and `RoomPendingReviewRepository` saves the explicitly selected set and resolves its review in one transaction.
 
 ## Port a newer snapshot
 

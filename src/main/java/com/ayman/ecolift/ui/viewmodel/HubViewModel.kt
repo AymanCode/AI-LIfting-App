@@ -225,9 +225,10 @@ class HubViewModel(
     }
 
     val desk: StateFlow<IronMindDeskUi> = combine(
-        repos.learnedSplits.model, snapshot, dismissedItemIds, sessionMessages,
-    ) { model, current, dismissed, messages ->
+        repos.learnedSplits.model, snapshot, dismissedItemIds, sessionMessages, repos.pendingReviews.unresolved,
+    ) { model, current, dismissed, messages, reviews ->
         projectIronMindDesk(model, current.sets, current.exercises, current.build.withoutItems(dismissed), messages, todayLocalDate())
+            .copy(pendingReviews = reviews)
     }.flowOn(derivationContext).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), IronMindDeskUi())
 
     /** The masthead and navigation badge count decisions, never observations or cleanup. */

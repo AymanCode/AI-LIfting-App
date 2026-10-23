@@ -21,6 +21,8 @@ import com.ayman.ecolift.agent.router.Intent
 import com.ayman.ecolift.agent.router.IntentRouter
 import com.ayman.ecolift.agent.router.RuleMatcher
 import com.ayman.ecolift.agent.tools.AgentToolsImpl
+import com.ayman.ecolift.android.room.PendingReviewResolver
+import com.ayman.ecolift.android.room.PendingReviewSet
 import com.ayman.ecolift.data.PendingReview
 import com.ayman.ecolift.data.SetQueries
 import com.ayman.ecolift.data.WorkoutDates
@@ -37,6 +39,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
@@ -107,6 +110,47 @@ class OrchestratorViewModel(
     /** One-shot event: UI should show a Snackbar with "Undo" action. */
     private val _undoEvent = MutableSharedFlow<AgentTurn.Applied>(extraBufferCapacity = 1)
     val undoEvent: SharedFlow<AgentTurn.Applied> = _undoEvent.asSharedFlow()
+
+    private val _reviewError = MutableStateFlow<String?>(null)
+    val reviewError: StateFlow<String?> = _reviewError.asStateFlow()
+
+    fun clearReviewError() { _reviewError.value = null }
+
+    fun resolveSavedReview(id: Long, set: PendingReviewSet) {
+        if (_busy.value || DemoGuard.blockIfDemo()) return
+        _busy.value = true
+        _reviewError.value = null
+        viewModelScope.launch {
+            try {
+                val resolver = repos.pendingReviews as? PendingReviewResolver
+                    ?: error("Saved review resolution is unavailable")
+                resolver.resolve(id, set)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (t: Throwable) {
+                _reviewError.value = "Couldn't save your answer. Try again."
+            } finally {
+                _busy.value = false
+            }
+        }
+    }
+
+    fun dismissSavedReview(id: Long) {
+        if (_busy.value || DemoGuard.blockIfDemo()) return
+        _busy.value = true
+        _reviewError.value = null
+        viewModelScope.launch {
+            try {
+                repos.pendingReviews.markResolved(id)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (t: Throwable) {
+                _reviewError.value = "Couldn't save your answer. Try again."
+            } finally {
+                _busy.value = false
+            }
+        }
+    }
 
     // Exposed state
 
@@ -333,7 +377,7 @@ class OrchestratorViewModel(
     fun undo(auditId: Long) {
         if (DemoGuard.blockIfDemo()) return
         viewModelScope.launch {
-            handleTurn(agent.undo(auditId))
+            handleTurn(agent.undo(auditId), offerUndo = false)
         }
     }
 
@@ -386,7 +430,7 @@ class OrchestratorViewModel(
 
     // Internal helpers
 
-    private fun handleTurn(turn: AgentTurn) {
+    private fun handleTurn(turn: AgentTurn, offerUndo: Boolean = true) {
         if (DemoGuard.isDemo && turn.hasWriteEffect()) {
             _confirm.value = null
             DemoGuard.notifyBlocked()
@@ -395,7 +439,6 @@ class OrchestratorViewModel(
         when (turn) {
             is AgentTurn.TextResponse      -> push(isUser = false, text = turn.text, card = turn.card?.toUiCard())
             is AgentTurn.NeedsConfirmation -> {
-                push(isUser = false, text = turn.summary)
                 _confirm.value = turn
             }
             is AgentTurn.Applied -> {
@@ -404,7 +447,7 @@ class OrchestratorViewModel(
                     text = turn.text,
                     card = turn.changes.takeIf { it.isNotEmpty() }?.let(::AiChangesCardUi)
                 )
-                _undoEvent.tryEmit(turn)
+                if (offerUndo) _undoEvent.tryEmit(turn)
             }
             is AgentTurn.RecoverableFailure -> {
                 push(
