@@ -11,6 +11,7 @@ import com.ayman.ecolift.web.demo.DemoData
 import com.ayman.ecolift.web.demo.DemoRepos
 import com.ayman.ecolift.web.supabase.CardioRepository
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
@@ -112,5 +113,38 @@ class CardioRestoreGenerationTest {
         testScheduler.advanceUntilIdle()
         assertFalse(harness.viewModel.uiState.value.scanning)
         assertNull(harness.viewModel.uiState.value.draft)
+    }
+
+    @Test
+    fun a_queued_delete_leaves_the_session_restored_under_the_same_id() = runVmTest {
+        val original = session("2026-10-23", minutes = 20, id = 7).copy(notes = "original", localUuid = "uuid-a")
+        val restored = original.copy(notes = "restored", localUuid = "uuid-b", durationSec = 2400)
+        val generation = DataGeneration()
+        val stored = MutableStateFlow(listOf(original))
+        val gate = CompletableDeferred<Unit>()
+        val base = DemoRepos(DemoData.generate(LocalDate(2026, 10, 23)).copy(cardio = listOf(original)))
+        val cardio = object : CardioRepository by base.cardio {
+            override suspend fun delete(id: Long) {
+                gate.await()
+                stored.value = stored.value.filter { it.id != id }
+            }
+        }
+        val repos = object : AppRepos by base {
+            override val dataGeneration = generation
+            override val cardio: CardioRepository = cardio
+        }
+        val viewModel = CardioViewModel(repos, vision, photoPicker = {})
+        viewModel.deleteSession(7)
+        testScheduler.advanceUntilIdle()
+        val restoring = launch {
+            generation.replace {
+                stored.value = listOf(restored)
+            }
+        }
+        testScheduler.advanceUntilIdle()
+        gate.complete(Unit)
+        restoring.join()
+        testScheduler.advanceUntilIdle()
+        assertEquals(restored, stored.value.single())
     }
 }

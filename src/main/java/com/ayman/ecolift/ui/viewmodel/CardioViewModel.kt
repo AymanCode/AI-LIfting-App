@@ -940,8 +940,13 @@ class CardioViewModel(
 
     fun deleteSession(id: Long) {
         if (DemoGuard.blockIfDemo()) return
+        val expected = dataGeneration()
         viewModelScope.launch {
-            repository.delete(id)
+            withDataGeneration(expected) {
+                repository.delete(id)
+                true
+            } ?: return@launch
+            if (dataGeneration() != expected) return@launch
             _uiState.update {
                 it.copy(
                     selectedSessionId = if (it.selectedSessionId == id) null else it.selectedSessionId,
