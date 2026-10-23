@@ -3037,6 +3037,13 @@ fun LogScreen(
             )
 
             if (activeTarget != null && activeSet != null) {
+                val closeKeypad = {
+                    activeNumberInput = null
+                    chromeReveal.locked = false
+                    revealChrome()
+                }
+                // Android Back puts the keypad away, the same as Done, instead of leaving Log.
+                androidx.activity.compose.BackHandler(onBack = closeKeypad)
                 CustomNumberKeyboard(
                     value = activeTarget.value,
                     kind = activeTarget.kind,
@@ -3067,11 +3074,7 @@ fun LogScreen(
                         }
                     },
                     onSwitchField = ::switchNumberInputField,
-                    onDone = {
-                        activeNumberInput = null
-                        chromeReveal.locked = false
-                        revealChrome()
-                    },
+                    onDone = closeKeypad,
                     palette = palette,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)

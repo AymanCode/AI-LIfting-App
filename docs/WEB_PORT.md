@@ -71,3 +71,4 @@ Resource calls change at the copy. `Res.drawable.name` becomes `R.drawable.name`
 - IronMind's composer in `AiScreen` keeps the same kind of local draft. Sending, a shortcut, recovery text, and a restore write that draft directly.
 - GAP-5. An exercise Progress report on All starts at that exercise's earliest chart point. Overview All still starts at the earliest session in the overview list. The web snapshot reads the empty report exercise list and places earlier points at x=0.
 - GAP-4. The progress chart reserves the widest right-axis tick label plus 12 dp, and at least 40 dp. Drawing, hit testing, and the point tooltip use that same width. The web snapshot keeps a fixed 40 dp column, so a label such as 1,000,000 can cover the latest marker.
+- Android Back puts away Log's number keypad, the same as Done. The IronMind chat draft is saved state, so a rotation keeps the typed text.

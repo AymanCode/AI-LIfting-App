@@ -8,6 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -122,8 +123,9 @@ fun AiScreen(
     val quickActions = uiState.shortcuts.map { shortcut ->
         QuickAction(label = shortcut.title, query = shortcut.prompt)
     }
-    var chatDraft by remember { mutableStateOf("") }
-    var chatDraftGeneration by remember { mutableStateOf(generation) }
+    // Saved so a rotation keeps what was typed; the view model's input seeds it once and is never mirrored back.
+    var chatDraft by rememberSaveable { mutableStateOf(uiState.input) }
+    var chatDraftGeneration by rememberSaveable { mutableStateOf(generation) }
     if (chatDraftGeneration != generation) {
         chatDraftGeneration = generation
         chatDraft = ""
