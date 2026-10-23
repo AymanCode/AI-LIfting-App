@@ -6,6 +6,7 @@ import androidx.room.withTransaction
 import com.ayman.ecolift.agent.model.AgentTurnLog
 import com.ayman.ecolift.agent.model.AuditEntity
 import com.ayman.ecolift.android.room.RoomSplitMemberChoice
+import com.ayman.ecolift.android.room.toChoice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -114,6 +115,7 @@ object DataBackupManager {
             val snapshot = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
                 json.decodeFromString<UserDataBackup>(reader.readText())
             } ?: throw IOException("Unable to read backup file.")
+            requireDecodableNestedLists(snapshot)
             createAutomaticBackup(context, db, reason = "pre-import", force = true)
             restoreSnapshot(db, snapshot)
             snapshot.toResult()
@@ -155,6 +157,7 @@ object DataBackupManager {
             throw IOException("Backup file not found: $fileName")
         }
         val snapshot = json.decodeFromString<UserDataBackup>(file.readText())
+        requireDecodableNestedLists(snapshot)
         createAutomaticBackup(context, db, reason = "pre-restore", force = true)
         restoreSnapshot(db, snapshot)
         snapshot.toResult()
@@ -256,6 +259,11 @@ object DataBackupManager {
                 swapAlternativeQueue = swapAlternativeQueue,
             )
         }
+
+    /** Decodes each board the same way a later read does, before any table is cleared. */
+    private fun requireDecodableNestedLists(snapshot: UserDataBackup) {
+        snapshot.splitMemberChoices.forEach { it.toChoice() }
+    }
 
     private suspend fun restoreSnapshot(db: AppDatabase, snapshot: UserDataBackup) {
         db.withTransaction {

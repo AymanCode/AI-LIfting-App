@@ -65,7 +65,7 @@ class RoomWorkoutRepository(
                     choiceGeneration++
                     choiceBook = SplitChoiceBook()
                 }
-                choiceBook.loaded(rows.map { it.toChoice() })
+                choiceBook.loaded(rows.mapNotNull { it.toChoiceOrNull() })
                 choiceState.value = choiceBook.state.value
             }
         }
@@ -73,7 +73,7 @@ class RoomWorkoutRepository(
             store.db.splitMemberChoiceDao().observeAll().collect {
                 store.write {
                     val rows = db.splitMemberChoiceDao().getAll()
-                    editChoices { loaded(rows.map { it.toChoice() }) }
+                    editChoices { loaded(rows.mapNotNull { it.toChoiceOrNull() }) }
                 }
             }
         }

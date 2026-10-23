@@ -54,6 +54,9 @@ internal fun RoomSplitMemberChoice.toChoice() = SplitMemberChoice(
     board = EffectiveSplitMembers.of(Json.decodeFromString(inSplitJson), Json.decodeFromString(otherOptionsJson)),
 )
 
+internal fun RoomSplitMemberChoice.toChoiceOrNull(): SplitMemberChoice? =
+    runCatching { toChoice() }.getOrNull()
+
 internal fun SplitMemberChoice.toRoomChoice() = RoomSplitMemberChoice(
     splitId = splitId,
     revision = revision,
