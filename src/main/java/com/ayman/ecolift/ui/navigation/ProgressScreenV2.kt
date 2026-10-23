@@ -1922,6 +1922,9 @@ private data class ChartAnnotations(
     val pace: Pace?,
 )
 
+internal fun progressAxisColumnWidth(widestLabel: Dp): Dp =
+    (widestLabel + 12.dp).coerceAtLeast(40.dp)
+
 @Composable
 private fun SketchProgressChart(
     dataPoints: List<ExerciseDataPoint>,
@@ -1950,25 +1953,34 @@ private fun SketchProgressChart(
     val plotBottomInset = 22.dp
 
     val textMeasurer = rememberTextMeasurer()
+    val axisStyle = progressBodyStyle(fontSize = 10, lineHeight = 13).copy(color = mutedText(0.35f))
+    val tickLabels = yTicks.map { textMeasurer.measure(formatWholeNumber(it), style = axisStyle) }
+    val axisColumn = with(LocalDensity.current) {
+        progressAxisColumnWidth((tickLabels.maxOfOrNull { it.size.width } ?: 0).toDp())
+    }
     Box(modifier = modifier) {
         Canvas(
             modifier = Modifier.matchParentSize()
-                .pointerInput(dataPoints, windowStart, windowEnd) {
+                .pointerInput(dataPoints, windowStart, windowEnd, axisColumn) {
                     detectTapGestures { offset ->
+                        val plotLeft = 8.dp.toPx()
+                        val plotWidth = (size.width - axisColumn.toPx() - plotLeft).coerceAtLeast(1f)
                         progressPointAtFraction(dataPoints, windowStart, windowEnd,
-                            (offset.x - 8.dp.toPx()) / (size.width - 48.dp.toPx()))?.let { point -> (currentOnTap ?: currentOnSelect)(point) }
+                            (offset.x - plotLeft) / plotWidth)?.let { point -> (currentOnTap ?: currentOnSelect)(point) }
                     }
                 }
-                .pointerInput(dataPoints, windowStart, windowEnd) {
+                .pointerInput(dataPoints, windowStart, windowEnd, axisColumn) {
                     detectHorizontalDragGestures { change, _ ->
                         change.consume()
+                        val plotLeft = 8.dp.toPx()
+                        val plotWidth = (size.width - axisColumn.toPx() - plotLeft).coerceAtLeast(1f)
                         progressPointAtFraction(dataPoints, windowStart, windowEnd,
-                            (change.position.x - 8.dp.toPx()) / (size.width - 48.dp.toPx()))?.let { point -> currentOnSelect(point) }
+                            (change.position.x - plotLeft) / plotWidth)?.let { point -> currentOnSelect(point) }
                     }
                 }
         ) {
             val plotLeft = 8.dp.toPx()
-            val plotRight = size.width - 40.dp.toPx()
+            val plotRight = size.width - axisColumn.toPx()
             val plotWidth = (plotRight - plotLeft).coerceAtLeast(1f)
             val plotTop = plotTopInset.toPx()
             val plotBottom = size.height - plotBottomInset.toPx()
@@ -1981,8 +1993,7 @@ private fun SketchProgressChart(
             fun xForDate(date: LocalDate) = plotLeft + progressDateFraction(date, windowStart, windowEnd) * plotWidth
             fun xFor(index: Int) = xForDate(dataPoints[index].date)
 
-            // One gridline per round tick, its value right-aligned in the 40dp column beside the plot.
-            val axisStyle = progressBodyStyle(fontSize = 10, lineHeight = 13).copy(color = mutedText(0.35f))
+            // One gridline per round tick, its value right-aligned in the reserved axis column.
             yTicks.forEachIndexed { i, tick ->
                 val y = yFor(tick)
                 drawLine(
@@ -1991,7 +2002,7 @@ private fun SketchProgressChart(
                     end = Offset(plotRight, y),
                     strokeWidth = 1.dp.toPx(),
                 )
-                val tickLabel = textMeasurer.measure(formatWholeNumber(tick), style = axisStyle)
+                val tickLabel = tickLabels[i]
                 drawText(tickLabel, topLeft = Offset(size.width - 2.dp.toPx() - tickLabel.size.width, y - tickLabel.size.height / 2f))
             }
 
@@ -2164,7 +2175,7 @@ private fun SketchProgressChart(
                 val height = constraints.maxHeight
                 val placeable = measurables.first().measure(Constraints(maxWidth = width, maxHeight = height))
                 val plotLeft = 8.dp.toPx()
-                val plotWidth = (width - 40.dp.toPx() - plotLeft).coerceAtLeast(1f)
+                val plotWidth = (width - axisColumn.toPx() - plotLeft).coerceAtLeast(1f)
                 val plotTop = plotTopInset.toPx()
                 val plotBottom = height - plotBottomInset.toPx()
                 val px = plotLeft + progressDateFraction(point.date, windowStart, windowEnd) * plotWidth

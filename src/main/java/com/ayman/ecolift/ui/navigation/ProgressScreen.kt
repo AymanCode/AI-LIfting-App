@@ -26,6 +26,18 @@ import com.ayman.ecolift.web.util.countLabel
 import com.ayman.ecolift.web.util.todayLocalDate
 import kotlinx.datetime.LocalDate
 
+internal fun progressChartWindowStart(uiState: ProgressUiState, windowEnd: LocalDate): LocalDate =
+    if (uiState.timeframe == TimeframeFilter.ALL_TIME) {
+        val firstDate = if (uiState.selectedExerciseId != null) {
+            uiState.chartPoints.minOfOrNull { it.date }
+        } else {
+            uiState.exercises.mapNotNull { it.firstSessionIsoDate }.minOrNull()
+        }
+        firstDate?.let(LocalDate::parse) ?: windowEnd
+    } else {
+        progressWindowStart(uiState.timeframe, windowEnd)
+    }
+
 @Composable
 fun ProgressScreen(
     onOpenBackups: () -> Unit = {},
@@ -96,11 +108,7 @@ fun ProgressScreen(
     val windowEnd = uiState.windowEndIsoDate?.let(LocalDate::parse) ?: todayLocalDate()
     val overviewStateHolder = rememberSaveableStateHolder()
     var isMonthSelected by rememberSaveable { mutableStateOf(false) }
-    val windowStart = if (uiState.timeframe == TimeframeFilter.ALL_TIME) {
-        uiState.exercises.mapNotNull { it.firstSessionIsoDate }.minOrNull()?.let(LocalDate::parse) ?: windowEnd
-    } else {
-        progressWindowStart(uiState.timeframe, windowEnd)
-    }
+    val windowStart = progressChartWindowStart(uiState, windowEnd)
 
     if (initialExerciseId != null || uiState.selectedExerciseId != null) {
         val dataPoints = uiState.chartPoints.map { pt ->

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayman.ecolift.cardio.CardioActivitySpecs
 import com.ayman.ecolift.cardio.CardioEntryField
+import com.ayman.ecolift.cardio.CardioEntryParser
 import com.ayman.ecolift.cardio.CardioFieldRules
 import com.ayman.ecolift.cardio.CardioInsights
 import com.ayman.ecolift.data.CardioActivityType
@@ -40,6 +41,7 @@ data class CardioDraft(
     val editingId: Long? = null,
     val editingSessionOriginal: CardioSession? = null,
     val invalid: Set<CardioEntryField> = emptySet(),
+    val photoValues: Map<CardioEntryField, Double> = emptyMap(),
 )
 
 data class CardioToast(
@@ -180,7 +182,11 @@ internal object CardioDraftLogic {
 
     fun applyTyped(draft: CardioDraft, field: CardioEntryField, text: String): CardioDraft {
         val trimmed = text.trim()
-        val parsed = CardioFieldRules.parse(field, draft.type, trimmed)
+        val parsed = if (field == CardioEntryField.DURATION) {
+            CardioEntryParser.parseDurationSeconds(trimmed)?.toDouble()
+        } else {
+            CardioFieldRules.parse(field, draft.type, trimmed)
+        }
         return if (parsed == null || !CardioFieldRules.isPlausible(field, draft.type, parsed)) {
             draft.copy(invalid = draft.invalid + field)
         } else {
@@ -240,6 +246,7 @@ internal object CardioDraftLogic {
         val last = CardioInsights.lastOnMachine(sessions, type)
         val values = mutableMapOf<CardioEntryField, Double>()
         val readStates = mutableMapOf<CardioEntryField, ReadState>()
+        val photoValues = mutableMapOf<CardioEntryField, Double>()
 
         for (field in spec.fields) {
             if (field == CardioEntryField.NOTES) continue
@@ -266,6 +273,7 @@ internal object CardioDraftLogic {
                 val plausible = CardioFieldRules.isPlausible(field, type, statValue)
                 readStates[field] = if (plausible) ReadState.READ else ReadState.CHECK
                 values[field] = statValue
+                photoValues[field] = statValue
             } else {
                 readStates[field] = ReadState.UNREAD
                 // HR stays absent
@@ -301,6 +309,7 @@ internal object CardioDraftLogic {
             scanConfidence = stats.confidence,
             machineType = stats.machineType,
             invalid = emptySet(),
+            photoValues = photoValues,
         )
     }
 
