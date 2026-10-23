@@ -1922,6 +1922,8 @@ private data class ChartAnnotations(
     val pace: Pace?,
 )
 
+internal fun progressAxisColumnWidth(widestLabel: Dp): Dp = 40.dp
+
 @Composable
 private fun SketchProgressChart(
     dataPoints: List<ExerciseDataPoint>,
@@ -1950,6 +1952,11 @@ private fun SketchProgressChart(
     val plotBottomInset = 22.dp
 
     val textMeasurer = rememberTextMeasurer()
+    val axisStyle = progressBodyStyle(fontSize = 10, lineHeight = 13).copy(color = mutedText(0.35f))
+    val tickLabels = yTicks.map { textMeasurer.measure(formatWholeNumber(it), style = axisStyle) }
+    val axisColumn = with(LocalDensity.current) {
+        progressAxisColumnWidth((tickLabels.maxOfOrNull { it.size.width } ?: 0).toDp())
+    }
     Box(modifier = modifier) {
         Canvas(
             modifier = Modifier.matchParentSize()
@@ -1968,7 +1975,7 @@ private fun SketchProgressChart(
                 }
         ) {
             val plotLeft = 8.dp.toPx()
-            val plotRight = size.width - 40.dp.toPx()
+            val plotRight = size.width - axisColumn.toPx()
             val plotWidth = (plotRight - plotLeft).coerceAtLeast(1f)
             val plotTop = plotTopInset.toPx()
             val plotBottom = size.height - plotBottomInset.toPx()
@@ -1982,7 +1989,6 @@ private fun SketchProgressChart(
             fun xFor(index: Int) = xForDate(dataPoints[index].date)
 
             // One gridline per round tick, its value right-aligned in the 40dp column beside the plot.
-            val axisStyle = progressBodyStyle(fontSize = 10, lineHeight = 13).copy(color = mutedText(0.35f))
             yTicks.forEachIndexed { i, tick ->
                 val y = yFor(tick)
                 drawLine(
@@ -1991,7 +1997,7 @@ private fun SketchProgressChart(
                     end = Offset(plotRight, y),
                     strokeWidth = 1.dp.toPx(),
                 )
-                val tickLabel = textMeasurer.measure(formatWholeNumber(tick), style = axisStyle)
+                val tickLabel = tickLabels[i]
                 drawText(tickLabel, topLeft = Offset(size.width - 2.dp.toPx() - tickLabel.size.width, y - tickLabel.size.height / 2f))
             }
 

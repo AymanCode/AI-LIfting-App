@@ -35,4 +35,21 @@ class CardioInputBoundsTest {
             assertEquals(seconds, CardioDraftLogic.toWrite(result, LocalDate(2026, 10, 23)).durationSec)
         }
     }
+
+    @Test
+    fun overflow_and_over_limit_minutes_cannot_fall_back_to_seconds() {
+        for (text in listOf("71582790", "71582790:00", "1193047:00:00", "361", "360:01", "6:00:01")) {
+            val result = CardioDraftLogic.applyTyped(draft, CardioEntryField.DURATION, text)
+            assertFalse(CardioDraftLogic.canSave(result), text)
+            assertEquals(setOf(CardioEntryField.DURATION), result.invalid, text)
+            assertEquals(1800.0, result.values[CardioEntryField.DURATION], text)
+        }
+        val corrected = CardioDraftLogic.applyTyped(
+            CardioDraftLogic.applyTyped(draft, CardioEntryField.DURATION, "71582790"),
+            CardioEntryField.DURATION,
+            "2:00",
+        )
+        assertTrue(CardioDraftLogic.canSave(corrected))
+        assertEquals(120, CardioDraftLogic.toWrite(corrected, LocalDate(2026, 10, 23)).durationSec)
+    }
 }

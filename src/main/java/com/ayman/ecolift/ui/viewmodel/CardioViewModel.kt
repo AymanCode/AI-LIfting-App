@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayman.ecolift.cardio.CardioActivitySpecs
 import com.ayman.ecolift.cardio.CardioEntryField
+import com.ayman.ecolift.cardio.CardioEntryParser
 import com.ayman.ecolift.cardio.CardioFieldRules
 import com.ayman.ecolift.cardio.CardioInsights
 import com.ayman.ecolift.data.CardioActivityType
@@ -180,7 +181,11 @@ internal object CardioDraftLogic {
 
     fun applyTyped(draft: CardioDraft, field: CardioEntryField, text: String): CardioDraft {
         val trimmed = text.trim()
-        val parsed = CardioFieldRules.parse(field, draft.type, trimmed)
+        val parsed = if (field == CardioEntryField.DURATION) {
+            CardioEntryParser.parseDurationSeconds(trimmed)?.toDouble()
+        } else {
+            CardioFieldRules.parse(field, draft.type, trimmed)
+        }
         return if (parsed == null || !CardioFieldRules.isPlausible(field, draft.type, parsed)) {
             draft.copy(invalid = draft.invalid + field)
         } else {

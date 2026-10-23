@@ -47,12 +47,16 @@ import com.ayman.ecolift.ui.theme.DawnPalette
 import com.ayman.ecolift.ui.theme.LogUiFontFamily
 import com.ayman.ecolift.ui.theme.SheetSerifFontFamily
 import com.ayman.ecolift.ui.theme.rememberReducedMotion
+import com.ayman.ecolift.ui.viewmodel.CardioDraft
 import com.ayman.ecolift.ui.viewmodel.CardioDraftLogic
 import com.ayman.ecolift.ui.viewmodel.CardioViewModel
 import com.ayman.ecolift.ui.viewmodel.ReadState
 import com.ayman.ecolift.ui.viewmodel.SaveState
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+
+internal fun cardioPhotoFieldText(draft: CardioDraft, field: CardioEntryField): String? =
+    "read from photo: ${draft.values[field]?.let { CardioFieldRules.display(field, draft.type, it) }.orEmpty()}"
 
 @Composable
 fun CardioScanScreen(
@@ -364,12 +368,11 @@ fun CardioScanScreen(
                         val unit = cardioFieldUnit(field, draft.type)
 
                         if (isExpanded) {
-                            val lastDisplay = curVal?.let { CardioFieldRules.display(field, draft.type, it) } ?: ""
                             DawnScrubField(
                                 label = label,
                                 valueText = curVal?.let { CardioFieldRules.display(field, draft.type, it) } ?: "—",
                                 unit = unit,
-                                lastText = "read from photo: $lastDisplay",
+                                lastText = cardioPhotoFieldText(draft, field),
                                 selected = true,
                                 onDrag = { ticks -> viewModel.scrub(field, ticks) },
                                 onTapToType = { viewModel.beginTyping(field) },
