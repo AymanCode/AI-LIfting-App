@@ -8,7 +8,7 @@ EcoLift is a single-module Android app. The Compose screens are the web app's sc
 2. The tabs are Log, Progress, IronMind, Cardio, and Split.
 3. Each screen owns a view model. The view model exposes immutable UI state through StateFlow and receives user actions through explicit methods.
 4. Screens read `AppRepos` from `LocalRepos`. `RoomRepos` in `com.ayman.ecolift.android.room` loads Room into memory. It writes each change back inside a transaction before it publishes the new state. There is no account, no sync, and no offline queue. `syncStatus` is the up-to-date value. `cloudStamps` is empty. `syncReview` is empty.
-5. IronMind routes text through `IntentRouter` and grounds requests with `AgentTools`. Writes are typed `DbPatch` values. The app validates a patch before `PatchService` applies it. `RoomRepos` commits each saved change, then publishes the new state. Undo keeps the inverse patch in memory. A restart clears that history. Sending a message does not call a model. The Try AI button on a failed draft calls the model. `AndroidAppServices.genAiEngine()` lives in `com.ayman.ecolift.android.services`. A debug build uses Groq for that call when `GROQ_API_KEY` is set. That key selects Groq over Gemini Nano. A failed Groq call does not switch to Gemini Nano. When `GROQ_API_KEY` is blank, API 31 and newer use Gemini Nano.
+5. IronMind routes text through `IntentRouter` and grounds requests with `AgentTools`. Writes are typed `DbPatch` values. The app validates a patch before `PatchService` applies it. `RoomRepos` commits each saved change, then publishes the new state. A delete or rename waits for Apply or Cancel. Other patches apply at once. The latest applied change offers Undo, and `OrchestratorViewModel` keeps that offer across tab switches. Undo keeps the inverse patch in memory. A restore clears the pending change and Undo. A restart clears that history. Sending a message does not call a model. The Try AI button on a failed draft calls the model. `AndroidAppServices.genAiEngine()` lives in `com.ayman.ecolift.android.services`. A debug build uses Groq for that call when `GROQ_API_KEY` is set. That key selects Groq over Gemini Nano. A failed Groq call does not switch to Gemini Nano. When `GROQ_API_KEY` is blank, API 31 and newer use Gemini Nano.
 6. Backup and restore use `DataBackupManager` from the IronMind settings sheet. The Health Connect row asks for permission first. The row then shows how many sessions were added.
 7. Backup JSON can be loaded into a DuckDB analytics mart for workout metrics and agent telemetry.
 
@@ -26,7 +26,7 @@ EcoLift is a single-module Android app. The Compose screens are the web app's sc
 
 ## Data model
 
-The Room schema is version 20. Exported schemas live in `schemas/com.ayman.ecolift.data.AppDatabase`, including `20.json`. Version 20 adds the columns the web models need. It also adds seven tables: `WorkoutExerciseCard`, `ExerciseAlias`, `ExerciseDistinctPair`, `SplitAlternativeRow`, `ExerciseSwapReceiptRow`, `WorkoutDayState`, and `SwapAlternativeQueueRow`.
+The Room schema is version 21. Exported schemas live in `schemas/com.ayman.ecolift.data.AppDatabase`, including `21.json`. Version 21 adds the `split_member_choice` table for each split's saved board. Its entity is `RoomSplitMemberChoice` in `com.ayman.ecolift.android.room`. Version 20 adds the columns the web models need. It also adds seven tables: `WorkoutExerciseCard`, `ExerciseAlias`, `ExerciseDistinctPair`, `SplitAlternativeRow`, `ExerciseSwapReceiptRow`, `WorkoutDayState`, and `SwapAlternativeQueueRow`.
 
 Important entities:
 
@@ -46,10 +46,11 @@ Important entities:
 - `ExerciseSwapReceiptRow`
 - `WorkoutDayState`
 - `SwapAlternativeQueueRow`
+- `RoomSplitMemberChoice`
 
 Weights are stored through `WeightLbs`, which keeps values in tenths of a pound. The `12 -> 13` migration scales older stored weights into the current representation.
 
-Backup exports include workout history, split and cycle data, pending reviews, audit entries, and agent turn logs. Import runs inside a Room transaction after creating a pre-import automatic backup.
+Backup exports include workout history, split and cycle data, saved split boards, pending reviews, audit entries, and agent turn logs. Import runs inside a Room transaction after creating a pre-import automatic backup.
 
 ## Agent Writes
 

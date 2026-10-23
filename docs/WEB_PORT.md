@@ -32,15 +32,23 @@ Resource calls change at the copy. `Res.drawable.name` becomes `R.drawable.name`
 - IM-2. IronMind shows the pending action's summary with Apply and Cancel on the desk and in chat. `AiScreen` wires `confirmPending` and `dismissPending` instead of projecting the action as statistics.
 - IM-3. `AiScreen` collects applied chat changes and offers Undo through the existing snackbar host. Undo remains session-only and does not offer another Undo after success.
 - IM-6. `HubViewModel` reads unresolved saved reviews directly from the repository, independently of session messages. Desk rows offer Resolve and Dismiss after restart, and `RoomPendingReviewRepository` saves the explicitly selected set and resolves its review in one transaction.
-
-## Android divergences
-
 - Progress search text comes directly from the input flow. Chart and filter projections cannot replace a partially typed name with an older value.
 - Progress shows a themed spinner and loading label while its initial projection is pending. Held-lift and ticket rows use a compact history summary from the existing session and next-step functions; full reports and the Split caller retain their original report results.
 - The latest chart label uses the selected metric's formatter, so a Top set of 102.5 lb keeps its decimal.
 - A cardio scan owns its request before the Android picker opens. Cancellation or a later manual draft invalidates late picker and OCR results, and an unreadable image shows the existing failure message on the scan screen.
 - Typed cardio fields use their existing limits. Zero time and durations over six hours are invalid; a saved notes-only record does not claim an activity-day fill.
 - The Cardio overview sums weekly duration in Long, including older large stored values. Shared domain aggregate types remain unchanged.
+- `PatchService` uses the optional `AtomicPatchRepository` hook on `RoomSetRepository`. A batch shares one Room draft, and its memory-only audit publishes after commit. Delete Undo restores the affected exercise-day group, including row identity and card metadata, and rejects changed groups.
+- `AgentOrchestrator` filters explicit correction and delete dates before choosing a set, reads explicit set ordinals, checks model readiness before offering Try AI, and displays the recommender's suggested reps. `LogSetTextParser` expands weight-by-reps-by-count input. Agent input parsing rejects invalid or overflowing loads, and exercise matching requires every query word to fit the selected exercise. Unknown workout notation remains an editable draft.
+- Restore generation. `AppRepos.dataGeneration` is optional on the copied interface. Android publishes replacement after successful import, and `OrchestratorViewModel` clears its pending confirmation, chat cards and session Undo before accepting fresh requests. `PatchService` shares the restore lock and rejects actions from a previous generation.
+- Agent text parsing. `AgentOrchestrator` removes recognised date phrases (`yesterday`, weekdays, `last saturday`, `May 10`, ISO dates) before it matches an exercise. `AgentToolsImpl.findExercise` matches a whole catalog name inside a query and treats `flat bench press` as bench press, while unknown names still become drafts. `LogSetTextParser` keeps sets in the order they were written when plain and counted notation are mixed. Correction and delete cards name the set that the patch changes. Delete Undo puts a card back through the day's card ordering. `RoomStore.write` publishes memory and the audit even when the caller is cancelled after the commit.
+- Crosscut layout. `chromeClearance` pads tab content for the horizontal navigation bar and the display cutout. The same value drops the bottom-bar reserve while the keyboard is open. In landscape, IronMind hides its header and quick actions while the keyboard is open, so the composer and Send stay visible. `isSettingsVisible` is `rememberSaveable`, so rotation leaves the settings sheet open. The Log masthead count and the tab bar keep their old heights at font scale 1. Above that scale the rows grow, and each tab label stays inside its own slot.
+- Log's Add a lift field keeps its characters in `ClipboardState`. Search still follows the view model. Android Back closes that open picker. The EST. 1RM headline shrinks, or uses a compact form, when the digits do not fit the column. The muscle and progress chips use a minimum height so large system text is not cut off.
+- IronMind's composer in `AiScreen` keeps the same kind of local draft. Sending, a shortcut, recovery text, and a restore write that draft directly.
+- GAP-5. An exercise Progress report on All starts at that exercise's earliest chart point. Overview All still starts at the earliest session in the overview list. The web snapshot reads the empty report exercise list and places earlier points at x=0.
+- GAP-4. The progress chart reserves the widest right-axis tick label plus 12 dp, and at least 40 dp. Drawing, hit testing, and the point tooltip use that same width. The web snapshot keeps a fixed 40 dp column, so a label such as 1,000,000 can cover the latest marker.
+- Android Back puts away Log's number keypad, the same as Done. The IronMind chat draft is saved state, so a rotation keeps the typed text.
+- Est. 1RM's comparison line wraps under its change chip at large font sizes, so "VS 306" keeps its number.
 
 ## Port a newer snapshot
 
@@ -57,19 +65,3 @@ Resource calls change at the copy. `Res.drawable.name` becomes `R.drawable.name`
 - [Resources](web-port/resources.md)
 - [Tests](web-port/tests.md)
 - [How RoomRepos loads](web-port/room-how.md)
-
-## Android divergences
-
-- `PatchService` uses the optional `AtomicPatchRepository` hook on `RoomSetRepository`. A batch shares one Room draft, and its memory-only audit publishes after commit. Delete Undo restores the affected exercise-day group, including row identity and card metadata, and rejects changed groups.
-- `AgentOrchestrator` filters explicit correction and delete dates before choosing a set, reads explicit set ordinals, checks model readiness before offering Try AI, and displays the recommender's suggested reps. `LogSetTextParser` expands weight-by-reps-by-count input. Agent input parsing rejects invalid or overflowing loads, and exercise matching requires every query word to fit the selected exercise. Unknown workout notation remains an editable draft.
-
-- Restore generation. `AppRepos.dataGeneration` is optional on the copied interface. Android publishes replacement after successful import, and `OrchestratorViewModel` clears its pending confirmation, chat cards and session Undo before accepting fresh requests. `PatchService` shares the restore lock and rejects actions from a previous generation.
-
-- Agent text parsing. `AgentOrchestrator` removes recognised date phrases (`yesterday`, weekdays, `last saturday`, `May 10`, ISO dates) before it matches an exercise. `AgentToolsImpl.findExercise` matches a whole catalog name inside a query and treats `flat bench press` as bench press, while unknown names still become drafts. `LogSetTextParser` keeps sets in the order they were written when plain and counted notation are mixed. Correction and delete cards name the set that the patch changes. Delete Undo puts a card back through the day's card ordering. `RoomStore.write` publishes memory and the audit even when the caller is cancelled after the commit.
-- Crosscut layout. `chromeClearance` pads tab content for the horizontal navigation bar and the display cutout. The same value drops the bottom-bar reserve while the keyboard is open. In landscape, IronMind hides its header and quick actions while the keyboard is open, so the composer and Send stay visible. `isSettingsVisible` is `rememberSaveable`, so rotation leaves the settings sheet open. The Log masthead count and the tab bar keep their old heights at font scale 1. Above that scale the rows grow, and each tab label stays inside its own slot.
-- Log's Add a lift field keeps its characters in `ClipboardState`. Search still follows the view model. Android Back closes that open picker. The EST. 1RM headline shrinks, or uses a compact form, when the digits do not fit the column. The muscle and progress chips use a minimum height so large system text is not cut off.
-- IronMind's composer in `AiScreen` keeps the same kind of local draft. Sending, a shortcut, recovery text, and a restore write that draft directly.
-- GAP-5. An exercise Progress report on All starts at that exercise's earliest chart point. Overview All still starts at the earliest session in the overview list. The web snapshot reads the empty report exercise list and places earlier points at x=0.
-- GAP-4. The progress chart reserves the widest right-axis tick label plus 12 dp, and at least 40 dp. Drawing, hit testing, and the point tooltip use that same width. The web snapshot keeps a fixed 40 dp column, so a label such as 1,000,000 can cover the latest marker.
-- Android Back puts away Log's number keypad, the same as Done. The IronMind chat draft is saved state, so a rotation keeps the typed text.
-- Est. 1RM's comparison line wraps under its change chip at large font sizes, so "VS 306" keeps its number.
