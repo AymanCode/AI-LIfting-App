@@ -1276,7 +1276,8 @@ class LogViewModel(
         val group = repos.learnedSplits.model.value.groupForSlot(slotId)
         val slot = activeSlots.value.firstOrNull { it.id == slotId }
         if (group == null && slot == null) return null
-        val members = effectiveSplitMembers(slotId, group, savedSplitRows.value, choices[slotId], ::safeCanonicalId)
+        val rows = savedSplitRows.value ?: return null
+        val members = effectiveSplitMembers(slotId, group, rows, choices[slotId], ::safeCanonicalId)
         val name = clipboardPrograms.value.firstOrNull { it.slotId == slotId }?.name
             ?: slot?.name?.trim()?.takeIf { it.isNotEmpty() }
             ?: group?.let { learnedGroupLabel(it, exerciseRepository.exercises.value.associateBy { exercise -> exercise.id }) }
@@ -1286,7 +1287,9 @@ class LogViewModel(
 
     /** Suspends until [slotId]'s board can start: read, and not being saved. */
     suspend fun awaitSplitChoices(slotId: Long) {
-        workoutRepository.splitMemberChoices.first { canStartSlot(it, slotId) }
+        combine(workoutRepository.splitMemberChoices, activeSlots, savedSplitRows) { choices, slots, rows ->
+            canStartSlot(choices, slotId) && slots.any { it.id == slotId } && rows != null
+        }.first { it }
     }
 
     /** The active splits and their saved lists, for a deep link that arrives before the first model. */
@@ -1294,8 +1297,8 @@ class LogViewModel(
         combine(workoutRepository.observeCycleSlots(), repos.learnedSplits.model) { slots, model ->
             slots.visibleCycleSlots(model.smartSuggest)
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    private val savedSplitRows: StateFlow<List<SplitExercise>> =
-        workoutRepository.observeAllSplitExercises().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    private val savedSplitRows: StateFlow<List<SplitExercise>?> =
+        workoutRepository.observeAllSplitExercises().stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     fun goToPreviousDay() {
         flushPendingSetCommits()
