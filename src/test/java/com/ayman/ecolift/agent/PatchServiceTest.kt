@@ -8,12 +8,12 @@ import com.ayman.ecolift.agent.patches.PatchService
 import com.ayman.ecolift.agent.patches.PatchValidator
 import com.ayman.ecolift.agent.patches.noOpTransactionRunner
 import com.ayman.ecolift.data.AppDatabase
-import com.ayman.ecolift.data.room.Exercise
 import com.ayman.ecolift.data.ExerciseDao
-import com.ayman.ecolift.data.room.WorkoutDay
 import com.ayman.ecolift.data.WorkoutDayDao
-import com.ayman.ecolift.data.room.WorkoutSet
 import com.ayman.ecolift.data.WorkoutSetDao
+import com.ayman.ecolift.data.room.Exercise
+import com.ayman.ecolift.data.room.WorkoutDay
+import com.ayman.ecolift.data.room.WorkoutSet
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
