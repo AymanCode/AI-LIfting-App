@@ -1,0 +1,34 @@
+shot log
+wait-text Log
+wait 3000
+
+shot set-card
+swipe 540 1700 540 1100 900
+wait 2000
+wait-text Start 6 lifts, Lower Strength
+wait 1000
+tap-xy 549 1914
+wait-text Log set 1
+wait 2000
+
+shot progress
+tap-xy 333 2198
+wait-text Find exercise
+wait 1500
+swipe 540 1500 540 1000 700
+wait 1200
+
+shot splits
+tap-xy 951 2198
+wait-text October
+wait 1200
+
+shot ironmind
+tap-xy 540 2198
+wait-text Ask IronMind, or log a set
+wait 1200
+
+shot cardio
+tap-xy 745 2198
+wait-text Log a session
+wait 1200
