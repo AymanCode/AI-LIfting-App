@@ -55,8 +55,10 @@ import com.ayman.ecolift.ui.viewmodel.SaveState
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
-internal fun cardioPhotoFieldText(draft: CardioDraft, field: CardioEntryField): String? =
-    "read from photo: ${draft.values[field]?.let { CardioFieldRules.display(field, draft.type, it) }.orEmpty()}"
+internal fun cardioPhotoFieldText(draft: CardioDraft, field: CardioEntryField): String? {
+    val photoValue = draft.photoValues[field] ?: return null
+    return "read from photo: ${CardioFieldRules.display(field, draft.type, photoValue)}"
+}
 
 @Composable
 fun CardioScanScreen(
