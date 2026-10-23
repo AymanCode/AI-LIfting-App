@@ -131,6 +131,17 @@ class PatchServiceTest {
     }
 
     @Test
+    fun `undoing an undo reapplies the edit once`() = runTest {
+        val result = service.applyPatches("req-redo", listOf(DbPatch.EditSet(setId = 1L, reps = 3)), false) as PatchResult.Applied
+        val undone = service.undo(result.auditId) as PatchResult.Applied
+        assertEquals(8, repos.currentSets.value.first { it.id == 1L }.reps)
+
+        assertTrue(service.undo(undone.auditId) is PatchResult.Applied)
+        assertEquals(3, repos.currentSets.value.first { it.id == 1L }.reps)
+        assertTrue(service.undo(undone.auditId) is PatchResult.Failed)
+    }
+
+    @Test
     fun `DeleteSet removes the row and undo logs it back`() = runTest {
         val result = service.applyPatches("req-7", listOf(DbPatch.DeleteSet(setId = 1L)), userConfirmed = true)
         assertTrue(result is PatchResult.Applied)

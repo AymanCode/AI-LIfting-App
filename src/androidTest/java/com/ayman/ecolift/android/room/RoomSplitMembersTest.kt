@@ -15,8 +15,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -152,7 +153,7 @@ class RoomSplitMembersTest {
             }
             block(fixture)
         } finally {
-            scope.cancel()
+            scope.coroutineContext.job.cancelAndJoin()
             db.close()
         }
     }

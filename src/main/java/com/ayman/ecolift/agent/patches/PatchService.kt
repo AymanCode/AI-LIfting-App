@@ -140,10 +140,7 @@ class PatchService(
             restores = steps,
         )
         if (result is PatchResult.Applied) {
-            synchronized(undoActions) {
-                undoActions.remove(auditId)
-                undoActions.remove(result.auditId)
-            }
+            synchronized(undoActions) { undoActions.remove(auditId) }
         }
         result
     }

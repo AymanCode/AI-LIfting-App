@@ -347,6 +347,8 @@ class DatabaseHardeningInstrumentedTest {
         val source = createDb(BACKUP_SOURCE_DB)
         val target = createDb(BACKUP_TARGET_DB)
         seedBackupSource(source)
+        // Earlier backup tests can fill the eight-file retention cap, which keeps the count from growing.
+        File(context.filesDir, "automatic-backups").deleteRecursively()
 
         val backupsBefore = DataBackupManager.listAutomaticBackups(context).size
         val backupFile = File(context.cacheDir, "ecolift-roundtrip-test.json").apply { delete() }

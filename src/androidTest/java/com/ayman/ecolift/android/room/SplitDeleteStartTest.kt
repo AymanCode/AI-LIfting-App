@@ -15,8 +15,9 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -72,7 +73,7 @@ class SplitDeleteStartTest {
             assertTrue(db.exerciseDao().getAll().none { it.id == ids.first() })
         } finally {
             repos.close()
-            scope.cancel()
+            scope.coroutineContext.job.cancelAndJoin()
             db.close()
         }
     }
