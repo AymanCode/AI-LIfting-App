@@ -14,17 +14,25 @@ This repository contains the Android app. The web version lives at
 
 ## Screenshots
 
-Screenshots are from the web app at a phone-sized viewport.
+Screenshots are from the Android app with demo data.
 
-| Workout log | Exercise progress |
+| Workout log | Set card |
 | --- | --- |
-| <img src="docs/assets/ecolift-log.png" width="390" alt="EcoLift workout log"> | <img src="docs/assets/ecolift-progress.png" width="390" alt="EcoLift Bench Press progress"> |
+| <img src="docs/assets/android/log.png" width="390" alt="Log tab showing a finished workout as a receipt of lifts, loads, and reps"> | <img src="docs/assets/android/set-card.png" width="390" alt="Exercise card with last session's sets above today's set boxes"> |
 
-| Training history | Cycle recap |
+| Progress | Split |
 | --- | --- |
-| <img src="docs/assets/ecolift-history.png" width="390" alt="EcoLift yearly training history and splits"> | <img src="docs/assets/ecolift-cycle.png" width="390" alt="EcoLift training cycle recap"> |
+| <img src="docs/assets/android/progress.png" width="390" alt="Progress tab with one row per exercise, a sparkline, and a change figure"> | <img src="docs/assets/android/splits.png" width="390" alt="Split tab with a calendar and the rotation dial"> |
+
+| IronMind | Cardio |
+| --- | --- |
+| <img src="docs/assets/android/ironmind.png" width="390" alt="IronMind desk with items that need attention and the sessions each one came from"> | <img src="docs/assets/android/cardio.png" width="390" alt="Cardio tab with a week arc and a list of machine sessions"> |
 
 ## What it does
+
+The Android app shows the same screens as the web app: Log, Progress, IronMind, Cardio, and
+Split. Room on the device stores the workouts. There is no account, no sync, and no offline
+queue.
 
 - Logs exercises, sets, reps, weights, completion state and rest time.
 - Finds exercises without needing the name to be typed exactly as it was saved.
@@ -82,8 +90,9 @@ especially older corrections and imports:
 - `for last saturday my deadlift top set should say three fifteen for four not 275`
 - `delete the extra squat set from May 10`
 
-Common requests are handled in Kotlin first. If the router needs help, it can ask a model,
-but the model does not get database access. Before a write reaches Room, it becomes a typed
+Common requests are handled in Kotlin first. If the router needs help, a debug build can
+ask Groq when `GROQ_API_KEY` is set. The app can ask Gemini Nano on a device that has it.
+The model does not get database access. Before a write reaches Room, it becomes a typed
 `DbPatch` that the app checks. Deletes and renames ask for confirmation. Applied changes
 run in a Room transaction and keep an inverse patch for undo.
 
@@ -105,7 +114,7 @@ It is the version I use during workouts now.
 
 ## Running it
 
-You need Android Studio or the Android SDK, JDK 17, and Android SDK 36.
+You need Android Studio or the Android SDK, JDK 17, minSdk 26, and compileSdk 36.
 
 ```bash
 git clone https://github.com/AymanCode/AI-LIfting-App.git
@@ -115,8 +124,9 @@ cd AI-LIfting-App
 
 On Windows use `gradlew.bat`. The APK is written to `build/outputs/apk/debug/`.
 
-A Groq key is only used for debug builds and opt-in assistant evals. Set `GROQ_API_KEY` in
-your shell if you need it. Release builds leave it blank. Do not commit `local.properties`,
+A Groq key is only used for debug builds and opt-in assistant evals. `build.gradle.kts`
+reads `GROQ_API_KEY` from a Gradle property or from the environment. It does not open
+`local.properties`. Release builds leave the key blank. Do not commit `local.properties`,
 `.env`, model files or release signing files.
 
 The checked-in `.android/debug.keystore` gives debug and CI builds the same certificate so
@@ -129,8 +139,10 @@ upgrade tests can install one build over another. It is not a release key.
 ./gradlew connectedDebugAndroidTest # needs a device or emulator
 ```
 
-CI checks Kotlin formatting, runs unit tests and builds the app and test APKs. It does not
-run the instrumentation tests.
+CI runs ktlint 1.5.0 over `src/**/*.kt`, then
+`./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest`. That builds the app
+and the instrumentation-test APK. It does not run the instrumentation tests.
+`scripts/ci/verify-apk-compatibility.sh` requires `versionCode` to rise.
 
 More commands are in [docs/TESTING.md](docs/TESTING.md).
 
@@ -138,15 +150,18 @@ More commands are in [docs/TESTING.md](docs/TESTING.md).
 
 ```text
 src/main/java/com/ayman/ecolift
-  agent/      IronMind routing, tools, patches, audit and undo
-  ai/         model integration
-  cardio/     cardio activity fields and entry parsing
-  data/       Room entities, DAOs, repositories, migrations and backups
-  ui/         screens, navigation, theme and ViewModels
+  agent/       IronMind routing, tools, patches, audit and undo
+  ai/          exercise classification and the Groq client
+  android/     RoomRepos, AndroidAppServices, and platform shims
+  cardio/      cardio fields, parsers, and OCR result types
+  data/        workout models and the calculations the screens use
+  data/room/   Room entities, mapped to the web models
+  ui/          web screens, navigation, theme, and view models
+  web/         AppRepos, repository interfaces, and demo data
 
-analytics/    DuckDB loader for backup exports
-schemas/      exported Room schemas
-docs/         architecture and testing notes
+analytics/     DuckDB loader for backup exports
+schemas/       exported Room schemas
+docs/          architecture and testing notes
 ```
 
 Good places to start are

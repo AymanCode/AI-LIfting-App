@@ -87,20 +87,21 @@ The test suite covers:
 - Agent read tools, recommendations, transfer ratios, and exercise similarity.
 - Local GenAI interface contracts and prompt helpers.
 - Fuzzy exercise matching.
-- Log and progress ViewModel calculations.
-- Room migrations from exported schema versions 8 through 13.
+- Log, progress, split, and cardio view models, from the ported web tests.
+- Room migrations from exported schema version 8 through the current schema, including the 19 to 20 step.
+- JVM tests ported with the web `data`, `cardio`, `ai`, `agent`, and `web.util` packages.
 - Backup and import round-trips for workout, split, audit, and agent-turn data.
 - DuckDB analytics loading, table counts, weekly volume, PRs, agent error rate, and data-quality views.
 
 ## CI
 
-`.github/workflows/android-ci.yml` runs:
+`.github/workflows/android-ci.yml` runs ktlint 1.5.0 over `src/**/*.kt`, then:
 
 ```bash
-./gradlew testDebugUnitTest assembleDebug
+./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest
 ```
 
-The workflow uploads unit test reports and the debug APK as artifacts. Instrumentation tests are kept as local or emulator-backed verification because they require a connected Android runtime.
+The workflow uploads unit test reports, the debug APK, and the debug androidTest APK. It does not run the instrumentation tests. `scripts/ci/verify-apk-signer.sh` checks the debug signing certificate. `scripts/ci/verify-apk-compatibility.sh` requires `versionCode` to rise. Instrumentation tests stay local, because they need a device or an emulator.
 
 ## Known Gaps
 
