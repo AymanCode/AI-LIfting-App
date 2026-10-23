@@ -10,6 +10,7 @@ import com.ayman.ecolift.agent.router.IntentRouter
 import com.ayman.ecolift.agent.tools.AgentToolsImpl
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.Exercise
+import com.ayman.ecolift.data.domain
 import com.ayman.ecolift.data.WeightLbs
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -38,7 +39,7 @@ class MessyLogAgentInstrumentedTest {
 
     @Test
     fun messyShorthandLogWritesMultipleSetsThroughPatchService() = runBlocking {
-        val exerciseId = db.exerciseDao().insert(
+        val exerciseId = db.exerciseDao().domain().insert(
             Exercise(name = "Bench Press", muscleGroups = "CHEST")
         )
         val agent = AgentOrchestrator(

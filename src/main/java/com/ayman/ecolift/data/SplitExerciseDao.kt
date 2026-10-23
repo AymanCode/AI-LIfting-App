@@ -23,6 +23,12 @@ interface SplitExerciseDao {
     @Query("SELECT * FROM split_exercise ORDER BY splitId, orderIndex")
     suspend fun getAll(): List<RoomSplitExercise>
 
+    @Insert
+    suspend fun insert(row: RoomSplitExercise): Long
+
+    @Query("UPDATE split_exercise SET userAdded = 1 WHERE id = :id")
+    suspend fun markUserAdded(id: Long)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(rows: List<RoomSplitExercise>)
 
