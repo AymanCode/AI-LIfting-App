@@ -20,9 +20,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -56,9 +54,9 @@ internal fun <T : Any> SwapSheetFrame(
             val interactive = state != null && !busy
             val dismiss = { if (interactive) { focus.clearFocus(); onDismiss() } }
             val keyboard = keyboardOverlap()
-            val height = (with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() } - keyboard).coerceAtLeast(0.dp)
-            val tight = height < 500.dp
-            Box(Modifier.fillMaxSize()) {
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val height = (maxHeight - keyboard).coerceAtLeast(0.dp)
+                val tight = height < 500.dp
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .62f * progress.value))
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = dismiss)
                     .semantics { contentDescription = "Close swap sheet" })
