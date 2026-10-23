@@ -19,7 +19,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -226,7 +227,7 @@ class RoomPatchServiceTest {
             block(repos, audit, PatchService(repos, PatchValidator(), audit))
         } finally {
             repos.close()
-            scope.cancel()
+            scope.coroutineContext.job.cancelAndJoin()
             db.close()
         }
     }
