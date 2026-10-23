@@ -1,27 +1,36 @@
 package com.ayman.ecolift.ui.viewmodel
-import com.ayman.ecolift.data.domain
 
-import android.app.Application
-import android.os.Build
-import androidx.lifecycle.AndroidViewModel
+import com.ayman.ecolift.data.isCheckedWorking
+import com.ayman.ecolift.web.util.countLabel
+
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayman.ecolift.agent.AgentOrchestrator
 import com.ayman.ecolift.agent.AgentProcessingOptions
+import com.ayman.ecolift.agent.AgentResponseCard
 import com.ayman.ecolift.agent.AgentTurn
 import com.ayman.ecolift.agent.PendingReviewCleanupParser
 import com.ayman.ecolift.agent.WorkoutImportTextParser
-import com.ayman.ecolift.agent.engine.GeminiNanoEngine
 import com.ayman.ecolift.agent.engine.LocalGenAiEngine
 import com.ayman.ecolift.agent.model.AgentTurnLog
 import com.ayman.ecolift.agent.model.DbPatch
+import com.ayman.ecolift.agent.model.InMemoryTurnLogStore
 import com.ayman.ecolift.agent.patches.PatchResult
-import com.ayman.ecolift.agent.patches.PatchService
-import com.ayman.ecolift.agent.patches.PatchValidator
 import com.ayman.ecolift.agent.router.IntentRouter
-import com.ayman.ecolift.agent.tools.AgentToolsImpl
-import com.ayman.ecolift.data.AppDatabase
-import com.ayman.ecolift.data.DebugDataHelper
+import com.ayman.ecolift.agent.router.Intent
+import com.ayman.ecolift.agent.router.RuleMatcher
+import com.ayman.ecolift.agent.LogSetTextParser
 import com.ayman.ecolift.data.PendingReview
+import com.ayman.ecolift.data.SetQueries
+import com.ayman.ecolift.data.WorkoutDates
+import com.ayman.ecolift.web.AppRepos
+import com.ayman.ecolift.web.demo.DemoGuard
+import com.ayman.ecolift.web.util.MONTH_ABBREV
+import com.ayman.ecolift.web.util.nowMillis
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
+import kotlinx.datetime.LocalDate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -30,74 +39,75 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 /**
  * ViewModel backed by [AgentOrchestrator].
  *
- * Reuses the AI screen UI models while delegating message handling, confirmation,
- * undo, and turn logging to the agent layer.
+ * Web port: uses AppRepos plus an injected AI engine instead of AppDatabase/AndroidViewModel.
  */
-class OrchestratorViewModel(application: Application) : AndroidViewModel(application) {
+@OptIn(ExperimentalUuidApi::class)
+class OrchestratorViewModel(
+    private val repos: AppRepos,
+    private val engine: LocalGenAiEngine
+) : ViewModel() {
 
-    private val db = AppDatabase.getInstance(application)
-    private val service = PatchService(db, PatchValidator())
-    private val tools = AgentToolsImpl(db)
-    private val engine: LocalGenAiEngine? =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) GeminiNanoEngine(application)
-        else null
-    private val agent = AgentOrchestrator(
-        router = IntentRouter(engine = engine),
-        tools = tools,
+    private val turnLogStore = InMemoryTurnLogStore()
+    private val service = UnavailablePatchApplier
+    private val tools = UnavailableAgentTools
+    private val agent   = AgentOrchestrator(
+        router       = IntentRouter(engine = engine),
+        tools        = tools,
         patchApplier = service,
-        engine = engine
+        engine       = engine
     )
-    private val turnLogDao = db.agentTurnLogDao()
-    private val pendingReviewDao = db.pendingReviewDao().domain()
-
-    private val workoutSetDao = db.workoutSetDao().domain()
-    private val exerciseDao = db.exerciseDao().domain()
 
     // Track which review IDs have already been surfaced so the chat does not repeat them.
     private val notifiedReviewIds = mutableSetOf<Long>()
 
     init {
-        viewModelScope.launch { engine?.warmup() }
-
         // Proactively surface new unresolved entries in the chat.
         viewModelScope.launch {
-            pendingReviewDao.observeUnresolved()
-                .drop(1) // Skip initial DB emission on cold start; only react to new entries.
+            repos.pendingReviews.unresolved
+                .drop(1) // Skip initial emission on cold start; only react to new entries.
                 .collect { reviews ->
-                    val fresh = reviews.filter { it.id !in notifiedReviewIds }
-                    if (fresh.isEmpty()) return@collect
-                    notifiedReviewIds += fresh.map { it.id }
-                    val lines = fresh.joinToString("\n") { "- \"${it.rawInput}\" (${it.dateLogged})" }
-                    push(
-                        isUser = false,
-                        text = "Heads up - ${fresh.size} entry(s) didn't match any exercise:\n$lines\n\nTell me what they should be and I'll fix them."
-                    )
+                    try {
+                        val fresh = reviews.filter { it.id !in notifiedReviewIds }
+                        if (fresh.isEmpty()) return@collect
+                        notifiedReviewIds += fresh.map { it.id }
+                        val lines = fresh.joinToString("\n") { "- \"${it.rawInput}\" (${humanDate(it.dateLogged)})" }
+                        push(
+                            isUser = false,
+                            text = "${countLabel(fresh.size, "entry", "entries")} matched no exercise:\n$lines\n\nTell me what they should be and I'll fix them."
+                        )
+                    } catch (e: Exception) {
+                        // Swallow per-cycle errors so future emissions are still monitored.
+                    }
                 }
         }
     }
+
     // Internal state
 
-    private val _input = MutableStateFlow("")
-    private val _msgs = MutableStateFlow(listOf(WELCOME))
+    private val _input   = MutableStateFlow("")
+    private val _msgs    = MutableStateFlow(listOf(WELCOME))
+    /** This session's messages only; agent conversations are not persisted. */
+    val sessionMessages: StateFlow<List<AiMessageUi>> = _msgs
     private val _confirm = MutableStateFlow<AgentTurn.NeedsConfirmation?>(null)
-    private val _busy = MutableStateFlow(false)
-    private var nextId = 1L
+    private val _busy    = MutableStateFlow(false)
+    private var nextId   = 1L
 
     /** One-shot event: UI should show a Snackbar with "Undo" action. */
     private val _undoEvent = MutableSharedFlow<AgentTurn.Applied>(extraBufferCapacity = 1)
     val undoEvent: SharedFlow<AgentTurn.Applied> = _undoEvent.asSharedFlow()
+
     // Exposed state
 
     val uiState: StateFlow<AiUiState> = combine(
-        _input, _msgs, _confirm, _busy, exerciseDao.observeAll()
+        _input, _msgs, _confirm, _busy, repos.exercises.exercises.combine(repos.sets.sets) { exercises, _ -> exercises }
     ) { input, msgs, confirm, busy, exercises ->
         val query = input.substringAfterLast('@', "").takeIf { input.contains('@') && !input.substringAfterLast('@').contains(' ') }
         val availableNames = if (query != null) {
@@ -110,16 +120,16 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
         }
 
         AiUiState(
-            isModelReady = true,
-            messages = msgs,
-            shortcuts = buildDynamicShortcuts(exercises),
-            input = input,
+            isModelReady  = true,
+            messages      = msgs,
+            shortcuts     = buildDynamicShortcuts(exercises),
+            input         = input,
             availableExerciseNames = availableNames,
-            isWorking = busy,
+            isWorking     = busy,
             pendingAction = confirm?.let {
                 AiPendingActionUi(
-                    title = "Confirm Change",
-                    detail = it.summary,
+                    title        = "Confirm Change",
+                    detail       = it.summary,
                     confirmLabel = "Apply"
                 )
             }
@@ -130,40 +140,45 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
         AiUiState(isModelReady = true, messages = listOf(WELCOME), shortcuts = emptyList())
     )
 
-    private suspend fun buildDynamicShortcuts(exercises: List<com.ayman.ecolift.data.Exercise>): List<AiShortcutUi> {
+    private fun buildDynamicShortcuts(exercises: List<com.ayman.ecolift.data.Exercise>): List<AiShortcutUi> {
         val shortcuts = mutableListOf<AiShortcutUi>()
+        val allSets = repos.sets.sets.value
 
         // 1. Trend for most recently logged exercise
-        val recentExercise = workoutSetDao.getMostRecentExerciseName()
-        if (recentExercise != null) {
+        val recentSet = allSets.filter { it.isCheckedWorking }.maxByOrNull { it.date }
+        val recentExerciseName = recentSet?.exerciseId?.let { eid ->
+            exercises.firstOrNull { it.id == eid }?.name
+        }
+        if (recentExerciseName != null) {
             shortcuts += AiShortcutUi(
-                title = "Trend for $recentExercise",
+                title = "Trend for $recentExerciseName",
                 subtitle = "Analyze your recent progress",
-                prompt = "How is my $recentExercise trending?"
+                prompt = "How is my $recentExerciseName trending?"
             )
         }
 
         // 2. Analyze last workout
-        val lastDate = workoutSetDao.getLatestWorkoutDate()
+        val lastDate = SetQueries.latestCompletedDate(allSets)
         if (lastDate != null) {
             shortcuts += AiShortcutUi(
                 title = "Analyze last workout",
-                subtitle = "Check your session on $lastDate",
-                prompt = "Analyze my workout from $lastDate"
+                subtitle = "Check your session on ${humanDate(lastDate)}",
+                prompt = "Analyze my workout from ${humanDateLong(lastDate)}"
             )
         }
 
-        // 3. Defaults
-        shortcuts += AiShortcutUi("Log a set", "Quick-log weight and reps", "bench press 185 x 5")
-        shortcuts += AiShortcutUi("Fix a mistake", "Correct historical data", "Actually my bench on Monday was 225")
-
-        return shortcuts.take(4)
+        val openCount = allSets.count { !it.completed && it.date <= com.ayman.ecolift.data.WorkoutDates.today() }
+        if (openCount > 0) shortcuts += AiShortcutUi(
+            "Review ${countLabel(openCount, "unchecked set")}", "",
+            "Show my $openCount open workout sets by date and exercise. Do not change or remove any sets."
+        )
+        return shortcuts.take(3)
     }
 
     /** Last 50 turns for the debug sheet, newest first. */
-    val recentTurns: StateFlow<List<AgentTurnLog>> = turnLogDao
-        .observeRecent(50)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    private val _recentTurns = MutableStateFlow<List<AgentTurnLog>>(emptyList())
+    val recentTurns: StateFlow<List<AgentTurnLog>> = _recentTurns
+
     // Actions
 
     fun updateInput(text: String) { _input.value = text }
@@ -175,6 +190,8 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
         _input.value = ""
         push(isUser = true, text = text)
 
+        if (blockDemoWriteRequest(text)) return
+
         val cleanupExercise = PendingReviewCleanupParser.extractExerciseName(text)
         if (cleanupExercise != null) {
             cleanupPendingReviewsAs(cleanupExercise)
@@ -183,12 +200,12 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
 
         viewModelScope.launch {
             _busy.value = true
-            val t0 = System.currentTimeMillis()
+            val t0  = nowMillis()
             val turn = agent.process(
                 text,
                 AgentProcessingOptions(allowModelFallback = false)
             )
-            val ms = System.currentTimeMillis() - t0
+            val ms  = nowMillis() - t0
             handleTurn(turn)
             logTurn(text, turn, ms)
             _busy.value = false
@@ -197,18 +214,14 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
 
     /**
      * Batch-resolves pending import rows as one exercise.
-     *
-     * User need: after importing old notes, several rows can fail because the
-     * exercise was misspelled or absent from the catalog. A command like
-     * "all pending rows are Hip Abduction" lets the user repair those rows in
-     * one pass instead of opening each saved line and retyping it manually.
      */
     private fun cleanupPendingReviewsAs(exerciseQuery: String) {
+        if (DemoGuard.blockIfDemo()) return
         viewModelScope.launch {
             _busy.value = true
-            val unresolved = pendingReviewDao.getUnresolved()
-            if (unresolved.isEmpty()) {
-                push(isUser = false, text = "No pending review rows to clean up.")
+            val unresolvedList = repos.pendingReviews.unresolved.first()
+            if (unresolvedList.isEmpty()) {
+                push(isUser = false, text = "No unchecked sets.")
                 _busy.value = false
                 return@launch
             }
@@ -224,7 +237,7 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
             val resolvedReviewIds = mutableSetOf<Long>()
             val nextSetByDate = mutableMapOf<String, Int>()
 
-            for (review in unresolved) {
+            for (review in unresolvedList) {
                 val sets = parseReviewSets(review)
                 if (sets.isEmpty()) continue
 
@@ -253,12 +266,33 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
                 return@launch
             }
 
-            when (val result = service.applyPatches(UUID.randomUUID().toString(), patches, userConfirmed = false)) {
+            when (val result = service.applyPatches(Uuid.random().toString(), patches, userConfirmed = false)) {
                 is PatchResult.Applied -> {
-                    for (id in resolvedReviewIds) pendingReviewDao.markResolved(id)
-                    val rows = resolvedReviewIds.size
-                    push(isUser = false, text = "Resolved $rows pending row(s) as ${exercise.name} and imported ${result.patchCount} set(s).")
-                    _undoEvent.tryEmit(AgentTurn.Applied("Resolved pending review rows.", result.auditId))
+                    var rows = 0
+                    for (id in resolvedReviewIds) {
+                        try {
+                            repos.pendingReviews.markResolved(id)
+                            rows += 1
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (t: Throwable) {
+                            push(isUser = false, text = "Couldn't save your answer. Try again.")
+                            break
+                        }
+                    }
+                    push(
+                        isUser = false,
+                        text = "Saved ${countLabel(rows, "set")} as ${exercise.name}.",
+                        card = AiChangesCardUi(
+                            patches.mapNotNull { patch ->
+                                (patch as? DbPatch.LogSet)?.let {
+                                    val load = it.weightLbs?.let(com.ayman.ecolift.data.WeightLbs::formatStored) ?: "BW"
+                                    "${exercise.name} · added $load×${it.reps}"
+                                }
+                            }
+                        )
+                    )
+                    _undoEvent.tryEmit(AgentTurn.Applied("Unchecked sets cleared.", result.auditId))
                 }
                 is PatchResult.Rejected -> push(isUser = false, text = "Couldn't clean up pending rows: ${result.reason}")
                 is PatchResult.Failed -> push(isUser = false, text = result.error, isError = true)
@@ -272,12 +306,13 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
         if (importDraft != null && importDraft.entries.isNotEmpty()) {
             return importDraft.entries.flatMap { it.sets }
         }
-        val single = com.ayman.ecolift.agent.LogSetTextParser.parseOneExercise(review.rawInput)
+        val single = LogSetTextParser.parseOneExercise(review.rawInput)
         return single?.sets?.map { WorkoutImportTextParser.ParsedSet(it.weightLbs, it.reps) }.orEmpty()
     }
 
     fun confirmPending() {
         val pending = _confirm.value ?: return
+        if (DemoGuard.blockIfDemo()) return
         _confirm.value = null
         viewModelScope.launch {
             _busy.value = true
@@ -292,13 +327,14 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun undo(auditId: Long) {
+        if (DemoGuard.blockIfDemo()) return
         viewModelScope.launch {
             handleTurn(agent.undo(auditId))
         }
     }
 
     fun clearTurnLog() {
-        viewModelScope.launch { turnLogDao.clearAll() }
+        // InMemoryTurnLogStore doesn't have a clearAll - no-op for now
     }
 
     fun editRecoveryDraft(originalText: String) {
@@ -312,51 +348,58 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
     fun saveRecoveryForReview(originalText: String, saveDate: String) {
         val raw = originalText.trim()
         if (raw.isBlank()) return
+        if (DemoGuard.blockIfDemo()) return
         viewModelScope.launch {
-            pendingReviewDao.insert(
-                PendingReview(
-                    rawInput = raw,
-                    dateLogged = saveDate
-                )
-            )
-            push(isUser = false, text = "Saved for review. You can clean it up later without retyping it.")
+            try {
+                repos.pendingReviews.add(rawInput = raw, dateLogged = saveDate)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (t: Throwable) {
+                push(isUser = false, text = "Couldn't save that for review")
+                return@launch
+            }
+            push(isUser = false, text = "Saved for review.")
         }
     }
 
     fun tryRecoveryWithModel(originalText: String) {
         val text = originalText.trim()
         if (text.isBlank()) return
+        if (DemoGuard.blockIfDemo()) return
         viewModelScope.launch {
             _busy.value = true
-            val t0 = System.currentTimeMillis()
+            val t0 = nowMillis()
             val turn = agent.process(
                 text,
                 AgentProcessingOptions(allowModelFallback = true)
             )
-            val ms = System.currentTimeMillis() - t0
+            val ms = nowMillis() - t0
             handleTurn(turn)
             logTurn(text, turn, ms)
             _busy.value = false
         }
     }
 
-    fun seedDebugData() {
-        viewModelScope.launch {
-            DebugDataHelper.seed(getApplication())
-            push(isUser = false, text = "Debug data seeded - 7 exercises, about 30 sessions across 90 days. Try: \"how is my bench trending\" or \"what did I do on Monday\".")
-        }
-    }
     // Internal helpers
 
     private fun handleTurn(turn: AgentTurn) {
+        if (DemoGuard.isDemo && turn.hasWriteEffect()) {
+            _confirm.value = null
+            DemoGuard.notifyBlocked()
+            return
+        }
         when (turn) {
-            is AgentTurn.TextResponse -> push(isUser = false, text = turn.text)
+            is AgentTurn.TextResponse      -> push(isUser = false, text = turn.text, card = turn.card?.toUiCard())
             is AgentTurn.NeedsConfirmation -> {
                 push(isUser = false, text = turn.summary)
                 _confirm.value = turn
             }
             is AgentTurn.Applied -> {
-                push(isUser = false, text = turn.text)
+                push(
+                    isUser = false,
+                    text = turn.text,
+                    card = turn.changes.takeIf { it.isNotEmpty() }?.let(::AiChangesCardUi)
+                )
                 _undoEvent.tryEmit(turn)
             }
             is AgentTurn.RecoverableFailure -> {
@@ -374,7 +417,11 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
                 )
             }
             is AgentTurn.ImportApplied -> {
-                push(isUser = false, text = turn.text)
+                push(
+                    isUser = false,
+                    text = turn.text,
+                    card = turn.changes.takeIf { it.isNotEmpty() }?.let(::AiChangesCardUi)
+                )
                 persistPendingReviewDrafts(turn.pendingReviews)
                 if (turn.auditId != null) {
                     _undoEvent.tryEmit(AgentTurn.Applied(turn.text, turn.auditId))
@@ -384,37 +431,60 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    private fun blockDemoWriteRequest(text: String): Boolean {
+        if (!DemoGuard.isDemo) return false
+        val isWriteRequest =
+            PendingReviewCleanupParser.extractExerciseName(text) != null ||
+                WorkoutImportTextParser.looksLikeImport(text, WorkoutDates.today()) ||
+                RuleMatcher.match(text)?.intent is Intent.Write
+        if (!isWriteRequest) return false
+
+        DemoGuard.notifyBlocked()
+        return true
+    }
+
+    private fun AgentTurn.hasWriteEffect(): Boolean =
+        when (this) {
+            is AgentTurn.Applied,
+            is AgentTurn.ImportApplied,
+            is AgentTurn.NeedsConfirmation -> true
+            else -> false
+        }
+
     private fun persistPendingReviewDrafts(drafts: List<AgentTurn.PendingReviewDraft>) {
         if (drafts.isEmpty()) return
         viewModelScope.launch {
             for (draft in drafts) {
-                val id = pendingReviewDao.insert(
-                    PendingReview(
-                        rawInput = draft.rawInput,
-                        dateLogged = draft.dateLogged
-                    )
-                )
-                notifiedReviewIds += id
+                try {
+                    repos.pendingReviews.add(rawInput = draft.rawInput, dateLogged = draft.dateLogged)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (t: Throwable) {
+                    push(isUser = false, text = "Couldn't save that for review")
+                    return@launch
+                }
             }
         }
     }
 
-    private suspend fun logTurn(userText: String, turn: AgentTurn, latencyMs: Long) {
+    private fun logTurn(userText: String, turn: AgentTurn, latencyMs: Long) {
         val entry = AgentTurnLog(
-            timestamp = System.currentTimeMillis(),
-            userText = userText,
-            turnKind = turn::class.simpleName ?: "Unknown",
-            latencyMs = latencyMs,
+            timestamp    = nowMillis(),
+            userText     = userText,
+            turnKind     = turn::class.simpleName ?: "Unknown",
+            latencyMs    = latencyMs,
             errorMessage = (turn as? AgentTurn.Error)?.message,
-            auditId = (turn as? AgentTurn.Applied)?.auditId,
+            auditId      = (turn as? AgentTurn.Applied)?.auditId,
         )
-        runCatching { turnLogDao.insert(entry) } // Fire-and-forget; never crash the UI.
+        runCatching { turnLogStore.insert(entry) }  // Fire-and-forget; never crash the UI.
+        _recentTurns.value = turnLogStore.latest(50)
     }
 
     private fun push(
         isUser: Boolean,
         text: String,
         isError: Boolean = false,
+        card: AiMessageCardUi? = null,
         recovery: AiRecoveryActionUi? = null
     ) {
         _msgs.update {
@@ -422,25 +492,46 @@ class OrchestratorViewModel(application: Application) : AndroidViewModel(applica
                 id = nextId++,
                 isUser = isUser,
                 text = text,
+                timestampMillis = nowMillis(),
                 isError = isError,
+                card = card,
                 recovery = recovery
             )
         }
     }
+
+    private fun AgentResponseCard.toUiCard(): AiMessageCardUi =
+        when (this) {
+            is AgentResponseCard.History -> AiHistoryCardUi(
+                exerciseName = exerciseName,
+                prLine = prLine,
+                sessions = sessions.map { AiHistoryRowUi(it.date, it.setLabel) },
+            )
+            is AgentResponseCard.Changes -> AiChangesCardUi(changes)
+        }
+
+    private fun humanDate(isoDate: String): String {
+        val date = runCatching { LocalDate.parse(isoDate) }.getOrNull() ?: return isoDate
+        return "${MONTH_ABBREV[date.monthNumber - 1]} ${date.dayOfMonth}"
+    }
+
+    private fun humanDateLong(isoDate: String): String {
+        val date = runCatching { LocalDate.parse(isoDate) }.getOrNull() ?: return isoDate
+        val monthNames = listOf(
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        )
+        return "${monthNames[date.monthNumber - 1]} ${date.dayOfMonth}"
+    }
+
     // Constants
 
     companion object {
         private val WELCOME = AiMessageUi(
-            id = 0L,
+            id     = 0L,
             isUser = false,
-            text = "IronMind ready. Log sets, check history, or ask for weight advice."
-        )
-
-        private val SHORTCUTS = listOf(
-            AiShortcutUi("Log a set", "Quick-log weight and reps", "bench press 185 x 5"),
-            AiShortcutUi("My history", "See recent bench press sessions", "show my bench press history"),
-            AiShortcutUi("Bench trend", "How strength is progressing", "how is my bench press trending"),
-            AiShortcutUi("Today's session", "What was logged today", "what did I do today"),
+            text   = "IronMind ready. Log sets, check history, or ask for weight advice.",
+            timestampMillis = nowMillis()
         )
     }
 }

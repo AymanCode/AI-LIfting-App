@@ -12,11 +12,6 @@ class AppNavigationRoutesTest {
     }
 
     @Test
-    fun `exercise progress route carries selected exercise id`() {
-        assertEquals("progress/99", buildProgressRouteForExercise(99L))
-    }
-
-    @Test
     fun `cycle archive route carries selected archive id`() {
         assertEquals("cycleArchive/7", buildCycleArchiveRoute(7L))
     }
