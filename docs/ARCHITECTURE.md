@@ -4,12 +4,12 @@ EcoLift is a single-module Android app. The Compose screens are the web app's sc
 
 ## Runtime flow
 
-1. `MainActivity` starts the same Compose tree the web app uses after sign-in. There is no login, invite, OAuth, or set-password route.
+1. `MainActivity` paints the theme background, loads Room, then shows the same Compose screens the web app uses. There is no login, invite, OAuth, or set-password route.
 2. The tabs are Log, Progress, IronMind, Cardio, and Split.
 3. Each screen owns a view model. The view model exposes immutable UI state through StateFlow and receives user actions through explicit methods.
 4. Screens read `AppRepos` from `LocalRepos`. `RoomRepos` in `com.ayman.ecolift.android.room` loads Room into memory. It writes each change back inside a transaction before it publishes the new state. There is no account, no sync, and no offline queue. `syncStatus` is the up-to-date value. `cloudStamps` is empty. `syncReview` is empty.
-5. IronMind routes text through `IntentRouter` and grounds requests with `AgentTools`. Writes are typed `DbPatch` values. The app validates a patch before `PatchService` applies it. `PatchService` records audit data for undo. `AndroidAppServices.genAiEngine()` lives in `com.ayman.ecolift.android.services`. On a debug build it can call Groq when `GROQ_API_KEY` is set. It can call Gemini Nano when the device has it.
-6. Backup and restore stays `DataBackupManager`, opened from the settings sheet. The Health Connect reader stays. Settings gets an import row that calls it.
+5. IronMind routes text through `IntentRouter` and grounds requests with `AgentTools`. Writes are typed `DbPatch` values. The app validates a patch before `PatchService` applies it. `RoomRepos` commits each saved change, then publishes the new state. Undo keeps the inverse patch in memory. A restart clears that history. Sending a message does not call a model. The Try AI button on a failed draft calls the model. `AndroidAppServices.genAiEngine()` lives in `com.ayman.ecolift.android.services`. A debug build uses Groq for that call when `GROQ_API_KEY` is set. That key selects Groq over Gemini Nano. A failed Groq call does not switch to Gemini Nano. When `GROQ_API_KEY` is blank, API 31 and newer use Gemini Nano.
+6. Backup and restore use `DataBackupManager` from the IronMind settings sheet. The Health Connect row asks for permission first. The row then shows how many sessions were added.
 7. Backup JSON can be loaded into a DuckDB analytics mart for workout metrics and agent telemetry.
 
 ## Package boundaries
@@ -26,7 +26,7 @@ EcoLift is a single-module Android app. The Compose screens are the web app's sc
 
 ## Data model
 
-The Room schema is version 20. Exported schemas live in `schemas/com.ayman.ecolift.data.AppDatabase`, including `20.json`. Version 20 adds the columns the web models need. It also adds tables for workout exercise cards, exercise aliases, and exercise distinct pairs.
+The Room schema is version 20. Exported schemas live in `schemas/com.ayman.ecolift.data.AppDatabase`, including `20.json`. Version 20 adds the columns the web models need. It also adds seven tables: `WorkoutExerciseCard`, `ExerciseAlias`, `ExerciseDistinctPair`, `SplitAlternativeRow`, `ExerciseSwapReceiptRow`, `WorkoutDayState`, and `SwapAlternativeQueueRow`.
 
 Important entities:
 
@@ -42,6 +42,10 @@ Important entities:
 - `WorkoutExerciseCard`
 - `ExerciseAlias`
 - `ExerciseDistinctPair`
+- `SplitAlternativeRow`
+- `ExerciseSwapReceiptRow`
+- `WorkoutDayState`
+- `SwapAlternativeQueueRow`
 
 Weights are stored through `WeightLbs`, which keeps values in tenths of a pound. The `12 -> 13` migration scales older stored weights into the current representation.
 
@@ -56,9 +60,10 @@ Safety controls:
 - Deterministic routing handles routine requests before model fallback.
 - Patch validation runs before any database transaction.
 - Destructive actions require explicit confirmation.
-- Patch application runs inside Room transactions.
-- Audit rows store forward and inverse patches.
-- Undo applies the stored inverse patch batch.
+- `RoomRepos` commits each saved change before it publishes the new state.
+- The assistant keeps the forward patch and the inverse patch in memory.
+- Undo applies that inverse batch.
+- A restart clears that undo history.
 
 ## Evaluation and Telemetry
 

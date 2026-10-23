@@ -18,15 +18,15 @@ Screenshots are from the Android app with demo data.
 
 | Workout log | Set card |
 | --- | --- |
-| <img src="docs/assets/android/log.png" width="390" alt="Log tab showing a finished workout as a receipt of lifts, loads, and reps"> | <img src="docs/assets/android/set-card.png" width="390" alt="Exercise card with last session's sets above today's set boxes"> |
+| <img src="docs/assets/android/log.png" width="390" alt="Log for a weekday with the Lower Strength split and six lifts"> | <img src="docs/assets/android/set-card.png" width="390" alt="The Back Squat card open for logging, 240 lb by 6"> |
 
 | Progress | Split |
 | --- | --- |
-| <img src="docs/assets/android/progress.png" width="390" alt="Progress tab with one row per exercise, a sparkline, and a change figure"> | <img src="docs/assets/android/splits.png" width="390" alt="Split tab with a calendar and the rotation dial"> |
+| <img src="docs/assets/android/progress.png" width="390" alt="The Progress overview with split charts and session data"> | <img src="docs/assets/android/splits.png" width="390" alt="The October split calendar on the Split tab"> |
 
 | IronMind | Cardio |
 | --- | --- |
-| <img src="docs/assets/android/ironmind.png" width="390" alt="IronMind desk with items that need attention and the sessions each one came from"> | <img src="docs/assets/android/cardio.png" width="390" alt="Cardio tab with a week arc and a list of machine sessions"> |
+| <img src="docs/assets/android/ironmind.png" width="390" alt="The IronMind desk"> | <img src="docs/assets/android/cardio.png" width="390" alt="The Cardio tab"> |
 
 ## What it does
 
@@ -90,11 +90,14 @@ especially older corrections and imports:
 - `for last saturday my deadlift top set should say three fifteen for four not 275`
 - `delete the extra squat set from May 10`
 
-Common requests are handled in Kotlin first. If the router needs help, a debug build can
-ask Groq when `GROQ_API_KEY` is set. The app can ask Gemini Nano on a device that has it.
-The model does not get database access. Before a write reaches Room, it becomes a typed
-`DbPatch` that the app checks. Deletes and renames ask for confirmation. Applied changes
-run in a Room transaction and keep an inverse patch for undo.
+Common requests are handled in Kotlin first. Sending a message does not call a model.
+The Try AI button on a failed draft calls the model. A debug build uses Groq for that call when
+`GROQ_API_KEY` is set. That key selects Groq over Gemini Nano. A failed Groq call stays
+on Groq. It does not call Gemini Nano. When `GROQ_API_KEY` is blank, API 31 and newer
+use Gemini Nano. The model does not get database access. Before a write reaches
+Room, it becomes a typed `DbPatch` that the app checks. Deletes and renames ask for
+confirmation. `RoomRepos` commits the saved workout. Undo keeps the inverse patch in memory.
+A restart clears that history.
 
 If an imported line or workout log cannot be parsed, EcoLift keeps the original text in an
 editable draft instead of guessing. The prompt cases used to check this behavior live in
