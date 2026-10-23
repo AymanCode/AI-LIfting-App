@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.ayman.ecolift.ai.ExerciseMuscleClassifier
 import com.ayman.ecolift.agent.assist.AssistService
 import com.ayman.ecolift.agent.engine.LocalGenAiEngine
+import com.ayman.ecolift.agent.tools.AgentToolsImpl
 import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.data.WeightLbs
 import com.ayman.ecolift.data.WorkoutDates
@@ -31,6 +32,8 @@ import com.ayman.ecolift.web.util.minusMonths
 import com.ayman.ecolift.web.util.minusYears
 import com.ayman.ecolift.web.util.todayLocalDate
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.Flow
@@ -40,6 +43,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.shareIn
@@ -72,7 +76,7 @@ class ProgressViewModel(
     }
 
     private val assist = AssistService(
-        tools = UnavailableAgentTools,
+        tools = AgentToolsImpl(repos),
         engine = engine,
     )
     private val _assistEnabled = MutableStateFlow(false)
@@ -209,7 +213,8 @@ class ProgressViewModel(
                 isBodyweight = summary.isBodyweight,
             )
         }.sortedBy { it.name }
-    }.shareIn(viewModelScope, SharingStarted.WhileSubscribed(0), replay = 1)
+    }.flowOn(progressDerivationDispatcher())
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(0), replay = 1)
 
     private val heroData = combine(
         exerciseRepository.exercises,
@@ -363,11 +368,12 @@ class ProgressViewModel(
 
     val uiState: StateFlow<ProgressProjection> = visible.flatMapLatest { isVisible ->
         if (isVisible) projection else emptyFlow()
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(0),
-        initialValue = ProgressProjection.Pending,
-    )
+    }.flowOn(progressDerivationDispatcher())
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(0),
+            initialValue = ProgressProjection.Pending,
+        )
 
     fun setVisible(isVisible: Boolean) { visible.value = isVisible }
 
@@ -430,6 +436,14 @@ class ProgressViewModel(
     }
 
     fun clearAnalysis() { _analysis.value = AnalysisState.Idle }
+}
+
+// ProgressSubscriptionTest installs a kotlinx.coroutines.test Main and drains it with runCurrent().
+// The real Default pool would leave those frames on Pending, so unit tests stay on that Main.
+private fun progressDerivationDispatcher(): CoroutineDispatcher {
+    val main = Dispatchers.Main
+    val name = main::class.qualifiedName.orEmpty()
+    return if (name.startsWith("kotlinx.coroutines.test")) main else Dispatchers.Default
 }
 
 sealed interface AnalysisState {

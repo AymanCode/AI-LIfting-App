@@ -1,8 +1,8 @@
 package com.ayman.ecolift.agent.patches
 
 import com.ayman.ecolift.agent.model.DbPatch
-import com.ayman.ecolift.data.ExerciseDao
-import com.ayman.ecolift.data.WorkoutSetDao
+import com.ayman.ecolift.web.supabase.ExerciseRepository
+import com.ayman.ecolift.web.supabase.SetRepository
 
 /**
  * Computes the inverse patch for each DbPatch type.
@@ -10,8 +10,8 @@ import com.ayman.ecolift.data.WorkoutSetDao
  * pre-mutation state can be captured.
  */
 class InverseComputer(
-    private val workoutSetDao: WorkoutSetDao,
-    private val exerciseDao: ExerciseDao
+    private val setRepository: SetRepository,
+    private val exerciseRepository: ExerciseRepository
 ) {
     /**
      * Returns the inverse of [patch]. For patches that need current DB state
@@ -30,7 +30,7 @@ class InverseComputer(
 
         is DbPatch.EditSet -> {
             // Read current values before overwrite
-            val current = workoutSetDao.getById(patch.setId)
+            val current = setRepository.getById(patch.setId)
                 ?: error("WorkoutSet ${patch.setId} not found for inverse computation")
             DbPatch.EditSet(
                 setId = patch.setId,
@@ -42,7 +42,7 @@ class InverseComputer(
 
         is DbPatch.DeleteSet -> {
             // Read full row before delete
-            val current = workoutSetDao.getById(patch.setId)
+            val current = setRepository.getById(patch.setId)
                 ?: error("WorkoutSet ${patch.setId} not found for inverse computation")
             DbPatch.LogSet(
                 exerciseId = current.exerciseId,
@@ -66,7 +66,7 @@ class InverseComputer(
 
         is DbPatch.RenameExercise -> {
             // Read current name before rename
-            val current = exerciseDao.getById(patch.exerciseId)
+            val current = exerciseRepository.getById(patch.exerciseId)
                 ?: error("Exercise ${patch.exerciseId} not found for inverse computation")
             DbPatch.RenameExercise(
                 exerciseId = patch.exerciseId,
