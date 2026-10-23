@@ -303,6 +303,9 @@ object DataBackupManager {
         return snapshot.splitMemberChoices.mapNotNull { row ->
             if (row.splitId !in slotIds) return@mapNotNull null
             val choice = row.toChoice()
+            if (choice.board.inSplit.isEmpty() && choice.board.otherOptions.isEmpty()) {
+                return@mapNotNull row
+            }
             val board = EffectiveSplitMembers.of(
                 choice.board.inSplit.filter { it in exerciseIds },
                 choice.board.otherOptions.filter { it in exerciseIds },

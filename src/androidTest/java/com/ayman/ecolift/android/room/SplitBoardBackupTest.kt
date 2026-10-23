@@ -50,8 +50,10 @@ class SplitBoardBackupTest {
             val ids = listOf("SP backup Gamma", "SP backup Alpha", "SP backup Beta").map { repos.exercises.getOrCreate(it).id }
             val slot = repos.workout.addCycleSlot("SP backup manual")
             val emptySlot = repos.workout.addCycleSlot("SP backup empty")
+            val blankSlot = repos.workout.addCycleSlot("SP backup saved empty")
             repos.workout.saveSplitMembers(slot, EffectiveSplitMembers.of(ids.take(2), ids.drop(2)))
             repos.workout.saveSplitMembers(emptySlot, EffectiveSplitMembers.of(emptyList(), ids))
+            repos.workout.saveSplitMembers(blankSlot, EffectiveSplitMembers.of(emptyList(), emptyList()))
             val expected = db.splitMemberChoiceDao().getAll()
             val backup = File(context.cacheDir, "sp-boards.json")
             val exported = DataBackupManager.exportToUri(context, db, Uri.fromFile(backup))
@@ -76,6 +78,8 @@ class SplitBoardBackupTest {
             assertEquals(ids.drop(2), choices.choices.getValue(slot).board.otherOptions)
             assertEquals(emptyList<Long>(), choices.choices.getValue(emptySlot).board.inSplit)
             assertEquals(ids, choices.choices.getValue(emptySlot).board.otherOptions)
+            assertEquals(emptyList<Long>(), choices.choices.getValue(blankSlot).board.inSplit)
+            assertEquals(emptyList<Long>(), choices.choices.getValue(blankSlot).board.otherOptions)
             assertSame(repos, graph(scenario))
         }
     }
