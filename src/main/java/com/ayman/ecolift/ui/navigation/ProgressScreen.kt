@@ -57,6 +57,7 @@ fun ProgressScreen(
         onDispose { viewModel.setVisible(false) }
     }
     val projection by viewModel.uiState.collectAsStateWithLifecycle()
+    val searchText by viewModel.searchText.collectAsStateWithLifecycle()
     val uiState = (projection as? ProgressProjection.Ready)?.state ?: ProgressUiState()
     val assistEnabled by viewModel.assistEnabled.collectAsStateWithLifecycle()
     val analysis by viewModel.analysis.collectAsStateWithLifecycle()
@@ -270,7 +271,7 @@ fun ProgressScreen(
                         }
                     )
                 },
-                searchQuery = uiState.searchQuery,
+                searchQuery = searchText,
                 onSearchChange = viewModel::setSearchQuery,
                 onMuscleGroupChange = viewModel::updateExerciseMuscleGroup,
                 onOrganizationModeChange = { mode ->

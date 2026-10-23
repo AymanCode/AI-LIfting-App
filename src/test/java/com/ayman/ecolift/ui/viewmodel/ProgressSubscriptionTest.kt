@@ -169,6 +169,50 @@ class ProgressSubscriptionTest {
         }
     }
 
+    @Test
+    fun search_text_updates_before_the_expensive_projection_runs() = runVmTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val store = ViewModelStore()
+        try {
+            val model = Fixture().model()
+            store.put("search", model)
+            model.setSearchQuery("BARBELL BENCH PRESS")
+            assertEquals("BARBELL BENCH PRESS", model.searchText.value)
+            assertEquals(ProgressProjection.Pending, model.uiState.value)
+            model.setSearchQuery("")
+            assertEquals("", model.searchText.value)
+        } finally {
+            store.clear()
+            runCurrent()
+        }
+    }
+
+    @Test
+    fun overview_comparisons_keep_literal_report_values() = runVmTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val store = ViewModelStore()
+        try {
+            val model = Fixture().model()
+            store.put("comparisons", model)
+            model.setVisible(true)
+            val projection = backgroundScope.launch { model.uiState.collect() }
+            runCurrent()
+            val state = assertIs<ProgressProjection.Ready>(model.uiState.value).state
+            assertEquals(3, state.exercises.size)
+            val report = state.exercises.single { it.exerciseId == 10L }.report
+            assertEquals(listOf("2026-10-14", "2026-09-14"), report.events.map { it.date })
+            assertEquals(TopSet(1400, 8), report.events.first().to)
+            model.setSearchQuery("Bench")
+            runCurrent()
+            val filtered = assertIs<ProgressProjection.Ready>(model.uiState.value).state.visibleExercises.single().report
+            assertEquals(TopSet(1400, 8), filtered.events.first().to)
+            projection.cancel()
+        } finally {
+            store.clear()
+            runCurrent()
+        }
+    }
+
     private class Fixture {
         private val exercises = listOf(
             Exercise(10L, "Bench Press", "CHEST"),

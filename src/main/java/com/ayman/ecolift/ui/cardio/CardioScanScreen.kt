@@ -266,6 +266,18 @@ fun CardioScanScreen(
                         }
                     }
 
+                    state.toast?.let { toast ->
+                        item {
+                            Text(
+                                text = listOfNotNull(toast.text, toast.emphasis).joinToString(" "),
+                                fontFamily = LogUiFontFamily,
+                                fontSize = 14.sp,
+                                color = DawnPalette.accentText,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                            )
+                        }
+                    }
+
                     // Photo thumbnail card with machine name, scan count summary
                     item {
                         Surface(

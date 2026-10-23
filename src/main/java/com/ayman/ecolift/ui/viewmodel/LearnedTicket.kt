@@ -63,7 +63,7 @@ fun formatTicketTopSet(top: TopSet, isBodyweight: Boolean): String = when {
  * reps at that weight when it is one or two, else the best reps at that weight to beat.
  */
 fun stakeFor(history: List<WorkoutSet>, isBodyweight: Boolean, before: LocalDate): StakeUi? =
-    stakeFrom(reportBefore(history, isBodyweight, before), isBodyweight)
+    ticketHistoryBefore(history, isBodyweight, before).stake
 
 /** The changelog engine over every session strictly before [before]. */
 internal fun reportBefore(history: List<WorkoutSet>, isBodyweight: Boolean, before: LocalDate): ExerciseReport =
@@ -74,11 +74,31 @@ internal fun reportBefore(history: List<WorkoutSet>, isBodyweight: Boolean, befo
         LocalDate.fromEpochDays(before.toEpochDays().toInt() - 1),
     )
 
-internal fun stakeFrom(report: ExerciseReport, isBodyweight: Boolean): StakeUi? {
-    val top = report.topSet ?: return null
-    val step = report.nextStep
+internal data class TicketHistory(
+    val topSet: TopSet?,
+    val lastSessionDate: String?,
+    val stake: StakeUi?,
+)
+
+internal fun ticketHistoryBefore(history: List<WorkoutSet>, isBodyweight: Boolean, before: LocalDate): TicketHistory {
+    val cutoff = before.toString()
+    val end = LocalDate.fromEpochDays(before.toEpochDays().toInt() - 1)
+    val sessions = reportSessions(history.filter { it.date < cutoff }, isBodyweight, end)
+    val last = sessions.lastOrNull() ?: return TicketHistory(null, null, null)
+    val top = last.takeIf { it.date >= "2000-01-01" }?.top
+        ?: return TicketHistory(null, last.date, null)
+    val suggestedReps = sessions.asSequence().flatMap { it.sets.asSequence() }
+        .filter { it.loadStored == top.loadStored }.maxOf { it.reps } + 1
+    return TicketHistory(top, last.date, stakeForTopSet(top, nextStepFor(sessions), suggestedReps, isBodyweight))
+}
+
+internal fun stakeFrom(report: ExerciseReport, isBodyweight: Boolean): StakeUi? =
+    stakeForTopSet(report.topSet, report.nextStep, report.suggestedReps, isBodyweight)
+
+private fun stakeForTopSet(top: TopSet?, step: NextStep?, suggestedReps: Int?, isBodyweight: Boolean): StakeUi? {
+    if (top == null) return null
     if (step != null && top.reps >= step.triggerReps) return StakeUi.StepUp(step.targetLoadStored, isBodyweight)
-    val best = (report.suggestedReps ?: return null) - 1
+    val best = (suggestedReps ?: return null) - 1
     val gap = best - top.reps
     return if (gap in 1..2) StakeUi.RepsToRecord(gap) else StakeUi.Beat(best)
 }
@@ -116,7 +136,7 @@ internal fun ticketRows(
         tail.map { it to TicketRowKind.TAIL }
     return entries.mapNotNull { (lift, kind) ->
         val exercise = exercisesById[lift] ?: return@mapNotNull null
-        val report = reportBefore(setsByLift[lift].orEmpty(), exercise.isBodyweight, day)
+        val report = ticketHistoryBefore(setsByLift[lift].orEmpty(), exercise.isBodyweight, day)
         TicketRowUi(
             exerciseId = lift,
             name = exercise.name,
@@ -124,7 +144,7 @@ internal fun ticketRows(
             kind = kind,
             topSetLabel = report.topSet?.let { formatTicketTopSet(it, exercise.isBodyweight) },
             lastDate = report.lastSessionDate,
-            stake = stakeFrom(report, exercise.isBodyweight),
+            stake = report.stake,
         )
     }
 }

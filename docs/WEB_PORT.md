@@ -27,13 +27,22 @@ Resource calls change at the copy. `Res.drawable.name` becomes `R.drawable.name`
 - Compose BOM `2025.09.01` resolves `androidx.compose.material3:material3` 1.4.0. `SplitEditorSheet` passes `sheetGesturesEnabled = dragId == null`. Dragging a split row does not dismiss the sheet. Material3 1.3.2, from BOM `2025.08.00`, has no such parameter.
 - `ProgressViewModel` takes `derivationDispatcher` and runs both derived flows on it. The default is `Dispatchers.Default`, so the first Progress open does not block the main thread for several seconds. Unit tests pass the `Main` dispatcher they install.
 
+## Android divergences
+
+- Progress search text comes directly from the input flow. Chart and filter projections cannot replace a partially typed name with an older value.
+- Progress shows a themed spinner and loading label while its initial projection is pending. Held-lift and ticket rows use a compact history summary from the existing session and next-step functions; full reports and the Split caller retain their original report results.
+- The latest chart label uses the selected metric's formatter, so a Top set of 102.5 lb keeps its decimal.
+- A cardio scan owns its request before the Android picker opens. Cancellation or a later manual draft invalidates late picker and OCR results, and an unreadable image shows the existing failure message on the scan screen.
+- Typed cardio fields use their existing limits. Zero time and durations over six hours are invalid; a saved notes-only record does not claim an activity-day fill.
+- The Cardio overview sums weekly duration in Long, including older large stored values. Shared domain aggregate types remain unchanged.
+
 ## Port a newer snapshot
 
 1. Diff the new snapshot against `57eda2a`.
 2. Copy changed Kotlin into the same packages. Leave `com.ayman.ecolift.android`, `AppDatabase`, the DAOs, `Migrations`, `DataBackupManager`, `MainActivity`, and `PermissionsRationaleActivity` in place.
 3. Rewrite `Res.drawable` and font resource ids as above. Do not copy web auth, sync, or the service worker.
 4. Re-apply the `CardioViewModel` photo-pair read, the `SplitEditorSheet` gesture flag, and the `ProgressViewModel` `derivationDispatcher` argument if the snapshot overwrites those files.
-5. Run ktlint 1.5.0, then the slot Gradle tests.
+5. Re-apply the Android divergences above, then run ktlint 1.5.0 and the slot Gradle tests.
 
 ## Notes
 
