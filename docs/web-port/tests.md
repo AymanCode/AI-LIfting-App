@@ -332,6 +332,27 @@ Writer A had already edited these Android tests onto the M2 types. They stay.
 
 ktlint import order was applied to `AgentToolsImplTest.kt` and `PatchServiceTest.kt`.
 
+## View-model port after writer F
+
+55 `ui/viewmodel` files were copied after merging `9f49940`. `YearErasTest.kt` was copied with them because its types are in the tree. `SmartSetAdjusterTest.kt` is the web file at the Android path.
+
+Skipped, because the subject was not ported:
+
+- `ui/viewmodel/BufferedScrubBaseTest.kt` needs the offline database and `SupabaseSetRepository`.
+- `data/SmartSuggestToggleTest.kt` needs `SmartSuggestStore`.
+- `data/E1rmConsumerParityTest.kt` and `data/Y2E1rmPerfTest.kt` construct the web tools with `DemoRepos`. The Android tools take `AppDatabase`.
+
+Adapted:
+
+- `CardTakenSwapTest` drops `legacyMembershipDecodesWithoutUserAdded`. That case decoded `SplitExerciseRow`, and the row type was not ported. The chip and demo cases stay.
+- Unused `StoreWrite` imports were removed. That type was not ported, and the tests did not call it.
+- `HubPolicyTest` builds `HubViewModel` with `AppRepos` only. The ported constructor has no `isOnline` parameter. `clearOpenSets`, `confirmItem`, and `clearBacklog` stay.
+- `WarmupProgressTest` drops `row.toQueued().toDomain()` and `roleIsPartOfV2HashWhileV1QueuedPayloadsRemainStable`. `QueuedSet` has no `toDomain`, and `MutateWorkoutSetV1Params` has no `canonicalMaterial` or `canonicalMaterialHash`. The chart, volume, archive, and suggestion cases stay.
+- View-model tests that launch work call `runVmTest` instead of `runTest`. `runVmTest` installs `Dispatchers.Main` on that test's scheduler, and it makes `ArchTaskExecutor` report the caller as the main thread. The JVM test runtime has no Android looper. `viewModelScope` uses `Dispatchers.Main`, and `LifecycleRegistry` asks that executor before it adds an observer. When the test returns, pending main-dispatcher delays are cancelled. A rest ticker would otherwise keep scheduling another second, and `runTest` would never finish draining the scheduler.
+- `DayUndoViewModelTest.demo_swap_drop_and_undo_are_blocked`, `SplitBoardViewModelTest.the_demo_saves_nothing`, and `SplitSwitchViewModelTest.demo_guard_rejects_requests_before_confirmation_or_mutation` are not ported. `CurrentAppMode` ignores `AppMode.Demo`, and `DemoGuard.blockIfDemo` returns false. Demo blocking is out of scope on Android.
+- `delete_sets_publishes_session_once` runs the test scheduler before it cancels its `uiState` collector. `deleteSets` updates that state before the collector, which is queued on the test scheduler, has observed the emission.
+- `durable_replacement_clears_all_outgoing_set_transient_state` does not require an assist suggestion. `LogViewModel` uses `UnavailableAgentTools`, and `suggestWeight` returns `NO_DATA`. Warnings, adjustments, rest, and the recommendation flag still have to be cleared.
+
 ## Ktlint
 
 ktlint 1.5.0 is at `C:/Users/ayman/Documents/ecolift-android-wt/tools/ktlint`. SHA-256 `a16be01dcc480aab2f55f444b620142152f66e31564b3b9376506d624c28a2ad`. The check is `java -jar` over `src/**/*.kt` after `-F` on `src/test/**/*.kt`.
