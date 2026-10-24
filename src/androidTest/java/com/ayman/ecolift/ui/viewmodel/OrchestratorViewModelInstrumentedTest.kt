@@ -1,6 +1,7 @@
 package com.ayman.ecolift.ui.viewmodel
 
 import android.app.Application
+import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ayman.ecolift.android.room.RoomRepos
@@ -26,19 +27,22 @@ import org.junit.runner.RunWith
 class OrchestratorViewModelInstrumentedTest {
     private var repos: RoomRepos? = null
     private var reposScope: CoroutineScope? = null
+    private var db: AppDatabase? = null
 
     @After
     fun tearDown() {
         repos?.close()
         reposScope?.cancel()
+        db?.close()
         repos = null
         reposScope = null
+        db = null
     }
 
     @Test
     fun sendMessageImportsDatedWorkoutRowsThroughProductionViewModel() = runBlocking {
         val app = ApplicationProvider.getApplicationContext<Application>()
-        val db = AppDatabase.getInstance(app)
+        val db = openDatabase()
         val calfId = getOrCreateExercise(db, "QA Calf Raise Machine")
         val lateralId = getOrCreateExercise(db, "QA Lateral Raise Machine")
         val initialCalfCount = db.workoutSetDao().getForDateAndExercise("2026-05-11", calfId).size
@@ -74,7 +78,7 @@ class OrchestratorViewModelInstrumentedTest {
     @Test
     fun sendMessageSavesAndResolvesPendingReviewRowsThroughProductionViewModel() = runBlocking {
         val app = ApplicationProvider.getApplicationContext<Application>()
-        val db = AppDatabase.getInstance(app)
+        val db = openDatabase()
         val hipId = getOrCreateExercise(db, "QA Hip Abduction")
         val initialHipSets = db.workoutSetDao().getForDateAndExercise("2026-05-10", hipId)
         val initialHipCount = initialHipSets.size
@@ -105,6 +109,14 @@ class OrchestratorViewModelInstrumentedTest {
             hipSets.map { it.weightLbs }
         )
         assertTrue(pendingDao.getUnresolved().none { it.id == pendingId })
+    }
+
+    private fun openDatabase(): AppDatabase {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        return Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+            .also { db = it }
     }
 
     private suspend fun productionViewModel(app: Application, db: AppDatabase): OrchestratorViewModel {
