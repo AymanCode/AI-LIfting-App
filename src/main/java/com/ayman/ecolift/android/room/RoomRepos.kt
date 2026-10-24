@@ -68,7 +68,10 @@ class RoomRepos(
         scope = workerScope,
     )
     override val pendingReviews: PendingReviewRepository = RoomPendingReviewRepository(store)
-    override val cardio: CardioRepository = RoomCardioRepository(store)
+    override val cardio: CardioRepository = RoomCardioRepository(
+        store,
+        com.ayman.ecolift.android.services.AndroidDismissedHealthConnectUids,
+    )
     override val assistantChanges: AssistantChangeRepository = NoAssistantChangeRepository
     override val splitReplacement: SplitReplacementCoordinator = SplitReplacementCoordinator(
         journal = MemorySplitJournal(store),

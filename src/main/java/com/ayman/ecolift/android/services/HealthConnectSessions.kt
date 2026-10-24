@@ -1,6 +1,8 @@
 package com.ayman.ecolift.android.services
 
+import android.content.Context
 import androidx.health.connect.client.records.ExerciseSessionRecord
+import com.ayman.ecolift.android.platform.AndroidHost
 import com.ayman.ecolift.data.CardioActivityType
 import com.ayman.ecolift.data.CardioSession
 import com.ayman.ecolift.data.CardioSessionSource
@@ -16,6 +18,48 @@ import java.time.ZoneOffset
 fun claimNewHealthConnectUid(seen: MutableSet<String>, uid: String?): Boolean {
     if (uid.isNullOrBlank()) return false
     return seen.add(uid)
+}
+
+interface DismissedHealthConnectUids {
+    fun all(): Set<String>
+    fun dismiss(uid: String)
+}
+
+fun rememberDeletedHealthConnectUid(hcUid: String?, dismissed: DismissedHealthConnectUids) {
+    if (hcUid.isNullOrBlank()) return
+    dismissed.dismiss(hcUid)
+}
+
+fun seenHealthConnectUids(storedUids: Iterable<String?>, dismissed: DismissedHealthConnectUids): MutableSet<String> {
+    val seen = mutableSetOf<String>()
+    for (uid in storedUids) {
+        if (!uid.isNullOrBlank()) seen.add(uid)
+    }
+    seen.addAll(dismissed.all())
+    return seen
+}
+
+object AndroidDismissedHealthConnectUids : DismissedHealthConnectUids {
+    private const val PREFS_NAME = "ecolift-health-connect"
+    private const val KEY = "dismissed-uids"
+
+    override fun all(): Set<String> {
+        val stored = preferences()?.getStringSet(KEY, emptySet()) ?: return emptySet()
+        return stored.toSet()
+    }
+
+    override fun dismiss(uid: String) {
+        if (uid.isBlank()) return
+        val preferences = preferences() ?: return
+        val next = preferences.getStringSet(KEY, emptySet())?.toMutableSet() ?: mutableSetOf()
+        if (!next.add(uid)) return
+        preferences.edit().putStringSet(KEY, next).apply()
+    }
+
+    private fun preferences() = AndroidHost.current()?.applicationContext?.getSharedPreferences(
+        PREFS_NAME,
+        Context.MODE_PRIVATE,
+    )
 }
 
 fun cardioActivityName(exerciseType: Int): String = when (exerciseType) {
