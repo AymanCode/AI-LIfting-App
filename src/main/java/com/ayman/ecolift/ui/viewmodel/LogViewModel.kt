@@ -108,6 +108,7 @@ private data class ExerciseAddContext(
     val dateGeneration: Long,
     val searchGeneration: Long,
     val resolutionRequestId: Long? = null,
+    val survivesQueryEdit: Boolean = false,
 )
 
 internal fun shouldOfferExerciseResolution(isOnline: Boolean, isDemo: Boolean): Boolean =
@@ -252,7 +253,7 @@ class LogViewModel(
     private var nextSplitSwitchRequestId = 0L
     private var nextExerciseResolutionRequestId = 0L
     private var nextExerciseAddToken = 0L
-    private var activeExerciseAddToken: Long? = null
+    private var activeExerciseAdd: ExerciseAddContext? = null
     private var pendingExerciseAddContext: ExerciseAddContext? = null
     private var predictiveSearchGeneration = 0L
     private var predictiveSearchJob: Job? = null
@@ -1171,7 +1172,7 @@ class LogViewModel(
             val syncIdsBefore = SetQueries.forDate(setRepository.sets.value, startDate).map { it.syncId }.toSet()
             for (request in requests) {
                 if (currentDate.value != startDate || dateSelectionGeneration != startGeneration) return@add
-                val context = beginExerciseAdd() ?: return@add
+                val context = beginExerciseAdd(survivesQueryEdit = true) ?: return@add
                 val carryOn = try {
                     addClipboardPick(request, context)
                 } catch (cancelled: CancellationException) {
@@ -1240,7 +1241,7 @@ class LogViewModel(
         }
         if (!ownsExerciseAdd(context)) return false
         finishExerciseResolution(exerciseId, context)
-        return activeExerciseAddToken == null
+        return activeExerciseAdd == null
     }
 
     /** "Same lift?" answered yes for two lifts already in the catalog: the merge "Yes, same" runs. */
@@ -1372,7 +1373,7 @@ class LogViewModel(
         predictiveSuggestions.value = emptyList()
         _pendingExerciseResolution.value = null
         pendingExerciseAddContext = null
-        activeExerciseAddToken = null
+        if (activeExerciseAdd?.survivesQueryEdit != true) activeExerciseAdd = null
         predictiveSearchJob?.cancel()
         if (value.isNotBlank()) {
             predictiveSearchJob = viewModelScope.launch {
@@ -1392,24 +1393,25 @@ class LogViewModel(
         predictiveSuggestions.value = emptyList()
         _pendingExerciseResolution.value = null
         pendingExerciseAddContext = null
-        activeExerciseAddToken = null
+        activeExerciseAdd = null
     }
 
-    private fun beginExerciseAdd(): ExerciseAddContext? {
-        if (activeExerciseAddToken != null || _pendingExerciseResolution.value != null) return null
+    private fun beginExerciseAdd(survivesQueryEdit: Boolean = false): ExerciseAddContext? {
+        if (activeExerciseAdd != null || _pendingExerciseResolution.value != null) return null
         return ExerciseAddContext(
             token = ++nextExerciseAddToken,
             date = currentDate.value,
             dateGeneration = dateSelectionGeneration,
             searchGeneration = predictiveSearchGeneration,
-        ).also { activeExerciseAddToken = it.token }
+            survivesQueryEdit = survivesQueryEdit,
+        ).also { activeExerciseAdd = it }
     }
 
     private fun ownsExerciseAdd(context: ExerciseAddContext): Boolean =
-        activeExerciseAddToken == context.token
+        activeExerciseAdd?.token == context.token
 
     private fun abandonExerciseAdd(context: ExerciseAddContext) {
-        if (activeExerciseAddToken == context.token) activeExerciseAddToken = null
+        if (activeExerciseAdd?.token == context.token) activeExerciseAdd = null
         if (pendingExerciseAddContext?.token == context.token) pendingExerciseAddContext = null
     }
 
