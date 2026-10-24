@@ -6,15 +6,12 @@ The web UI calls `AppRepos` and expects `StateFlow` lists. Android already store
 
 ## Usage (caller's view)
 
-The integrator builds the database, builds `RoomRepos`, and waits for `loadAll()` before composition.
+The integrator builds the database inside `RepositoryOwner` and waits for `loadAll()` before composition.
 
 ```kotlin
-val db = AppDatabase.getInstance(context)
-val repos = RoomRepos(db = db, scope = lifecycleScope)
-lifecycleScope.launch {
-    repos.loadAll()
-    setContent { EcoLiftApp(repos) }
-}
+val owner: RepositoryOwner by viewModels()
+val loaded = owner.initialize(seedRequested).await()
+setContent { LoadedApp(owner, loaded) }
 ```
 
 A log screen collects `repos.sets.sets` and `repos.sets.cards`. Saving a set calls `repos.sets.updateSet(edited, observed)`. The returned `LocalCommit.Committed` means the row is in the database and the flow already shows it.
@@ -29,7 +26,7 @@ Validation sits on the way in. `replaceDayBatch` rejects a set whose date does n
 
 The public surface is the existing `AppRepos` interfaces. Callers do not see DAOs, entities, or the write depth. That is the depth that matters. The implementation is large because the interfaces are large. Splitting a second cache beside the store would make two writers.
 
-The store deliberately does not queue sync, does not open a second card for one exercise on one day, and does not implement exercise swap.
+The store deliberately does not queue sync and does not open a second card for one exercise on one day. Exercise swaps are `RoomExerciseSwapRepository` on `RoomRepos`.
 
 Mappers are the boundary. Per boundary discipline, SQL rows do not leak out, and the pure helpers do not import Room.
 
@@ -51,7 +48,7 @@ We accept an in-memory split journal in exchange for one transaction. A process 
 
 We accept no foreign key from `workout_set.cardId` in exchange for an additive migration.
 
-We accept `NoExerciseSwapRepository` in exchange for staying inside the demo's sync-free surface. The report names that gap.
+We accept `RoomExerciseSwapRepository` on the local store in exchange for swaps that do not use a sync queue.
 
 ## Alternatives considered
 
@@ -61,7 +58,7 @@ A sync queue that records `PendingWrite` and drains it into Room lost. The task 
 
 ## Open questions and risks
 
-Should a later pass replace `NoExerciseSwapRepository` with a local swap that rewrites one day's sets and card? The demo does not. The lead can ask for that if the ported UI needs the button to work.
+`RoomExerciseSwapRepository` rewrites one day's sets and card in Room. `AppRepos` still defaults to `NoExerciseSwapRepository` when a caller does not use `RoomRepos`.
 
 Writer A's `M2:` commit `68fccc1` moved the entities. `RoomMappers.kt` now copies `syncId`, `cardId`, `isWarmup`, `mergedIntoId`, and the cycle-slot flags. The mappers stayed in `data/room`.
 

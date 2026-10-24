@@ -1,18 +1,18 @@
-# Room schema v20 and RoomRepos
+# Room schema v21 and RoomRepos
 
 Reference for the integrator. The Android app keeps one local user. There is no sync queue.
 
 ## Startup
 
-Construct the graph after `AppDatabase.getInstance`, then await `loadAll()` before the UI collects any flow.
+Construct the graph in `RepositoryOwner`, then await `loadAll()` before the UI collects any flow.
 
 ```kotlin
-val repos = RoomRepos(db = database, scope = lifecycleScope)
-lifecycleScope.launch {
-    repos.loadAll()
-    setContent { /* LocalRepos provides repos */ }
-}
+val owner: RepositoryOwner by viewModels()
+val loaded = owner.initialize(seedRequested).await()
+setContent { LoadedApp(owner, loaded) }
 ```
+
+`RepositoryOwner` is an `AndroidViewModel`. It opens `AppDatabase.getInstance`, constructs `RoomRepos` on `viewModelScope`, and keeps that graph across configuration changes. `MainActivity` waits for `initialize`.
 
 `loadAll()` reads every user table inside one Room transaction, then publishes the `StateFlow` values. `close()` cancels the learned-splits scope. `syncStatus` stays `SyncStatus.UpToDate`. `cloudStamps` stays an empty `CloudStamps`. `syncReview` stays `SyncReview.Empty`. `resolveSyncConflict`, `useExistingExercise`, and `retryExerciseCreate` keep the interface defaults.
 
@@ -175,4 +175,4 @@ Progress and archive summary methods read the published sets and days. No extra 
 
 ## Version
 
-`APP_DATABASE_VERSION` is 20. `versionCode` is 6. `versionName` is `1.5`. `schemas/.../20.json` is the Room export.
+`APP_DATABASE_VERSION` is 21. `versionCode` is 6. `versionName` is `1.5`. `schemas/.../21.json` is the Room export.

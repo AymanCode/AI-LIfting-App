@@ -2,6 +2,7 @@ package com.ayman.ecolift.android.room
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -134,56 +135,81 @@ class BackupLifecycleTest {
     @Test
     fun localRecoveryNeedsConfirmationAndRestoresTheSelectedSnapshot() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val backups = isolatedBackupContext()
-        val db = AppDatabase.getInstance(backups)
-        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            val graph = awaitGraph(scenario)
-            lateinit var owner: RepositoryOwner
-            scenario.onActivity { owner = it.repositoryOwner }
-            val originalSettings = db.userSettingsDao().get()
-            val originalSets = db.workoutSetDao().getAll()
-            val exported = File(context.cacheDir, "bk-roundtrip.json")
-            DataBackupManager.exportToUri(backups, db, Uri.fromFile(exported))
-            // RepositoryOwner reads this file from the application files directory.
-            val backup = requireNotNull(DataBackupManager.createAutomaticBackup(context, db, "bk-local-test", force = true))
-            val now = System.currentTimeMillis()
-            val row = CardioSession(
-                localUuid = "bk-local-$now",
-                date = java.time.LocalDate.now().toString(),
-                activityType = "Walking",
-                source = "manual",
-                createdAt = now,
-                updatedAt = now,
+        val realAutomaticBackups = File(context.filesDir, "automatic-backups")
+        val namesBefore = automaticBackupFileNames(realAutomaticBackups)
+        try {
+            val backups = isolatedBackupContext()
+            val db = AppDatabase.getInstance(backups)
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                val graph = awaitGraph(scenario)
+                lateinit var owner: RepositoryOwner
+                scenario.onActivity { owner = it.repositoryOwner }
+                val originalSettings = db.userSettingsDao().get()
+                val originalSets = db.workoutSetDao().getAll()
+                val exported = File(context.cacheDir, "bk-roundtrip.json")
+                DataBackupManager.exportToUri(backups, db, Uri.fromFile(exported))
+                // RepositoryOwner reads this file from the application files directory.
+                val backup = requireNotNull(DataBackupManager.createAutomaticBackup(context, db, "bk-local-test", force = true))
+                val now = System.currentTimeMillis()
+                val row = CardioSession(
+                    localUuid = "bk-local-$now",
+                    date = java.time.LocalDate.now().toString(),
+                    activityType = "Walking",
+                    source = "manual",
+                    createdAt = now,
+                    updatedAt = now,
+                )
+                db.cardioSessionDao().insert(row)
+                graph.loadAll()
+                scenario.onActivity { owner.backups.requestRestore(RestoreSource.Local(backup.fileName)) }
+                assertEquals(1, graph.cardio.sessions.value.count { it.localUuid == row.localUuid })
+                scenario.onActivity { owner.backups.cancelRestore() }
+                assertEquals(1, db.cardioSessionDao().getAll().count { it.localUuid == row.localUuid })
+                scenario.onActivity {
+                    owner.backups.requestRestore(RestoreSource.Local(backup.fileName))
+                    owner.confirmRestore()
+                }
+                withTimeout(15_000) {
+                    while (owner.backups.state.value.busy || owner.backups.state.value.message == null) delay(25)
+                }
+                org.junit.Assert.assertTrue(owner.backups.state.value.message!!.startsWith("Imported "))
+                assertEquals(0, graph.cardio.sessions.value.count { it.localUuid == row.localUuid })
+                assertEquals(0, db.cardioSessionDao().getAll().count { it.localUuid == row.localUuid })
+                org.junit.Assert.assertTrue(DataBackupManager.listAutomaticBackups(context).any { it.fileName == backup.fileName })
+                scenario.onActivity {
+                    owner.backups.requestRestore(RestoreSource.Document(Uri.fromFile(exported).toString()))
+                    owner.confirmRestore()
+                }
+                withTimeout(15_000) {
+                    while (owner.backups.state.value.busy || owner.backups.state.value.message == null) delay(25)
+                }
+                org.junit.Assert.assertTrue(owner.backups.state.value.message!!.startsWith("Imported "))
+                assertEquals(originalSets, db.workoutSetDao().getAll())
+                assertEquals(originalSettings, db.userSettingsDao().get())
+            }
+        } finally {
+            // confirmRestore writes through the real application context. Remove only files this test added.
+            realAutomaticBackups.listFiles().orEmpty()
+                .filter { it.isFile && it.name !in namesBefore }
+                .forEach { createdFile ->
+                    check(createdFile.delete()) { "Could not delete ${createdFile.name}" }
+                }
+            val namesAfter = automaticBackupFileNames(realAutomaticBackups)
+            val created = (namesAfter - namesBefore).sorted()
+            Log.i(
+                "BackupLifecycleLeak",
+                "beforeCount=${namesBefore.size} afterCount=${namesAfter.size} created=$created",
             )
-            db.cardioSessionDao().insert(row)
-            graph.loadAll()
-            scenario.onActivity { owner.backups.requestRestore(RestoreSource.Local(backup.fileName)) }
-            assertEquals(1, graph.cardio.sessions.value.count { it.localUuid == row.localUuid })
-            scenario.onActivity { owner.backups.cancelRestore() }
-            assertEquals(1, db.cardioSessionDao().getAll().count { it.localUuid == row.localUuid })
-            scenario.onActivity {
-                owner.backups.requestRestore(RestoreSource.Local(backup.fileName))
-                owner.confirmRestore()
-            }
-            withTimeout(15_000) {
-                while (owner.backups.state.value.busy || owner.backups.state.value.message == null) delay(25)
-            }
-            org.junit.Assert.assertTrue(owner.backups.state.value.message!!.startsWith("Imported "))
-            assertEquals(0, graph.cardio.sessions.value.count { it.localUuid == row.localUuid })
-            assertEquals(0, db.cardioSessionDao().getAll().count { it.localUuid == row.localUuid })
-            org.junit.Assert.assertTrue(DataBackupManager.listAutomaticBackups(context).any { it.fileName == backup.fileName })
-            scenario.onActivity {
-                owner.backups.requestRestore(RestoreSource.Document(Uri.fromFile(exported).toString()))
-                owner.confirmRestore()
-            }
-            withTimeout(15_000) {
-                while (owner.backups.state.value.busy || owner.backups.state.value.message == null) delay(25)
-            }
-            org.junit.Assert.assertTrue(owner.backups.state.value.message!!.startsWith("Imported "))
-            assertEquals(originalSets, db.workoutSetDao().getAll())
-            assertEquals(originalSettings, db.userSettingsDao().get())
+            assertEquals(
+                "files created in the real automatic-backups directory",
+                emptyList<String>(),
+                created,
+            )
         }
     }
+
+    private fun automaticBackupFileNames(directory: File): Set<String> =
+        directory.listFiles()?.filter { it.isFile }?.map { it.name }?.toSet().orEmpty()
 
     private suspend fun awaitMessage(owner: RepositoryOwner, message: String) = withTimeout(15_000) {
         while (owner.backups.state.value.busy || owner.backups.state.value.message != message) delay(25)

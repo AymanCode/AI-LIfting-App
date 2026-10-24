@@ -5,6 +5,7 @@ import android.content.ContextWrapper
 import java.io.File
 import java.util.UUID
 
+/** AppDatabase is a process-wide singleton, so this context isolates backup files only. */
 internal class IsolatedBackupContext private constructor(
     base: Context,
     private val root: File,

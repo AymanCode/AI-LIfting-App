@@ -39,7 +39,7 @@ Full reports are written under `build/reports/agent-eval/`.
 
 ## Data and Persistence
 
-Room stores exercises, workout days, workout sets, split and cycle data, pending review rows, audit entries, and agent turn logs. The schema version is 20, with exported schemas under `schemas/`.
+Room stores exercises, workout days, workout sets, split and cycle data, pending review rows, audit entries, and agent turn logs. The schema version is 21, with exported schemas under `schemas/`.
 
 Backup export/import includes workout history, split data, pending reviews, audit rows, and agent turns. Import creates a pre-import automatic backup and runs the restore inside a Room transaction.
 

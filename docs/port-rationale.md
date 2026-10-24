@@ -8,7 +8,7 @@ The non-obvious part is the boundary. The web UI does not talk to tables. It tal
 
 ## Usage (caller's view)
 
-`MainActivity` builds one `RoomRepos` and one `AndroidAppServices`, then shows the web `AppNavigation`.
+`RepositoryOwner` builds one `RoomRepos` on `viewModelScope` and keeps that graph across configuration changes. `MainActivity` waits for it, then builds one `AndroidAppServices` and shows the web `AppNavigation`.
 
 ```kotlin
 CompositionLocalProvider(
@@ -37,7 +37,7 @@ One card exists per exercise per day. Postgres enforces `unique (user_id, date, 
 
 Validation of backup JSON and of OCR text stays at those edges. Domain functions copied from the web stay pure.
 
-The app always runs as the signed-in local user. `DemoGuard` does not block. Auth, login, invites, and OAuth routes are removed. Per make-operations-idempotent, migration 19 to 20 only adds columns with defaults and the new tables, and the debug demo seed runs only when `workout_set` is empty.
+The app always runs as the signed-in local user. `DemoGuard` does not block. Auth, login, invites, and OAuth routes are removed. Per make-operations-idempotent, migration 19 to 20 only adds columns with defaults and the new tables. The debug demo seed runs only when the debug seed extra is set, `workout_set` is empty, the exercise rows are still the shipped catalog, and `DemoSeedOccupancy` finds no personal rows.
 
 ## Synthesis decision
 

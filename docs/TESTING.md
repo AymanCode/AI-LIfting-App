@@ -88,7 +88,7 @@ The test suite covers:
 - Local GenAI interface contracts and prompt helpers.
 - Fuzzy exercise matching.
 - Log, progress, split, and cardio view models, from the ported web tests.
-- Room migrations from exported schema version 8 through the current schema, including the 19 to 20 step.
+- Room migrations from exported schema version 8 through the current schema, including the 19 to 20 step and the 20 to 21 step in `SplitMemberChoiceMigrationTest`.
 - JVM tests ported with the web `data`, `cardio`, `ai`, `agent`, and `web.util` packages.
 - Backup and import round-trips for workout, split, audit, and agent-turn data.
 - DuckDB analytics loading, table counts, weekly volume, PRs, agent error rate, and data-quality views.
