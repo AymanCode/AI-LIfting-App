@@ -51,7 +51,6 @@ class RoomRepos(
     private val learned = ForwardingLearnedSplits()
     private var learnedJob: Job? = null
     private var learnedStarted = false
-    private var installedSmartSuggest = true
 
     /** Test seam. Runs before a learned slot write, and before any generation check. */
     var beforeLearnedWrite: suspend () -> Unit = {}
@@ -125,7 +124,7 @@ class RoomRepos(
         }
         synchronized(learned) {
             learnedStarted = true
-            installLearnedSplits(installedSmartSuggest)
+            installLearnedSplits(store.settings.value.smartSuggest)
         }
         return result
     }
@@ -165,7 +164,6 @@ class RoomRepos(
     }
 
     private fun installLearnedSplits(smartSuggest: Boolean) {
-        installedSmartSuggest = smartSuggest
         learnedJob?.cancel()
         val parent = workerScope.coroutineContext[Job]
         val job = SupervisorJob(parent)
