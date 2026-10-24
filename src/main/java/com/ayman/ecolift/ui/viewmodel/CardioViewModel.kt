@@ -339,6 +339,7 @@ internal object CardioDraftLogic {
         for (field in shown) {
             if (field in draft.values) {
                 visible[field] = displayForMachine(draft, field, newType)
+                held.remove(field)
             } else {
                 val parked = held[field] ?: continue
                 visible[field] = if (parked.machine == newType) {
@@ -371,7 +372,7 @@ internal object CardioDraftLogic {
             values = visible,
             held = held,
             readStates = readStates,
-            invalid = draft.invalid.filter { it in visible || it in held }.toSet(),
+            invalid = draft.invalid.filter { it in visible }.toSet(),
         )
     }
 

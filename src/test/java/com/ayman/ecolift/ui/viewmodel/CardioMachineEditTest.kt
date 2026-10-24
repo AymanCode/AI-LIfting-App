@@ -136,6 +136,82 @@ class CardioMachineEditTest {
     }
 
     @Test
+    fun an_out_of_range_rower_distance_does_not_block_save_on_stairs() = runVmTest {
+        CurrentAppMode.mode = AppMode.Authenticated
+        val original = session(
+            "2026-10-02",
+            type = CardioActivityType.ROW,
+            minutes = 20,
+            metres = 2000.0,
+            id = 7L,
+        )
+        val book = SessionBook(original)
+        val viewModel = viewModel(book)
+
+        viewModel.startEditDraft(7L)
+        testScheduler.advanceUntilIdle()
+        viewModel.commitTyped(CardioEntryField.DISTANCE_MILES, "10")
+        viewModel.selectMachine(CardioActivityType.STAIR_CLIMBER)
+        val draft = viewModel.uiState.value.draft
+        assertTrue(draft != null && CardioDraftLogic.canSave(draft), "hidden distance still blocks save: $draft")
+        viewModel.save()
+        testScheduler.advanceUntilIdle()
+
+        val saved = book.rows.single()
+        assertEquals(7L, saved.id)
+        assertEquals(CardioActivityType.STAIR_CLIMBER.name, saved.activityType)
+    }
+
+    @Test
+    fun an_invalid_rower_distance_comes_back_as_the_stored_2000() = runVmTest {
+        CurrentAppMode.mode = AppMode.Authenticated
+        val original = session(
+            "2026-10-02",
+            type = CardioActivityType.ROW,
+            minutes = 20,
+            metres = 2000.0,
+            id = 7L,
+        )
+        val book = SessionBook(original)
+        val viewModel = viewModel(book)
+
+        viewModel.startEditDraft(7L)
+        testScheduler.advanceUntilIdle()
+        viewModel.commitTyped(CardioEntryField.DISTANCE_MILES, "10")
+        viewModel.selectMachine(CardioActivityType.STAIR_CLIMBER)
+        viewModel.selectMachine(CardioActivityType.ROW)
+        val draft = viewModel.uiState.value.draft
+        val shown = draft?.values?.get(CardioEntryField.DISTANCE_MILES)
+        assertEquals(2000.0, shown ?: Double.NaN, 1e-6)
+        assertTrue(draft != null && CardioEntryField.DISTANCE_MILES !in draft.invalid, "distance still invalid: $draft")
+    }
+
+    @Test
+    fun a_typed_distance_wins_after_it_is_cleared() = runVmTest {
+        CurrentAppMode.mode = AppMode.Authenticated
+        val original = session(
+            "2026-10-02",
+            type = CardioActivityType.ROW,
+            minutes = 20,
+            metres = 2000.0,
+            id = 7L,
+        )
+        val book = SessionBook(original)
+        val viewModel = viewModel(book)
+
+        viewModel.startEditDraft(7L)
+        testScheduler.advanceUntilIdle()
+        viewModel.selectMachine(CardioActivityType.STAIR_CLIMBER)
+        viewModel.commitTyped(CardioEntryField.DISTANCE_MILES, "4.00")
+        viewModel.selectMachine(CardioActivityType.ROW)
+        viewModel.clearField(CardioEntryField.DISTANCE_MILES)
+        viewModel.selectMachine(CardioActivityType.STAIR_CLIMBER)
+        viewModel.selectMachine(CardioActivityType.ROW)
+
+        assertNull(viewModel.uiState.value.draft?.values?.get(CardioEntryField.DISTANCE_MILES))
+    }
+
+    @Test
     fun a_cached_bike_draft_does_not_leak_into_an_edit() = runVmTest {
         CurrentAppMode.mode = AppMode.Authenticated
         val book = bookWithNewerSession()
