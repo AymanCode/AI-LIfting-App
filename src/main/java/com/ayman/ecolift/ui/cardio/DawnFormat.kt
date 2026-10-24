@@ -16,12 +16,14 @@ fun formatDuration(seconds: Int): String {
     }
 }
 
-fun formatDurationCompact(seconds: Int): String {
+fun formatDurationCompact(seconds: Int): String = formatDurationCompact(seconds.toLong())
+
+fun formatDurationCompact(seconds: Long): String {
     val hours = seconds / 3600
     val minutes = (seconds % 3600) / 60
     return when {
-        seconds <= 0 -> "0m"
-        hours > 0 -> "${hours}h ${minutes}m"
+        seconds <= 0L -> "0m"
+        hours > 0L -> "${hours}h ${minutes}m"
         else -> "${minutes}m"
     }
 }

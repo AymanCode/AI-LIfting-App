@@ -64,12 +64,12 @@ class CardioInsightsTest {
     @Test fun month_bars_split_seconds_by_machine_oldest_first() {
         val bars = CardioInsights.monthBars(listOf(session("2026-09-02", minutes = 30), session("2026-08-10", minutes = 40, type = CardioActivityType.BIKE), session("2026-08-12", minutes = 20)), today)
         assertEquals(4, bars.size); assertEquals(6, bars.first().month); assertTrue(bars.last().isCurrent)
-        assertEquals(60 * 60, bars[2].totalSeconds); assertEquals(40 * 60, bars[2].secondsByMachine[CardioActivityType.BIKE])
+        assertEquals(60 * 60L, bars[2].totalSeconds); assertEquals(40 * 60L, bars[2].secondsByMachine[CardioActivityType.BIKE])
     }
 
     @Test fun year_columns_and_machine_order() {
         val s = listOf(session("2026-05-01", minutes = 60), session("2026-05-02", minutes = 30, type = CardioActivityType.BIKE), session("2026-09-01", type = CardioActivityType.BIKE))
-        assertEquals(90 * 60, CardioInsights.yearColumns(s, 2026)[4]); assertEquals(0, CardioInsights.yearColumns(s, 2026)[0])
+        assertEquals(90 * 60L, CardioInsights.yearColumns(s, 2026)[4]); assertEquals(0L, CardioInsights.yearColumns(s, 2026)[0])
         val order = CardioInsights.defaultMachineOrder(s)
         assertEquals(CardioActivityType.BIKE, order[0]); assertEquals(CardioActivityType.TREADMILL, order[1]); assertEquals(CardioActivityType.entries.size, order.size)
     }

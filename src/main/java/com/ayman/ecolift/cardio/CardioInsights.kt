@@ -18,7 +18,13 @@ data class DayRuns(
     val daysMovedThisMonth: Int, val daysElapsedThisMonth: Int,
 )
 data class WeekStreak(val weeksInARow: Int, val currentWeekQualifies: Boolean, val currentWeekNeeds: Int)
-data class MonthBar(val year: Int, val month: Int, val secondsByMachine: Map<CardioActivityType, Int>, val totalSeconds: Int, val isCurrent: Boolean)
+data class MonthBar(
+    val year: Int,
+    val month: Int,
+    val secondsByMachine: Map<CardioActivityType, Long>,
+    val totalSeconds: Long,
+    val isCurrent: Boolean,
+)
 
 enum class RecordKind {
     LONGEST_SESSION,
@@ -59,7 +65,8 @@ object CardioInsights {
         return dates.map { date ->
             val daySessions = sessions.filter { countsForActivity(it) && parseDate(it) == date }
             val count = daySessions.size
-            val minutes = daySessions.sumOf { it.durationSec ?: 0 } / 60
+            val seconds = daySessions.sumOf { (it.durationSec ?: 0).toLong() }
+            val minutes = (seconds / 60).toInt()
             val machine = if (count > 0) {
                 val longest = daySessions.minWith(
                     compareByDescending<CardioSession> { it.durationSec ?: 0 }.thenBy { it.createdAt }
@@ -177,12 +184,12 @@ object CardioInsights {
                 val d = parseDate(session) ?: return@filter false
                 d.year == ym.year && (d.month.ordinal + 1) == ym.month && d <= today
             }
-            val secondsByMachine = mutableMapOf<CardioActivityType, Int>()
+            val secondsByMachine = mutableMapOf<CardioActivityType, Long>()
             for (s in monthSessions) {
                 val type = activityType(s)
-                secondsByMachine[type] = (secondsByMachine[type] ?: 0) + (s.durationSec ?: 0)
+                secondsByMachine[type] = (secondsByMachine[type] ?: 0L) + (s.durationSec ?: 0).toLong()
             }
-            val totalSeconds = monthSessions.sumOf { it.durationSec ?: 0 }
+            val totalSeconds = monthSessions.sumOf { (it.durationSec ?: 0).toLong() }
             MonthBar(
                 year = ym.year,
                 month = ym.month,
@@ -193,13 +200,13 @@ object CardioInsights {
         }
     }
 
-    fun yearColumns(sessions: List<CardioSession>, year: Int): List<Int> {
-        val result = MutableList(12) { 0 }
+    fun yearColumns(sessions: List<CardioSession>, year: Int): List<Long> {
+        val result = MutableList(12) { 0L }
         for (session in sessions) {
             if (!countsForActivity(session)) continue
             val d = parseDate(session) ?: continue
             if (d.year == year) {
-                result[d.month.ordinal] += (session.durationSec ?: 0)
+                result[d.month.ordinal] += (session.durationSec ?: 0).toLong()
             }
         }
         return result

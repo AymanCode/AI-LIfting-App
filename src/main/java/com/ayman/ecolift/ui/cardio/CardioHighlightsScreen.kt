@@ -807,7 +807,7 @@ fun CardioHighlightsScreen(
                     val monthName = MONTH_ABBREV.getOrNull(mb.month - 1) ?: ""
                     val durationText = formatDurationCompact(mb.totalSeconds)
                     val suffix = if (mb.isCurrent) " so far" else ""
-                    val maxMonthSec = monthBarsList.maxOfOrNull { it.totalSeconds }?.coerceAtLeast(1) ?: 1
+                    val maxMonthSec = monthBarsList.maxOfOrNull { it.totalSeconds }?.coerceAtLeast(1L) ?: 1L
 
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(
@@ -837,9 +837,13 @@ fun CardioHighlightsScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                                 ) {
-                                    val totalFraction = (mb.totalSeconds.toFloat() / maxMonthSec).coerceIn(0f, 1f)
+                                    val totalFraction = (mb.totalSeconds.toFloat() / maxMonthSec.toFloat()).coerceIn(0f, 1f)
                                     mb.secondsByMachine.forEach { (mType, sec) ->
-                                        val segFrac = if (mb.totalSeconds > 0) (sec.toFloat() / mb.totalSeconds) * totalFraction else 0f
+                                        val segFrac = if (mb.totalSeconds > 0) {
+                                            (sec.toFloat() / mb.totalSeconds.toFloat()) * totalFraction
+                                        } else {
+                                            0f
+                                        }
                                         if (segFrac > 0f) {
                                             Box(
                                                 modifier = Modifier
@@ -927,7 +931,7 @@ fun CardioHighlightsScreen(
                 }
 
                 item {
-                    val maxMonthSec = yearHours.maxOrNull()?.coerceAtLeast(1) ?: 1
+                    val maxMonthSec = yearHours.maxOrNull()?.coerceAtLeast(1L) ?: 1L
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(
                             modifier = Modifier
@@ -938,7 +942,7 @@ fun CardioHighlightsScreen(
                         ) {
                             val curMonthIdx = today.month.ordinal
                             yearHours.forEachIndexed { i, sec ->
-                                val frac = (sec.toFloat() / maxMonthSec).coerceIn(0f, 1f)
+                                val frac = (sec.toFloat() / maxMonthSec.toFloat()).coerceIn(0f, 1f)
                                 val isNow = (i == curMonthIdx)
                                 val barHeight = (60 * frac).coerceAtLeast(if (sec > 0) 4f else 0f).dp
 
