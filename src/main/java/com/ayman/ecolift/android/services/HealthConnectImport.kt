@@ -33,14 +33,15 @@ class HealthConnectImport(
 
     suspend fun importRecentSessions(): Int {
         if (!reader.isAvailable()) return 0
-        var added = 0
+        var state: ImportState? = null
         return try {
             val stored = storedHealthConnectUids()
                 .mapNotNull { uid -> uid?.takeIf(String::isNotBlank) }
                 .toSet()
             val dismissed = dismissedHealthConnectUids.all()
             val seen = seenHealthConnectUids(stored, dismissedHealthConnectUids)
-            val state = ImportState(stored, dismissed, seen, upsert)
+            val imported = ImportState(stored, dismissed, seen, upsert)
+            state = imported
             val client = reader.client()
             val granted = client.permissionController.getGrantedPermissions()
             if (exerciseSessionReadPermission() !in granted) return 0
@@ -58,19 +59,19 @@ class HealthConnectImport(
                 )
                 val now = clock.millis()
                 val sessions = page.records.mapNotNull { record -> sessionFrom(record, now) }
-                added += importSessions(sessions, state)
+                importSessions(sessions, imported)
                 pageToken = page.pageToken
                 pages += 1
             } while (pageToken != null && pages < MAX_PAGES)
-            added
+            imported.added
         } catch (error: CancellationException) {
             throw error
         } catch (error: SecurityException) {
-            added
+            state?.added ?: 0
         } catch (error: RemoteException) {
-            added
+            state?.added ?: 0
         } catch (error: IllegalStateException) {
-            added
+            state?.added ?: 0
         }
     }
 
@@ -100,16 +101,16 @@ internal class ImportState(
     val dismissed: Set<String>,
     val seen: MutableSet<String>,
     val upsert: suspend (CardioSession) -> Unit,
-)
-
-internal suspend fun importSessions(sessions: List<CardioSession>, state: ImportState): Int {
+) {
     var added = 0
+}
+
+internal suspend fun importSessions(sessions: List<CardioSession>, state: ImportState) {
     for (session in sessions) {
         val uid = session.hcUid
         if (!uid.isNullOrBlank() && uid in state.dismissed && uid !in state.stored) continue
         val isNew = claimNewHealthConnectUid(state.seen, uid)
         state.upsert(session)
-        if (isNew) added += 1
+        if (isNew) state.added += 1
     }
-    return added
 }

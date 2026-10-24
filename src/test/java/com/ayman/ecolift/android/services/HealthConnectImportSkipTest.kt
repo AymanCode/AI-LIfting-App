@@ -26,7 +26,7 @@ class HealthConnectImportSkipTest {
             },
         )
 
-        val added = importSessions(
+        importSessions(
             listOf(
                 healthSession("hc-9", durationSec = 500),
                 healthSession("hc-kept", durationSec = 999),
@@ -38,10 +38,32 @@ class HealthConnectImportSkipTest {
         assertFalse(upserts.contains("hc-9"), "dismissed uid with no row was upserted: $upserts")
         assertTrue(upserts.contains("hc-kept"), "stored dismissed uid was not updated: $upserts")
         assertTrue(upserts.contains("hc-new"), "new uid was not imported: $upserts")
-        assertEquals(1, added)
+        assertEquals(1, state.added)
         assertEquals(null, rows.firstOrNull { it.hcUid == "hc-9" }?.hcUid)
         assertEquals(999, rows.single { it.hcUid == "hc-kept" }.durationSec)
         assertEquals(700, rows.single { it.hcUid == "hc-new" }.durationSec)
+    }
+
+    @Test
+    fun a_row_saved_before_a_failing_upsert_stays_counted() = runTest {
+        val rows = mutableListOf<String>()
+        val state = ImportState(
+            stored = emptySet(),
+            dismissed = emptySet(),
+            seen = mutableSetOf(),
+            upsert = { session ->
+                check(rows.isEmpty()) { "second upsert fails" }
+                rows += session.hcUid.orEmpty()
+            },
+        )
+
+        val failure = runCatching {
+            importSessions(listOf(healthSession("hc-a", durationSec = 300), healthSession("hc-b", durationSec = 400)), state)
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException, "the second upsert should have thrown: $failure")
+        assertEquals(listOf("hc-a"), rows)
+        assertEquals(1, state.added)
     }
 }
 
