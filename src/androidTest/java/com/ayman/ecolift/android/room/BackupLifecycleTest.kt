@@ -30,6 +30,8 @@ import org.junit.Assert.assertSame
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
@@ -207,23 +209,30 @@ class BackupLifecycleTest {
             }
         } finally {
             exported.delete()
-            realAutomaticBackups.deleteRecursively()
+            val originalNames = originals.map { it.name }.toSet()
+            automaticBackupFiles(realAutomaticBackups).filter { it.name !in originalNames }.forEach { it.delete() }
             if (originals.isNotEmpty()) realAutomaticBackups.mkdirs()
-            originals.forEach { saved ->
-                val copy = File(savedBackups, saved.name).copyTo(File(realAutomaticBackups, saved.name))
-                check(copy.setLastModified(saved.lastModified)) { "Could not restore the time of ${saved.name}" }
-            }
-            savedBackups.deleteRecursively()
+            originals.forEach { putBack(realAutomaticBackups, it) }
             val restored = automaticBackupFiles(realAutomaticBackups)
             assertEquals("real automatic-backups names", originals.map { it.name }, restored.map { it.name })
             originals.zip(restored).forEach { (saved, file) ->
                 org.junit.Assert.assertArrayEquals("bytes of ${saved.name}", saved.bytes, file.readBytes())
                 assertEquals("time of ${saved.name}", saved.lastModified, file.lastModified())
             }
+            savedBackups.deleteRecursively()
         }
     }
 
     private class SavedBackup(val name: String, val bytes: ByteArray, val lastModified: Long)
+
+    private fun putBack(directory: File, saved: SavedBackup) {
+        val target = File(directory, saved.name)
+        if (target.isFile && target.lastModified() == saved.lastModified && target.readBytes().contentEquals(saved.bytes)) return
+        // The temp name has no .json extension, so recovery never lists a half-written copy.
+        val temp = File(directory, ".${saved.name}.restoring").apply { writeBytes(saved.bytes) }
+        Files.move(temp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        check(target.setLastModified(saved.lastModified)) { "Could not restore the time of ${saved.name}" }
+    }
 
     private fun automaticBackupFiles(directory: File): List<File> =
         directory.listFiles()?.filter { it.isFile }?.sortedBy { it.name }.orEmpty()
