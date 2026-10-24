@@ -229,9 +229,14 @@ class BackupLifecycleTest {
         val target = File(directory, saved.name)
         if (target.isFile && target.lastModified() == saved.lastModified && target.readBytes().contentEquals(saved.bytes)) return
         // The temp name has no .json extension, so recovery never lists a half-written copy.
-        val temp = File(directory, ".${saved.name}.restoring").apply { writeBytes(saved.bytes) }
-        Files.move(temp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-        check(target.setLastModified(saved.lastModified)) { "Could not restore the time of ${saved.name}" }
+        val temp = File(directory, ".${saved.name}.restoring")
+        try {
+            temp.writeBytes(saved.bytes)
+            Files.move(temp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            check(target.setLastModified(saved.lastModified)) { "Could not restore the time of ${saved.name}" }
+        } finally {
+            if (temp.exists()) temp.delete()
+        }
     }
 
     private fun automaticBackupFiles(directory: File): List<File> =
