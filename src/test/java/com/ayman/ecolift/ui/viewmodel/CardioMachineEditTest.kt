@@ -14,6 +14,7 @@ import com.ayman.ecolift.web.demo.DemoData
 import com.ayman.ecolift.web.demo.DemoRepos
 import com.ayman.ecolift.web.supabase.CardioRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.TestScope
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -89,6 +90,49 @@ class CardioMachineEditTest {
         assertEquals(4828.0, saved.distanceM!!, 1e-6)
         assertEquals("hill repeats", saved.notes)
         assertEquals(1200, book.rows.single { it.id == 7L }.durationSec)
+    }
+
+    @Test
+    fun switching_a_rower_edit_to_stairs_and_back_keeps_2000_metres() = runVmTest {
+        assertAwayAndBackKeepsDistance(photo = false)
+    }
+
+    @Test
+    fun switching_a_photo_rower_edit_to_stairs_and_back_keeps_the_typed_distance() = runVmTest {
+        assertAwayAndBackKeepsDistance(photo = true, typedMetres = "2500")
+    }
+
+    private suspend fun TestScope.assertAwayAndBackKeepsDistance(photo: Boolean, typedMetres: String? = null) {
+        CurrentAppMode.mode = AppMode.Authenticated
+        val original = session(
+            "2026-10-02",
+            type = CardioActivityType.ROW,
+            minutes = 20,
+            metres = 2000.0,
+            id = 7L,
+        ).let { row -> if (photo) row.copy(source = CardioSessionSource.OCR) else row }
+        val book = SessionBook(original)
+        val viewModel = viewModel(book)
+
+        viewModel.startEditDraft(7L)
+        testScheduler.advanceUntilIdle()
+        if (typedMetres != null) {
+            viewModel.commitTyped(CardioEntryField.DISTANCE_MILES, typedMetres)
+        }
+        viewModel.selectMachine(CardioActivityType.STAIR_CLIMBER)
+        viewModel.selectMachine(CardioActivityType.ROW)
+        val shown = viewModel.uiState.value.draft?.values?.get(CardioEntryField.DISTANCE_MILES)
+        viewModel.save()
+        testScheduler.advanceUntilIdle()
+
+        val expected = typedMetres?.toDouble() ?: 2000.0
+        assertEquals(expected, shown ?: Double.NaN, 1e-6)
+        assertTrue(book.inserts.isEmpty(), "away and back inserted ${book.inserts}")
+        val saved = book.rows.single()
+        assertEquals(7L, saved.id)
+        assertEquals(CardioActivityType.ROW.name, saved.activityType)
+        assertEquals(1200, saved.durationSec)
+        assertEquals(expected, saved.distanceM ?: Double.NaN, 1e-6)
     }
 
     @Test
