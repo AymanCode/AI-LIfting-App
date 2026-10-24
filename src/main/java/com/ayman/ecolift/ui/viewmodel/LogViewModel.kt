@@ -1680,7 +1680,9 @@ class LogViewModel(
         val canonical = exerciseRepository.canonicalId(exerciseId)
         if (!ownsExerciseAdd(context)) return
         addExerciseSession(canonical, context)
-        if (ownsExerciseAdd(context)) clearExerciseSearch()
+        if (ownsExerciseAdd(context)) {
+            if (context.survivesQueryEdit) abandonExerciseAdd(context) else clearExerciseSearch()
+        }
     }
 
     fun toggleReviewsExpanded() {

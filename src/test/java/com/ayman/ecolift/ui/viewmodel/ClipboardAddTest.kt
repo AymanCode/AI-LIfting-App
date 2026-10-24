@@ -185,6 +185,36 @@ class ClipboardAddTest {
     }
 
     @Test
+    fun a_late_clipboard_add_leaves_a_newer_search_alone() = runVmTest {
+        val harness = Harness()
+        harness.showDate()
+        val gate = CompletableDeferred<Unit>()
+        harness.exercises.aliasGate = gate
+
+        harness.viewModel.addClipboardPicks(
+            listOf(ClipboardPickRequest(ClipboardPick.Typed("Leg Extensions"), lookAlike(), ClipboardAnswer.Same)),
+        )
+        harness.viewModel.updateExerciseInput("")
+        harness.viewModel.updateExerciseInput("bench")
+        val searched = withTimeout(TIMEOUT) {
+            harness.viewModel.uiState.first { state ->
+                state.exerciseInput == "bench" && state.predictiveExercises.any { it.id == BENCH_PRESS }
+            }
+        }
+        assertEquals("bench", searched.exerciseInput)
+        assertTrue(searched.predictiveExercises.any { it.id == BENCH_PRESS })
+
+        gate.complete(Unit)
+        assertEquals(listOf(LEG_EXTENSION), harness.sets.awaitSessions(1))
+        yield()
+        val after = harness.viewModel.uiState.value
+        assertEquals("bench", after.exerciseInput)
+        assertTrue(after.predictiveExercises.isNotEmpty())
+        assertTrue(after.predictiveExercises.any { it.id == BENCH_PRESS })
+        harness.assertLogged(DATE, LEG_EXTENSION)
+    }
+
+    @Test
     fun same_on_an_existing_lift_still_adds_the_keeper_after_the_search_box_clears() = runVmTest {
         val harness = Harness()
         harness.showDate()
