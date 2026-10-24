@@ -1,8 +1,8 @@
 package com.ayman.ecolift.android.room
 
 import com.ayman.ecolift.data.AppDatabase
-import com.ayman.ecolift.data.ExerciseDao
 import com.ayman.ecolift.data.ExerciseAliasDao
+import com.ayman.ecolift.data.ExerciseDao
 import com.ayman.ecolift.data.ExerciseDistinctPairDao
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -87,9 +87,7 @@ class RoomExerciseLostUpdateTest {
             muscle.start()
             var parkedChecks = 0
             val reachedLock = waitUntil {
-                val parked = muscle.isAlive && muscle.state.let {
-                    it == Thread.State.WAITING || it == Thread.State.TIMED_WAITING || it == Thread.State.BLOCKED
-                }
+                val parked = muscle.isAlive && muscle.state in LOCKED_STATES
                 if (parked) parkedChecks += 1 else parkedChecks = 0
                 parkedChecks >= 3
             }
@@ -129,5 +127,6 @@ class RoomExerciseLostUpdateTest {
         const val NEW_MUSCLES = "BACK"
         const val WAIT_SECONDS = 5L
         const val JOIN_MS = 5_000L
+        val LOCKED_STATES = setOf(Thread.State.WAITING, Thread.State.TIMED_WAITING, Thread.State.BLOCKED)
     }
 }
