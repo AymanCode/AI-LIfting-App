@@ -122,14 +122,16 @@ class RoomRepos(
 
     suspend fun <T> replaceDataset(import: suspend () -> T): T {
         stopLearnedSplits()
-        val result = generation.replace(reload = { loadAll() }) {
-            import()
+        try {
+            return generation.replace(reload = { loadAll() }) {
+                import()
+            }
+        } finally {
+            synchronized(learned) {
+                learnedStarted = true
+                installLearnedSplits(store.settings.value.smartSuggest)
+            }
         }
-        synchronized(learned) {
-            learnedStarted = true
-            installLearnedSplits(store.settings.value.smartSuggest)
-        }
-        return result
     }
 
     suspend fun installDemoSeed(seed: DemoSeedData) {
