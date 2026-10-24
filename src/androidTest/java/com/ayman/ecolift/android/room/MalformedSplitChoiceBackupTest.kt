@@ -38,6 +38,7 @@ class MalformedSplitChoiceBackupTest {
     @After
     fun tearDown() {
         names.forEach(context::deleteDatabase)
+        listOf(EXPORT_FILE, BAD_FILE).forEach { File(context.cacheDir, it).delete() }
     }
 
     @Test
@@ -58,9 +59,9 @@ class MalformedSplitChoiceBackupTest {
             try {
                 val backupNames = DataBackupManager.listAutomaticBackups(backups).map { it.fileName }
 
-                val exported = File(context.cacheDir, "f4-choice-export.json")
+                val exported = File(context.cacheDir, EXPORT_FILE)
                 DataBackupManager.exportToUri(backups, db, Uri.fromFile(exported))
-                val bad = File(context.cacheDir, "f4-choice-bad.json")
+                val bad = File(context.cacheDir, BAD_FILE)
                 bad.writeText(backupWithExactBadChoice(exported.readText()))
                 assertTrue(bad.readText().contains(BAD_CHOICE))
 
@@ -148,6 +149,8 @@ class MalformedSplitChoiceBackupTest {
     private companion object {
         const val IMPORT_DB = "f4-malformed-choice-import.db"
         const val PLANT_DB = "f4-malformed-choice-plant.db"
+        const val EXPORT_FILE = "f4-choice-export.json"
+        const val BAD_FILE = "f4-choice-bad.json"
         const val BAD_CHOICE = """{"splitId":7,"revision":1,"inSplitJson":"not-json","otherOptionsJson":"[]"}"""
     }
 }
