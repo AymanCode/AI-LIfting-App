@@ -16,11 +16,11 @@ A mutation stages the next lists, writes the changed rows, and assigns the flows
 
 `LearnedSplitsCoordinator` is the foundation class with `persist` true. It asks `RoomWorkoutRepository` to write slots and days. `SplitReplacementCoordinator` is also the foundation class. Its journal is memory only, because the set write and the day write commit together.
 
-There is no sync queue. `syncStatus` stays up to date. Assistant changes and exercise swaps use the same empty stand-ins as the demo.
+There is no sync queue. `syncStatus` stays up to date. Assistant changes use the empty stand-in. Exercise swaps are `RoomExerciseSwapRepository`.
 
 ## Where things live
 
-`src/main/java/com/ayman/ecolift/data/room` holds the Room entities. DAOs, `AppDatabase`, `Migrations`, and `DataBackupManager` stay in `com.ayman.ecolift.data`. `src/main/java/com/ayman/ecolift/android/room` holds `RoomRepos` and one class per repository interface. `schemas/com.ayman.ecolift.data.AppDatabase/20.json` is the exported schema. `docs/web-port/room.md` is the column and method reference.
+`src/main/java/com/ayman/ecolift/data/room` holds the Room entities. DAOs, `AppDatabase`, `Migrations`, and `DataBackupManager` stay in `com.ayman.ecolift.data`. `src/main/java/com/ayman/ecolift/android/room` holds `RoomRepos` and one class per repository interface. `schemas/com.ayman.ecolift.data.AppDatabase/21.json` is the exported schema. `docs/web-port/room.md` is the column and method reference.
 
 ## Gotchas
 

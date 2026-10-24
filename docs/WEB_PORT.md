@@ -60,7 +60,7 @@ Resource calls change at the copy. `Res.drawable.name` becomes `R.drawable.name`
 
 ## Notes
 
-- [Room schema v20 and RoomRepos](web-port/room.md)
+- [Room schema v21 and RoomRepos](web-port/room.md)
 - [Android shims](web-port/shims.md)
 - [Resources](web-port/resources.md)
 - [Tests](web-port/tests.md)
