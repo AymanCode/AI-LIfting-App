@@ -464,6 +464,17 @@ object Migrations {
                 )
                 """.trimIndent(),
             )
+            // Web leaves this window unset. An upgraded install has Smart suggest on, so a null
+            // anchor would treat every saved session as evidence and replace the hand-made list.
+            db.execSQL(
+                """
+                UPDATE `cycle_slot`
+                   SET `anchorUpdatedAt` = ?
+                 WHERE `createdAt` = 0
+                   AND `anchorUpdatedAt` IS NULL
+                """.trimIndent(),
+                arrayOf<Any>(System.currentTimeMillis()),
+            )
         }
     }
 
