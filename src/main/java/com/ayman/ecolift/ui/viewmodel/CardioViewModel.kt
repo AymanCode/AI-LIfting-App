@@ -30,6 +30,11 @@ import kotlin.math.round
 enum class ReadState { READ, CHECK, UNREAD }
 enum class SaveState { IDLE, SAVING, FAILED }
 
+data class HeldEditValue(
+    val machine: CardioActivityType,
+    val display: Double,
+)
+
 data class CardioDraft(
     val type: CardioActivityType,
     val values: Map<CardioEntryField, Double>,
@@ -42,6 +47,7 @@ data class CardioDraft(
     val editingSessionOriginal: CardioSession? = null,
     val invalid: Set<CardioEntryField> = emptySet(),
     val photoValues: Map<CardioEntryField, Double> = emptyMap(),
+    val held: Map<CardioEntryField, HeldEditValue> = emptyMap(),
 )
 
 data class CardioToast(
@@ -318,6 +324,58 @@ internal object CardioDraftLogic {
         return draft.values.isNotEmpty() || draft.notes.isNotBlank()
     }
 
+    fun retargetEdit(draft: CardioDraft, newType: CardioActivityType): CardioDraft {
+        val shown = CardioActivitySpecs.specFor(newType).fields
+            .filter { it != CardioEntryField.NOTES }
+            .toSet()
+        val held = draft.held.toMutableMap()
+        val visible = draft.values.toMutableMap()
+        for (field in visible.keys.toList()) {
+            if (field !in shown) {
+                held[field] = HeldEditValue(draft.type, visible.getValue(field))
+                visible.remove(field)
+            }
+        }
+        for (field in shown) {
+            if (field in draft.values) {
+                visible[field] = displayForMachine(draft, field, newType)
+                held.remove(field)
+            } else {
+                val parked = held[field] ?: continue
+                visible[field] = if (parked.machine == newType) {
+                    parked.display
+                } else {
+                    displayForMachine(
+                        draft.copy(type = parked.machine, values = mapOf(field to parked.display)),
+                        field,
+                        newType,
+                    )
+                }
+                held.remove(field)
+            }
+        }
+        val readStates = if (draft.fromPhoto) {
+            val next = draft.readStates.toMutableMap()
+            for (field in shown) {
+                next[field] = if (field !in visible) {
+                    ReadState.UNREAD
+                } else {
+                    draft.readStates[field] ?: ReadState.READ
+                }
+            }
+            next
+        } else {
+            draft.readStates
+        }
+        return draft.copy(
+            type = newType,
+            values = visible,
+            held = held,
+            readStates = readStates,
+            invalid = draft.invalid.filter { it in visible }.toSet(),
+        )
+    }
+
     fun displayForMachine(draft: CardioDraft, field: CardioEntryField, newType: CardioActivityType): Double {
         val shown = draft.values.getValue(field)
         val oldType = draft.type
@@ -340,91 +398,93 @@ internal object CardioDraftLogic {
 
     fun toWrite(draft: CardioDraft, today: LocalDate = todayLocalDate()): CardioWrite {
         val orig = draft.editingSessionOriginal
+        val machineFields = CardioActivitySpecs.specFor(draft.type).fields
         fun Double.roundToIntOrNull() = round(this).toInt()
+        fun <T> onMachine(field: CardioEntryField, value: T?): T? = if (field in machineFields) value else null
 
-        val durationSec = if (orig != null && draft.values[CardioEntryField.DURATION] == orig.durationSec?.toDouble()) {
+        val durationSec = onMachine(CardioEntryField.DURATION, if (orig != null && draft.values[CardioEntryField.DURATION] == orig.durationSec?.toDouble()) {
             orig.durationSec
         } else {
             draft.values[CardioEntryField.DURATION]?.roundToIntOrNull()
-        }
+        })
 
-        val distanceM = if (orig != null && draft.values[CardioEntryField.DISTANCE_MILES] == orig.distanceM?.let { CardioFieldRules.fromStorage(CardioEntryField.DISTANCE_MILES, draft.type, it) }) {
+        val distanceM = onMachine(CardioEntryField.DISTANCE_MILES, if (orig != null && draft.values[CardioEntryField.DISTANCE_MILES] == orig.distanceM?.let { CardioFieldRules.fromStorage(CardioEntryField.DISTANCE_MILES, draft.type, it) }) {
             orig.distanceM
         } else {
             draft.values[CardioEntryField.DISTANCE_MILES]?.let { CardioFieldRules.toStorage(CardioEntryField.DISTANCE_MILES, draft.type, it) }
-        }
+        })
 
-        val avgSpeed = if (orig != null && draft.values[CardioEntryField.AVG_SPEED_MPH] == orig.avgSpeed?.let { CardioFieldRules.fromStorage(CardioEntryField.AVG_SPEED_MPH, draft.type, it) }) {
+        val avgSpeed = onMachine(CardioEntryField.AVG_SPEED_MPH, if (orig != null && draft.values[CardioEntryField.AVG_SPEED_MPH] == orig.avgSpeed?.let { CardioFieldRules.fromStorage(CardioEntryField.AVG_SPEED_MPH, draft.type, it) }) {
             orig.avgSpeed
         } else {
             draft.values[CardioEntryField.AVG_SPEED_MPH]?.let { CardioFieldRules.toStorage(CardioEntryField.AVG_SPEED_MPH, draft.type, it) }
-        }
+        })
 
-        val avgInclinePercent = if (orig != null && draft.values[CardioEntryField.AVG_INCLINE_PERCENT] == orig.avgInclinePercent) {
+        val avgInclinePercent = onMachine(CardioEntryField.AVG_INCLINE_PERCENT, if (orig != null && draft.values[CardioEntryField.AVG_INCLINE_PERCENT] == orig.avgInclinePercent) {
             orig.avgInclinePercent
         } else {
             draft.values[CardioEntryField.AVG_INCLINE_PERCENT]
-        }
+        })
 
-        val calories = if (orig != null && draft.values[CardioEntryField.CALORIES] == orig.calories?.toDouble()) {
+        val calories = onMachine(CardioEntryField.CALORIES, if (orig != null && draft.values[CardioEntryField.CALORIES] == orig.calories?.toDouble()) {
             orig.calories
         } else {
             draft.values[CardioEntryField.CALORIES]?.roundToIntOrNull()
-        }
+        })
 
-        val avgHeartRate = if (orig != null && draft.values[CardioEntryField.AVG_HEART_RATE] == orig.avgHeartRate?.toDouble()) {
+        val avgHeartRate = onMachine(CardioEntryField.AVG_HEART_RATE, if (orig != null && draft.values[CardioEntryField.AVG_HEART_RATE] == orig.avgHeartRate?.toDouble()) {
             orig.avgHeartRate
         } else {
             draft.values[CardioEntryField.AVG_HEART_RATE]?.roundToIntOrNull()
-        }
+        })
 
-        val maxHeartRate = if (orig != null && draft.values[CardioEntryField.MAX_HEART_RATE] == orig.maxHeartRate?.toDouble()) {
+        val maxHeartRate = onMachine(CardioEntryField.MAX_HEART_RATE, if (orig != null && draft.values[CardioEntryField.MAX_HEART_RATE] == orig.maxHeartRate?.toDouble()) {
             orig.maxHeartRate
         } else {
             draft.values[CardioEntryField.MAX_HEART_RATE]?.roundToIntOrNull()
-        }
+        })
 
-        val cadenceRpm = if (orig != null && draft.values[CardioEntryField.CADENCE_RPM] == orig.cadenceRpm?.toDouble()) {
+        val cadenceRpm = onMachine(CardioEntryField.CADENCE_RPM, if (orig != null && draft.values[CardioEntryField.CADENCE_RPM] == orig.cadenceRpm?.toDouble()) {
             orig.cadenceRpm
         } else {
             draft.values[CardioEntryField.CADENCE_RPM]?.roundToIntOrNull()
-        }
+        })
 
-        val resistanceLevel = if (orig != null && draft.values[CardioEntryField.RESISTANCE_LEVEL] == orig.resistanceLevel) {
+        val resistanceLevel = onMachine(CardioEntryField.RESISTANCE_LEVEL, if (orig != null && draft.values[CardioEntryField.RESISTANCE_LEVEL] == orig.resistanceLevel) {
             orig.resistanceLevel
         } else {
             draft.values[CardioEntryField.RESISTANCE_LEVEL]
-        }
+        })
 
-        val avgPowerWatts = if (orig != null && draft.values[CardioEntryField.AVG_POWER_WATTS] == orig.avgPowerWatts?.toDouble()) {
+        val avgPowerWatts = onMachine(CardioEntryField.AVG_POWER_WATTS, if (orig != null && draft.values[CardioEntryField.AVG_POWER_WATTS] == orig.avgPowerWatts?.toDouble()) {
             orig.avgPowerWatts
         } else {
             draft.values[CardioEntryField.AVG_POWER_WATTS]?.roundToIntOrNull()
-        }
+        })
 
-        val strokeRateSpm = if (orig != null && draft.values[CardioEntryField.STROKE_RATE_SPM] == orig.strokeRateSpm?.toDouble()) {
+        val strokeRateSpm = onMachine(CardioEntryField.STROKE_RATE_SPM, if (orig != null && draft.values[CardioEntryField.STROKE_RATE_SPM] == orig.strokeRateSpm?.toDouble()) {
             orig.strokeRateSpm
         } else {
             draft.values[CardioEntryField.STROKE_RATE_SPM]?.roundToIntOrNull()
-        }
+        })
 
-        val paceSecPer500m = if (orig != null && draft.values[CardioEntryField.PACE_500M] == orig.paceSecPer500m?.toDouble()) {
+        val paceSecPer500m = onMachine(CardioEntryField.PACE_500M, if (orig != null && draft.values[CardioEntryField.PACE_500M] == orig.paceSecPer500m?.toDouble()) {
             orig.paceSecPer500m
         } else {
             draft.values[CardioEntryField.PACE_500M]?.roundToIntOrNull()
-        }
+        })
 
-        val floors = if (orig != null && draft.values[CardioEntryField.FLOORS] == orig.floors?.toDouble()) {
+        val floors = onMachine(CardioEntryField.FLOORS, if (orig != null && draft.values[CardioEntryField.FLOORS] == orig.floors?.toDouble()) {
             orig.floors
         } else {
             draft.values[CardioEntryField.FLOORS]?.roundToIntOrNull()
-        }
+        })
 
-        val steps = if (orig != null && draft.values[CardioEntryField.STEPS] == orig.steps?.toDouble()) {
+        val steps = onMachine(CardioEntryField.STEPS, if (orig != null && draft.values[CardioEntryField.STEPS] == orig.steps?.toDouble()) {
             orig.steps
         } else {
             draft.values[CardioEntryField.STEPS]?.roundToIntOrNull()
-        }
+        })
 
         val date = orig?.date ?: today.toString()
         val source = if (draft.fromPhoto) CardioSessionSource.OCR else (orig?.source ?: CardioSessionSource.MANUAL)
@@ -595,6 +655,25 @@ class CardioViewModel(
     fun selectMachine(type: CardioActivityType) {
         val cur = _uiState.value.draft ?: return
         if (cur.type == type) return
+        if (cur.editingId != null) {
+            val nextDraft = CardioDraftLogic.retargetEdit(cur, type)
+            val shown = CardioActivitySpecs.specFor(type).fields.filter { it != CardioEntryField.NOTES }
+            _uiState.update { state ->
+                state.copy(
+                    draft = nextDraft,
+                    expandedField = null,
+                    typingField = null,
+                    scanReadCount = if (cur.fromPhoto) {
+                        nextDraft.readStates.filterKeys { it in shown }
+                            .count { it.value == ReadState.READ || it.value == ReadState.CHECK }
+                    } else {
+                        state.scanReadCount
+                    },
+                    scanFieldCount = if (cur.fromPhoto) shown.size else state.scanFieldCount,
+                )
+            }
+            return
+        }
         if (cur.fromPhoto) {
             val spec = CardioActivitySpecs.specFor(type)
             val last = CardioInsights.lastOnMachine(repository.sessions.value, type)
@@ -644,23 +723,6 @@ class CardioViewModel(
                     typingField = null,
                 )
             }
-            return
-        }
-        if (cur.editingId != null) {
-            val spec = CardioActivitySpecs.specFor(type)
-            val newValues = mutableMapOf<CardioEntryField, Double>()
-            for (field in spec.fields) {
-                if (field == CardioEntryField.NOTES) continue
-                if (cur.values.containsKey(field)) {
-                    newValues[field] = CardioDraftLogic.displayForMachine(cur, field, type)
-                }
-            }
-            val nextDraft = cur.copy(
-                type = type,
-                values = newValues,
-                invalid = cur.invalid.filter { spec.fields.contains(it) }.toSet(),
-            )
-            _uiState.update { it.copy(draft = nextDraft, expandedField = null, typingField = null) }
             return
         }
         draftsByMachine[cur.type] = cur

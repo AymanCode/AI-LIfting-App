@@ -34,7 +34,6 @@ import com.ayman.ecolift.android.room.SEED_DEMO_EXTRA
 import com.ayman.ecolift.android.services.AndroidAppServices
 import com.ayman.ecolift.android.services.AndroidDismissedHealthConnectUids
 import com.ayman.ecolift.android.services.HealthConnectImport
-import com.ayman.ecolift.android.services.seenHealthConnectUids
 import com.ayman.ecolift.cardio.health.CardioHealthConnectReader
 import com.ayman.ecolift.data.CardioRepository
 import com.ayman.ecolift.ui.navigation.AppNavigation
@@ -85,12 +84,8 @@ private fun LoadedApp(owner: RepositoryOwner, loaded: LoadedRepositories) {
     val importer = remember {
         HealthConnectImport(
             reader = reader,
-            existingHealthConnectUids = {
-                seenHealthConnectUids(
-                    cardioStore.getAll().map { it.hcUid },
-                    AndroidDismissedHealthConnectUids,
-                )
-            },
+            storedHealthConnectUids = { cardioStore.getAll().map { it.hcUid } },
+            dismissedHealthConnectUids = AndroidDismissedHealthConnectUids,
             upsert = { session ->
                 cardioStore.upsertHealthConnect(session)
             },
