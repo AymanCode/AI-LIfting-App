@@ -1,5 +1,8 @@
 package com.ayman.ecolift.android.room
 
+import com.ayman.ecolift.android.services.AndroidDismissedHealthConnectUids
+import com.ayman.ecolift.android.services.DismissedHealthConnectUids
+import com.ayman.ecolift.android.services.rememberDeletedHealthConnectUid
 import com.ayman.ecolift.data.CardioSession
 import com.ayman.ecolift.data.CardioSessionSource
 import com.ayman.ecolift.data.room.toDomain
@@ -11,6 +14,7 @@ import java.util.UUID
 
 class RoomCardioRepository(
     private val store: RoomStore,
+    private val dismissedHealthConnectUids: DismissedHealthConnectUids = AndroidDismissedHealthConnectUids,
 ) : CardioRepository {
     override val sessions: StateFlow<List<CardioSession>> = store.cardio
 
@@ -116,7 +120,9 @@ class RoomCardioRepository(
     }
 
     override suspend fun delete(id: Long) {
+        val hcUid = store.cardioNow().firstOrNull { it.id == id }?.hcUid
         store.write { deleteCardio(id) }
+        rememberDeletedHealthConnectUid(hcUid, dismissedHealthConnectUids)
     }
 
     private suspend fun insert(
