@@ -290,6 +290,22 @@ class RoomDraft(
         return stored
     }
 
+    /** Moves aliases onto the keeper. A key already stored on another row stays where it is. */
+    suspend fun reassignAliases(fromExerciseId: Long, toExerciseId: Long) {
+        if (fromExerciseId == toExerciseId) return
+        val taken = aliases.filter { it.exerciseId != fromExerciseId }.mapTo(HashSet()) { it.normalizedKey }
+        val moving = ArrayList<ExerciseAlias>()
+        for (row in aliases) {
+            if (row.exerciseId != fromExerciseId) continue
+            if (!taken.add(row.normalizedKey)) continue
+            moving += row.copy(exerciseId = toExerciseId)
+        }
+        if (moving.isEmpty()) return
+        db.exerciseAliasDao().insertAll(moving.map { it.toRoom() })
+        val byId = moving.associateBy { it.id }
+        aliases = aliases.map { row -> byId[row.id] ?: row }
+    }
+
     suspend fun insertPair(pair: ExerciseDistinctPair): ExerciseDistinctPair? {
         if (pairs.any { it.exerciseIdA == pair.exerciseIdA && it.exerciseIdB == pair.exerciseIdB }) return null
         val id = db.exerciseDistinctPairDao().insert(pair.copy(id = 0).toRoom())

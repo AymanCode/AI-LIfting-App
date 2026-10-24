@@ -265,6 +265,7 @@ class RoomExerciseRepository(
         db.exerciseDao().upsert(exercises.first { it.id == loser.id }.toRoom())
         moveSetsAndCards(loser.id, keeperId)
         moveSplitMembers(loser.id, keeperId)
+        reassignAliases(loser.id, keeperId)
         val loserKey = ExerciseMatcher.matchKey(loser.name)
         if (loserKey.isNotEmpty() && simpleNameKey(loser.name) != simpleNameKey(keeper.name)) {
             insertAlias(ExerciseAlias(exerciseId = keeperId, alias = loser.name, normalizedKey = loserKey))
