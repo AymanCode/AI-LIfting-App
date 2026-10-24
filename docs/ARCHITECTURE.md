@@ -16,7 +16,7 @@ EcoLift is a single-module Android app. The Compose screens are the web app's sc
 
 - `ui/`: the web screens and view models, including the log, progress, the IronMind desk, the split calendar and dial, and cardio. `ui/theme/` is the web theme. Font loading reads `res/font`, and shader warmup does nothing. `QuietDepth` uses a runtime shader on API 33 and above. Older devices get a plain gradient.
 - `data/`: web workout models and the calculations the screens call.
-- `data/room/`: Room entities, mapped to the web models. `AppDatabase`, the DAOs, `Migrations.kt`, and `DataBackupManager` are the Android persistence layer.
+- `data/room/`: Room entities, mapped to the web models. `AppDatabase`, the DAOs, `Migrations.kt`, and `DataBackupManager.kt` live in `data/`. `RoomSplitMemberChoice` lives in `android/room/`.
 - `agent/`: IronMind routing, tools, patches, audit, and undo.
 - `ai/`: exercise classification, and `GroqCloudAgent` for debug Groq calls.
 - `cardio/`: cardio fields and parsers. `VisionService` runs ML Kit and `CardioOcrParser`.

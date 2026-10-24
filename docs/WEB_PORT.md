@@ -15,7 +15,7 @@ Resource calls change at the copy. `Res.drawable.name` becomes `R.drawable.name`
 - `com.ayman.ecolift.android.room` holds `RoomRepos` and `RoomStore`.
 - `com.ayman.ecolift.android.services` holds `AndroidAppServices`, `HealthConnectImport`, and the on-device engines.
 - `com.ayman.ecolift.android.platform` holds `AndroidHost`, the photo-picker registration, and the settings actions.
-- `AppDatabase`, the DAOs, `Migrations`, and `DataBackupManager` stay the Android persistence layer.
+- `AppDatabase`, the DAOs, `Migrations`, and `DataBackupManager` live in `com.ayman.ecolift.data`. Room entities live in `com.ayman.ecolift.data.room`. `RoomSplitMemberChoice` lives in `com.ayman.ecolift.android.room`.
 - The Health Connect reader, ML Kit OCR, `GeminiNanoEngine`, and `GroqCloudAgent` stay.
 - `MainActivity` and `PermissionsRationaleActivity` stay.
 

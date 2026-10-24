@@ -161,6 +161,7 @@ src/main/java/com/ayman/ecolift
   agent/       IronMind routing, tools, patches, audit and undo
   ai/          exercise classification and the Groq client
   android/     RoomRepos, AndroidAppServices, and platform shims
+  android/platform/  AndroidHost, backup UI, device actions, and backup actions
   cardio/      cardio fields, parsers, and OCR result types
   data/        workout models and the calculations the screens use
   data/room/   Room entities, mapped to the web models
