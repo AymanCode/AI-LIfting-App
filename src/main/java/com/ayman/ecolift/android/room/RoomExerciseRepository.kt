@@ -156,18 +156,18 @@ class RoomExerciseRepository(
     override fun normalizeName(name: String): String = ExerciseNames.normalize(name)
 
     override suspend fun updateName(id: Long, newName: String): ExerciseRenameResult {
-        val canonical = canonicalId(id)
-        val current = store.exercisesNow().firstOrNull { it.id == canonical }
-            ?: return ExerciseRenameResult.Success(Exercise(id = canonical, name = normalizeName(newName)))
         val normalized = ExerciseNames.normalize(newName)
-        val key = simpleNameKey(normalized)
-        val collision = store.exercisesNow().firstOrNull { it.id != canonical && simpleNameKey(it.name) == key }
-        if (collision != null) {
-            val existing = getById(collision.id) ?: collision
-            return ExerciseRenameResult.NameCollision(existing)
-        }
-        val previous = current.name
-        val updated = store.write {
+        val outcome = store.write {
+            val canonical = canonicalId(id)
+            val current = exercises.firstOrNull { it.id == canonical }
+                ?: return@write ExerciseRenameResult.Success(Exercise(id = canonical, name = normalized))
+            val key = simpleNameKey(normalized)
+            val collision = exercises.firstOrNull { it.id != canonical && simpleNameKey(it.name) == key }
+            if (collision != null) {
+                val existing = getById(collision.id) ?: collision
+                return@write ExerciseRenameResult.NameCollision(existing)
+            }
+            val previous = current.name
             val stored = upsertExercise(current.copy(name = normalized))
             val aliasKey = ExerciseMatcher.matchKey(previous)
             if (aliasKey.isNotEmpty() && simpleNameKey(previous) != key) {
@@ -179,16 +179,21 @@ class RoomExerciseRepository(
                     ),
                 )
             }
-            stored
+            ExerciseRenameResult.Success(stored)
         }
-        publishVisible()
-        return ExerciseRenameResult.Success(updated)
+        if (outcome is ExerciseRenameResult.Success && store.exercisesNow().any { it.id == outcome.exercise.id }) {
+            publishVisible()
+        }
+        return outcome
     }
 
     override suspend fun updateMuscleGroups(id: Long, muscleGroups: String) {
-        val current = store.exercisesNow().firstOrNull { it.id == canonicalId(id) } ?: return
-        store.write { upsertExercise(current.copy(muscleGroups = muscleGroups)) }
-        publishVisible()
+        val wrote = store.write {
+            val current = exercises.firstOrNull { it.id == canonicalId(id) } ?: return@write false
+            upsertExercise(current.copy(muscleGroups = muscleGroups))
+            true
+        }
+        if (wrote) publishVisible()
     }
 
     override suspend fun deleteExercise(id: Long) {
@@ -260,6 +265,7 @@ class RoomExerciseRepository(
         db.exerciseDao().upsert(exercises.first { it.id == loser.id }.toRoom())
         moveSetsAndCards(loser.id, keeperId)
         moveSplitMembers(loser.id, keeperId)
+        reassignAliases(loser.id, keeperId)
         val loserKey = ExerciseMatcher.matchKey(loser.name)
         if (loserKey.isNotEmpty() && simpleNameKey(loser.name) != simpleNameKey(keeper.name)) {
             insertAlias(ExerciseAlias(exerciseId = keeperId, alias = loser.name, normalizedKey = loserKey))

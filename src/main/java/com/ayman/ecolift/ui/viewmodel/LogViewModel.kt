@@ -331,6 +331,11 @@ class LogViewModel(
                         stepCommitJobs.clear()
                         stepCommits.discard()
                         _unsavedSetInputs.value = emptyMap()
+                        _smartAdjustments.value = emptyMap()
+                        _assistSuggestions.value = emptyMap()
+                        _inputWarnings.value = emptyMap()
+                        _recommendationStates.value = emptyMap()
+                        setActiveRest(null)
                         val date = currentDate.value
                         publishSessionSets(date, SetQueries.forDate(setRepository.sets.value, date))
                     }
