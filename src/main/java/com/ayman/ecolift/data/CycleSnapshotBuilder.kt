@@ -1,7 +1,6 @@
 package com.ayman.ecolift.data
 
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.LocalDate
 import kotlin.math.roundToLong
 
 object CycleSnapshotBuilder {
@@ -22,7 +21,7 @@ object CycleSnapshotBuilder {
         val normalizedBodyweight = normalizedUserBodyweightLbs(userBodyweightLbs)
         val inWindow = sets
             .asSequence()
-            .filter { it.completed && it.date in startDate..endDate }
+            .filter { it.isCheckedWorking && it.date in startDate..endDate }
             .sortedWith(compareBy<WorkoutSet> { it.date }.thenBy { it.setNumber }.thenBy { it.id })
             .toList()
 
@@ -32,8 +31,7 @@ object CycleSnapshotBuilder {
 
         fun bucketFor(set: WorkoutSet): BucketKey {
             val day = daysByDate[set.date]
-            val resolved = day?.cycleSlotId
-                ?: day?.cycleSlotType?.let { orderedSlots.getOrNull(it)?.id }
+            val resolved = day.resolvedCycleSlotId(orderedSlots)
             return when {
                 resolved == null -> BucketKey(UNASSIGNED_SLOT_ID, SplitBucketKind.Unassigned)
                 resolved in slotIds -> BucketKey(resolved, SplitBucketKind.Real)
@@ -90,12 +88,11 @@ object CycleSnapshotBuilder {
             )
         }
 
-        val totalVolume = splits.sumOf { split ->
-            split.exercises.sumOf { exercise -> exercise.sessions.sumOf { it.volumeLbs } }
-        }
+        val totalVolume = WorkoutMetrics.roundedVolume(inWindow)
         return CycleSnapshot(
             startDate = startDate,
             endDate = endDate,
+            volumeDefinition = WorkoutMetrics.WORKING_VOLUME_DEFINITION,
             totals = CycleTotals(
                 sessions = inWindow.map { it.date }.distinct().size,
                 totalVolumeLbs = totalVolume,
@@ -146,11 +143,11 @@ object CycleSnapshotBuilder {
         meta: ExerciseMeta?,
         userBodyweightLbs: Int?,
     ): ExerciseSnapshot {
-        val sessions = sets.groupBy { it.date }
-            .toSortedMap()
+        val sessions: List<SessionPoint> = sets.filterNot { it.isWarmup }.groupBy { it.date }
+            .entries.sortedBy { it.key }
             .map { (date, daySets) -> sessionPoint(date, daySets, meta?.isBodyweight ?: false, userBodyweightLbs) }
-        val start = sessions.firstOrNull()
-        val end = sessions.lastOrNull()
+        val start: SessionPoint? = sessions.firstOrNull()
+        val end: SessionPoint? = sessions.lastOrNull()
         return ExerciseSnapshot(
             exerciseId = exerciseId,
             name = meta?.name ?: "Exercise #$exerciseId",
@@ -177,21 +174,14 @@ object CycleSnapshotBuilder {
         var totalReps = 0
 
         daySets.forEach { set ->
-            val reps = set.reps ?: 0
-            totalReps += reps
-            val isBodyweight = exerciseIsBodyweight || set.isBodyweight
-            val addedWeight = WeightLbs.toLbs(set.weightLbs)
-            val effectiveWeight = if (isBodyweight) {
-                userBodyweightLbs?.let { it + addedWeight } ?: addedWeight.takeIf { it > 0 }
-            } else {
-                addedWeight
-            }
-            if (effectiveWeight != null && effectiveWeight > 0) {
-                val weight = effectiveWeight
-                val weightFloat = weight.toFloat()
-                topWeight = maxOf(topWeight ?: weightFloat, weightFloat)
-                bestE1rm = maxOf(bestE1rm ?: 0f, (weight * (1.0 + reps / 30.0)).toFloat())
-                volume += weight * reps
+            totalReps += set.reps ?: 0
+            volume += WorkoutMetrics.loggedVolumeLbs(set)
+            if (WorkoutMetrics.isStrengthEligible(set)) {
+                val weight = WeightLbs.toLbs(set.weightLbs).toFloat()
+                topWeight = maxOf(topWeight ?: weight, weight)
+                WorkoutMetrics.estimatedOneRepMax(set, exerciseIsBodyweight)?.toFloat()?.let {
+                    bestE1rm = maxOf(bestE1rm ?: it, it)
+                }
             }
         }
 
@@ -207,7 +197,7 @@ object CycleSnapshotBuilder {
 
     private fun spanDays(startDate: String, endDate: String): Int =
         runCatching {
-            (ChronoUnit.DAYS.between(LocalDate.parse(startDate), LocalDate.parse(endDate)) + 1)
+            (LocalDate.parse(endDate).toEpochDays() - LocalDate.parse(startDate).toEpochDays() + 1)
                 .toInt()
                 .coerceAtLeast(0)
         }.getOrDefault(0)

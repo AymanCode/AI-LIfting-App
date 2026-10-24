@@ -9,23 +9,31 @@ import com.ayman.ecolift.agent.model.AgentTurnLogDao
 import com.ayman.ecolift.agent.model.AuditEntity
 import com.ayman.ecolift.agent.patches.AuditDao
 
-const val APP_DATABASE_VERSION = 19
+const val APP_DATABASE_VERSION = 21
 
 @Database(
     entities = [
-        Exercise::class,
-        WorkoutDay::class,
-        WorkoutSet::class,
-        Cycle::class,
-        PendingReview::class,
-        CycleSlot::class,
-        SplitExercise::class,
-        TempSessionSwap::class,
+        com.ayman.ecolift.data.room.Exercise::class,
+        com.ayman.ecolift.data.room.WorkoutDay::class,
+        com.ayman.ecolift.data.room.WorkoutSet::class,
+        com.ayman.ecolift.data.room.Cycle::class,
+        com.ayman.ecolift.data.room.PendingReview::class,
+        com.ayman.ecolift.data.room.CycleSlot::class,
+        com.ayman.ecolift.data.room.SplitExercise::class,
+        com.ayman.ecolift.data.room.TempSessionSwap::class,
         AuditEntity::class,
         AgentTurnLog::class,
-        ArchivedCycle::class,
-        UserSettings::class,
-        CardioSession::class,
+        com.ayman.ecolift.data.room.ArchivedCycle::class,
+        com.ayman.ecolift.data.room.UserSettings::class,
+        com.ayman.ecolift.data.room.CardioSession::class,
+        com.ayman.ecolift.data.room.WorkoutExerciseCard::class,
+        com.ayman.ecolift.data.room.ExerciseAlias::class,
+        com.ayman.ecolift.data.room.ExerciseDistinctPair::class,
+        com.ayman.ecolift.data.room.SplitAlternativeRow::class,
+        com.ayman.ecolift.data.room.ExerciseSwapReceiptRow::class,
+        com.ayman.ecolift.data.room.WorkoutDayState::class,
+        com.ayman.ecolift.data.room.SwapAlternativeQueueRow::class,
+        com.ayman.ecolift.android.room.RoomSplitMemberChoice::class,
     ],
     version = APP_DATABASE_VERSION,
     exportSchema = true,
@@ -44,6 +52,14 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun archivedCycleDao(): ArchivedCycleDao
     abstract fun userSettingsDao(): UserSettingsDao
     abstract fun cardioSessionDao(): CardioSessionDao
+    abstract fun workoutExerciseCardDao(): WorkoutExerciseCardDao
+    abstract fun exerciseAliasDao(): ExerciseAliasDao
+    abstract fun exerciseDistinctPairDao(): ExerciseDistinctPairDao
+    abstract fun splitAlternativeDao(): SplitAlternativeDao
+    abstract fun exerciseSwapReceiptDao(): ExerciseSwapReceiptDao
+    abstract fun workoutDayStateDao(): WorkoutDayStateDao
+    abstract fun swapAlternativeQueueDao(): SwapAlternativeQueueDao
+    abstract fun splitMemberChoiceDao(): com.ayman.ecolift.android.room.SplitMemberChoiceDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null

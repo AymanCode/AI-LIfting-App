@@ -16,6 +16,7 @@ object AgentRecoveryGuidance {
         val hasNumberWord = NUMBER_WORDS.any { Regex("""\b${Regex.escape(it)}\b""").containsMatchIn(t) }
         val hasExerciseTerm = EXERCISE_TERMS.any { Regex("""\b${Regex.escape(it)}\b""").containsMatchIn(t) }
 
+        if (hasSetNotation) return true
         if (hasLogVerb && (hasExerciseTerm || hasSetNotation || hasUnitOrRep || hasNumberWord)) return true
         if (hasExerciseTerm && (hasSetNotation || hasUnitOrRep)) return true
         return false
@@ -44,7 +45,7 @@ object AgentRecoveryGuidance {
     ): AgentTurn.RecoverableFailure =
         AgentTurn.RecoverableFailure(
             title = "I kept this as a draft",
-            detail = "I could not safely parse this without AI. I kept your text so you can edit it, add the exact exercise name and pounds, use a deterministic template, save it for review, or retry with AI.",
+            detail = "Couldn't read that without AI. Your text is kept below.",
             originalText = originalText,
             suggestedTemplate = "exercise name 135x8, 125x10 today",
             saveDate = saveDate,

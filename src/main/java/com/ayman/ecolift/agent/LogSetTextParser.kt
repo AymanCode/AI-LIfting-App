@@ -1,7 +1,5 @@
 package com.ayman.ecolift.agent
 
-import com.ayman.ecolift.data.WeightLbs
-
 /**
  * Deterministic parser for one-exercise workout log messages.
  *
@@ -22,16 +20,27 @@ object LogSetTextParser {
         val sets: List<ParsedSet>
     )
 
+    private data class ParsedGroup(val offset: Int, val sets: List<ParsedSet>)
+
     fun parseOneExercise(text: String): ParsedLog? {
         val normalized = normalize(text)
+        if (AgentWeightInput.hasInvalidLoad(normalized)) return null
         val consumed = mutableListOf<IntRange>()
-        val sets = mutableListOf<ParsedSet>()
+        val groups = mutableListOf<ParsedGroup>()
 
-        parseWeightRepLists(normalized, consumed, sets)
-        parseBareWeightRepLists(normalized, consumed, sets)
-        parseBareWeightRepPairs(normalized, consumed, sets)
-        parseCompactWeightReps(normalized, consumed, sets)
+        for (match in WEIGHT_REPS_COUNT.findAll(normalized)) {
+            val weight = match.groupValues[1].toStorageWeightOrNull() ?: return null
+            val reps = match.groupValues[2].toIntOrNull()?.takeIf { it in 1..100 } ?: return null
+            val count = match.groupValues[3].toIntOrNull()?.takeIf { it in 1..10 } ?: return null
+            groups.add(ParsedGroup(match.range.first, List(count) { ParsedSet(weight, reps) }))
+            consumed.add(match.range)
+        }
+        parseWeightRepLists(normalized, consumed, groups)
+        parseBareWeightRepLists(normalized, consumed, groups)
+        parseBareWeightRepPairs(normalized, consumed, groups)
+        parseCompactWeightReps(normalized, consumed, groups)
 
+        val sets = groups.sortedBy { it.offset }.flatMap { it.sets }
         val expanded = expandExplicitSetCount(normalized, sets)
         if (expanded.isEmpty()) return null
 
@@ -52,20 +61,20 @@ object LogSetTextParser {
     private fun parseWeightRepLists(
         text: String,
         consumed: MutableList<IntRange>,
-        sets: MutableList<ParsedSet>
+        groups: MutableList<ParsedGroup>
     ) {
         for (match in WEIGHT_REP_LIST.findAll(text)) {
             val range = match.range
             if (range.overlaps(consumed)) continue
 
-            val weight = match.groupValues[1].toStorageWeightOrNull() ?: continue
-            val reps = NUMBER.findAll(match.groupValues[2])
+            val weight = match.groupValues[1].toStorageWeightOrNull(unit = match.groupValues[2]) ?: continue
+            val reps = NUMBER.findAll(match.groupValues[3])
                 .mapNotNull { it.value.toIntOrNull() }
                 .filter { it in 1..100 }
                 .toList()
             if (reps.isEmpty()) continue
 
-            reps.forEach { sets.add(ParsedSet(weightLbs = weight, reps = it)) }
+            groups.add(ParsedGroup(range.first, reps.map { ParsedSet(weightLbs = weight, reps = it) }))
             consumed.add(range)
         }
     }
@@ -73,7 +82,7 @@ object LogSetTextParser {
     private fun parseCompactWeightReps(
         text: String,
         consumed: MutableList<IntRange>,
-        sets: MutableList<ParsedSet>
+        groups: MutableList<ParsedGroup>
     ) {
         for (match in COMPACT_WEIGHT_REPS.findAll(text)) {
             val range = match.range
@@ -87,7 +96,7 @@ object LogSetTextParser {
             if (firstNumber <= 20.0) continue
 
             val weight = weightRaw.toStorageWeightOrNull() ?: continue
-            sets.add(ParsedSet(weightLbs = weight, reps = reps))
+            groups.add(ParsedGroup(range.first, listOf(ParsedSet(weightLbs = weight, reps = reps))))
             consumed.add(range)
         }
     }
@@ -95,7 +104,7 @@ object LogSetTextParser {
     private fun parseBareWeightRepLists(
         text: String,
         consumed: MutableList<IntRange>,
-        sets: MutableList<ParsedSet>
+        groups: MutableList<ParsedGroup>
     ) {
         for (match in BARE_WEIGHT_REP_LIST.findAll(text)) {
             val range = match.range
@@ -108,7 +117,7 @@ object LogSetTextParser {
                 .toList()
             if (reps.size < 2) continue
 
-            reps.forEach { sets.add(ParsedSet(weightLbs = weight, reps = it)) }
+            groups.add(ParsedGroup(range.first, reps.map { ParsedSet(weightLbs = weight, reps = it) }))
             consumed.add(range)
         }
     }
@@ -116,21 +125,21 @@ object LogSetTextParser {
     private fun parseBareWeightRepPairs(
         text: String,
         consumed: MutableList<IntRange>,
-        sets: MutableList<ParsedSet>
+        groups: MutableList<ParsedGroup>
     ) {
         for (match in BARE_WEIGHT_REP_PAIR.findAll(text)) {
             val range = match.range
             if (range.overlaps(consumed)) continue
 
             val weightRaw = match.groupValues[1]
-            val reps = match.groupValues[2].toIntOrNull() ?: continue
+            val reps = match.groupValues[3].toIntOrNull() ?: continue
             if (reps !in 1..100) continue
 
             val firstNumber = weightRaw.toDoubleOrNull() ?: continue
             if (firstNumber <= 20.0) continue
 
-            val weight = weightRaw.toStorageWeightOrNull() ?: continue
-            sets.add(ParsedSet(weightLbs = weight, reps = reps))
+            val weight = weightRaw.toStorageWeightOrNull(unit = match.groupValues[2]) ?: continue
+            groups.add(ParsedGroup(range.first, listOf(ParsedSet(weightLbs = weight, reps = reps))))
             consumed.add(range)
         }
     }
@@ -150,7 +159,7 @@ object LogSetTextParser {
             for (i in start..end) chars[i] = ' '
         }
 
-        return String(chars)
+        return chars.concatToString()
             .replace(STOP_WORDS, " ")
             .replace(NUMBER, " ")
             .replace(UNIT_WORDS, " ")
@@ -159,24 +168,24 @@ object LogSetTextParser {
             .trim()
     }
 
-    private fun String.toStorageWeightOrNull(): Int? {
-        val value = trim().trimStart('.')
-        if (value.isBlank()) return null
-        return WeightLbs.parseInputToStorage(value)
+    /** Storage is pounds, so a kilogram weight ([unit] "kg" or "kilo(s)") is converted first. */
+    private fun String.toStorageWeightOrNull(unit: String = ""): Int? {
+        return AgentWeightInput.parse(trim().trimStart('.'), unit)
     }
 
     private fun IntRange.overlaps(ranges: List<IntRange>): Boolean {
         return ranges.any { first <= it.last && it.first <= last }
     }
 
+    private val WEIGHT_REPS_COUNT = Regex("""(?i)(?<![\d.])(\d+(?:\.\d+)?)\s*x\s*(\d+)\s*x\s*(\d+)(?!\d)""")
     private val WEIGHT_REP_LIST = Regex(
-        """(?i)(\d+(?:\.\d+)?)\s*(?:lbs?|pounds?|pound|kg|kilos?)\b(?:\s+or\s+(?:lbs?|pounds?|pound|kg|kilos?))?\s*(?:for|x|by)\s+(\d{1,3}(?:\s*reps?)?(?:(?:\s*,\s*|\s+and\s+|\s+)\d{1,3}(?:\s*reps?)?)*)"""
+        """(?i)(\d+(?:\.\d+)?)\s*(lbs?|pounds?|pound|kg|kilos?)\b(?:\s+or\s+(?:lbs?|pounds?|pound|kg|kilos?))?\s*(?:for|x|by)\s+(\d{1,3}(?:\s*reps?)?(?:(?:\s*,\s*|\s+and\s+|\s+)\d{1,3}(?:\s*reps?)?)*)"""
     )
     private val BARE_WEIGHT_REP_LIST = Regex(
         """(?i)(?<![\d.])(\d{2,4}(?:\.\d+)?)\s*(?:for|x)\s+(\d{1,3}(?:\s*reps?)?(?:(?:\s*,\s*|\s+and\s+|\s+)\d{1,3}(?:\s*reps?)?)+)"""
     )
     private val BARE_WEIGHT_REP_PAIR = Regex(
-        """(?i)(?<![\d.])(\d{2,4}(?:\.\d+)?)\s*(?:lbs?|pounds?|pound|kg|kilos?)?\s*(?:for|x)\s+(\d{1,3})(?!\d)"""
+        """(?i)(?<![\d.])(\d{2,4}(?:\.\d+)?)\s*(lbs?|pounds?|pound|kg|kilos?)?\s*(?:for|x)\s+(\d{1,3})(?!\d)"""
     )
     private val COMPACT_WEIGHT_REPS = Regex("""(?i)(?<![\d.])(\d{1,4}(?:\.\d+)?)\s*x\s*(\d{1,3})(?!\d)""")
     private val SET_COUNT = Regex("""(?i)\b(\d{1,2})\s+sets?\b""")

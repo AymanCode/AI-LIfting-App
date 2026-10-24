@@ -12,6 +12,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ayman.ecolift.agent.model.AgentTurnLog
 import com.ayman.ecolift.agent.model.AuditEntity
+import com.ayman.ecolift.data.room.TempSessionSwap
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -25,6 +26,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
 class DatabaseHardeningInstrumentedTest {
@@ -39,10 +41,15 @@ class DatabaseHardeningInstrumentedTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val openDbs = mutableListOf<AppDatabase>()
+    private val isolatedBackups = mutableListOf<IsolatedBackupContext>()
+
+    private fun isolatedBackupContext(): IsolatedBackupContext =
+        IsolatedBackupContext.open(context).also { isolatedBackups += it }
 
     @After
     fun tearDown() {
         openDbs.forEach(AppDatabase::close)
+        isolatedBackups.forEach(IsolatedBackupContext::deleteIsolatedFiles)
         context.deleteDatabase(LEGACY_SOURCE_DB)
         context.deleteDatabase(BACKUP_SOURCE_DB)
         context.deleteDatabase(BACKUP_TARGET_DB)
@@ -58,6 +65,7 @@ class DatabaseHardeningInstrumentedTest {
         context.deleteDatabase(DATA_HARDENING_COMPACT_DB)
         context.deleteDatabase(DATA_HARDENING_RECHECK_DB)
         context.deleteDatabase(DATA_HARDENING_ARCHIVE_DETAIL_DB)
+        context.deleteDatabase(V19_BACKUP_DB)
     }
 
     @Test
@@ -328,8 +336,8 @@ class DatabaseHardeningInstrumentedTest {
 
         val migrated = createDb(LEGACY_SOURCE_DB)
 
-        assertEquals("Bench Press", migrated.exerciseDao().getById(1L)?.name)
-        val migratedSet = migrated.workoutSetDao().getById(1L)
+        assertEquals("Bench Press", migrated.exerciseDao().domain().getById(1L)?.name)
+        val migratedSet = migrated.workoutSetDao().domain().getById(1L)
         assertNotNull(migratedSet)
         assertEquals("2026-05-16", migratedSet?.date)
         assertEquals(1350, migratedSet?.weightLbs)
@@ -345,39 +353,96 @@ class DatabaseHardeningInstrumentedTest {
         val source = createDb(BACKUP_SOURCE_DB)
         val target = createDb(BACKUP_TARGET_DB)
         seedBackupSource(source)
+        val sentinelDir = File(context.filesDir, "automatic-backups").apply { mkdirs() }
+        val sentinel = File(sentinelDir, "rffix-sentinel-${UUID.randomUUID()}.json")
+        val backups = isolatedBackupContext()
+        try {
+            sentinel.writeText("keep")
+            val backupsBefore = DataBackupManager.listAutomaticBackups(backups).size
+            val backupFile = File(context.cacheDir, "ecolift-roundtrip-test.json").apply { delete() }
 
-        val backupsBefore = DataBackupManager.listAutomaticBackups(context).size
-        val backupFile = File(context.cacheDir, "ecolift-roundtrip-test.json").apply { delete() }
+            val exportResult = DataBackupManager.exportToUri(backups, source, Uri.fromFile(backupFile))
+            val importResult = DataBackupManager.importFromUri(backups, target, Uri.fromFile(backupFile))
+            val exportedSnapshot = Json { ignoreUnknownKeys = true }
+                .decodeFromString<UserDataBackup>(backupFile.readText())
 
-        val exportResult = DataBackupManager.exportToUri(context, source, Uri.fromFile(backupFile))
-        val importResult = DataBackupManager.importFromUri(context, target, Uri.fromFile(backupFile))
-        val exportedSnapshot = Json { ignoreUnknownKeys = true }
-            .decodeFromString<UserDataBackup>(backupFile.readText())
+            assertEquals(APP_DATABASE_VERSION, exportedSnapshot.metadata.appDbVersion)
+            assertTrue(exportResult.entryCount >= 10)
+            assertEquals(exportResult.entryCount, importResult.entryCount)
+            assertEquals(source.exerciseDao().domain().getAll().size, target.exerciseDao().domain().getAll().size)
+            assertEquals(source.workoutSetDao().domain().getAll().size, target.workoutSetDao().domain().getAll().size)
+            assertEquals(source.splitExerciseDao().domain().getAll().size, target.splitExerciseDao().domain().getAll().size)
+            assertEquals(source.auditDao().getAll().size, target.auditDao().getAll().size)
+            assertEquals(source.agentTurnLogDao().getAll().size, target.agentTurnLogDao().getAll().size)
+            assertEquals(source.cardioSessionDao().domain().getAll().size, target.cardioSessionDao().domain().getAll().size)
+            assertEquals("Bench Press", target.exerciseDao().domain().getById(1L)?.name)
+            assertTrue(DataBackupManager.listAutomaticBackups(backups).size > backupsBefore)
+            assertEquals(source.archivedCycleDao().domain().getAll().size, target.archivedCycleDao().domain().getAll().size)
+            assertEquals("Spring Block", target.archivedCycleDao().domain().getById(700L)?.name)
+            assertEquals(185, target.userSettingsDao().domain().get()?.userBodyweightLbs)
+            val restoredTreadmill = target.cardioSessionDao().domain().getById(800L)
+            val restoredBike = target.cardioSessionDao().domain().getById(801L)
+            assertEquals(310, restoredTreadmill?.calories)
+            assertEquals(CardioActivityType.TREADMILL.name, restoredTreadmill?.activityType)
+            assertEquals(166, restoredTreadmill?.maxHeartRate)
+            assertEquals(5.5, restoredTreadmill?.avgInclinePercent ?: -1.0, 0.0)
+            assertEquals(82, restoredBike?.cadenceRpm)
+            assertEquals(8.0, restoredBike?.resistanceLevel ?: -1.0, 0.0)
+            assertEquals(185, restoredBike?.avgPowerWatts)
+            assertTrue(exportedSnapshot.cardioSessions.isNotEmpty())
+            assertTrue(sentinel.isFile)
+            assertEquals("keep", sentinel.readText())
+        } finally {
+            sentinel.delete()
+        }
+    }
 
-        assertEquals(APP_DATABASE_VERSION, exportedSnapshot.metadata.appDbVersion)
-        assertTrue(exportResult.entryCount >= 10)
-        assertEquals(exportResult.entryCount, importResult.entryCount)
-        assertEquals(source.exerciseDao().getAll().size, target.exerciseDao().getAll().size)
-        assertEquals(source.workoutSetDao().getAll().size, target.workoutSetDao().getAll().size)
-        assertEquals(source.splitExerciseDao().getAll().size, target.splitExerciseDao().getAll().size)
-        assertEquals(source.auditDao().getAll().size, target.auditDao().getAll().size)
-        assertEquals(source.agentTurnLogDao().getAll().size, target.agentTurnLogDao().getAll().size)
-        assertEquals(source.cardioSessionDao().getAll().size, target.cardioSessionDao().getAll().size)
-        assertEquals("Bench Press", target.exerciseDao().getById(1L)?.name)
-        assertTrue(DataBackupManager.listAutomaticBackups(context).size > backupsBefore)
-        assertEquals(source.archivedCycleDao().getAll().size, target.archivedCycleDao().getAll().size)
-        assertEquals("Spring Block", target.archivedCycleDao().getById(700L)?.name)
-        assertEquals(185, target.userSettingsDao().get()?.userBodyweightLbs)
-        val restoredTreadmill = target.cardioSessionDao().getById(800L)
-        val restoredBike = target.cardioSessionDao().getById(801L)
-        assertEquals(310, restoredTreadmill?.calories)
-        assertEquals(CardioActivityType.TREADMILL.name, restoredTreadmill?.activityType)
-        assertEquals(166, restoredTreadmill?.maxHeartRate)
-        assertEquals(5.5, restoredTreadmill?.avgInclinePercent ?: -1.0, 0.0)
-        assertEquals(82, restoredBike?.cadenceRpm)
-        assertEquals(8.0, restoredBike?.resistanceLevel ?: -1.0, 0.0)
-        assertEquals(185, restoredBike?.avgPowerWatts)
-        assertTrue(exportedSnapshot.cardioSessions.isNotEmpty())
+    @Test
+    fun v19BackupJsonRestoresSetsAndBackfillsLegacyCard() = runTest {
+        val target = createDb(V19_BACKUP_DB)
+        val backupFile = File(context.cacheDir, "ecolift-v19-backup.json").apply { delete() }
+        backupFile.writeText(
+            """
+            {
+              "metadata": {"createdAtEpochMs": 1, "source": "v19", "appDbVersion": 19},
+              "cycle": null,
+              "exercises": [{
+                "id": 1,
+                "name": "Bench Press",
+                "muscleGroups": "CHEST",
+                "isBodyweight": false,
+                "createdAt": 10
+              }],
+              "workoutDays": [],
+              "workoutSets": [{
+                "id": 9,
+                "exerciseId": 1,
+                "date": "2026-05-17",
+                "setNumber": 1,
+                "weightLbs": 500,
+                "reps": 8,
+                "isBodyweight": false,
+                "completed": true
+              }],
+              "pendingReviews": [],
+              "cycleSlots": [],
+              "splitExercises": [],
+              "tempSessionSwaps": []
+            }
+            """.trimIndent(),
+        )
+
+        DataBackupManager.importFromUri(isolatedBackupContext(), target, Uri.fromFile(backupFile))
+
+        assertEquals("Bench Press", target.exerciseDao().domain().getById(1L)?.name)
+        val set = target.workoutSetDao().domain().getById(9L)
+        assertEquals(500, set?.weightLbs)
+        assertEquals("legacy-2026-05-17-1", set?.cardId)
+        val cards = target.workoutExerciseCardDao().getAll()
+        assertEquals(1, cards.size)
+        assertEquals("legacy-2026-05-17-1", cards.single().id)
+        assertEquals("LEGACY", cards.single().origin)
+        assertEquals("COMPACT", cards.single().displayMode)
     }
 
     @Test
@@ -397,7 +462,7 @@ class DatabaseHardeningInstrumentedTest {
     fun repositorySplitAndCycleMutationsStayConsistent() = runTest {
         val db = createDb(REPOSITORY_MUTATION_DB)
         val repository = WorkoutRepository(db)
-        db.exerciseDao().insertAll(
+        db.exerciseDao().domain().insertAll(
             listOf(
                 Exercise(id = 1L, name = "Bench Press", muscleGroups = "CHEST"),
                 Exercise(id = 2L, name = "Incline Press", muscleGroups = "CHEST"),
@@ -406,10 +471,10 @@ class DatabaseHardeningInstrumentedTest {
 
         val pushId = repository.addCycleSlot("Push")
         val pullId = repository.addCycleSlot("Pull")
-        assertEquals(2, db.cycleDao().getCycle()?.numTypes)
-        assertEquals(listOf(pushId, pullId), db.cycleSlotDao().getAll().map { it.id })
+        assertEquals(2, db.cycleDao().domain().getCycle()?.numTypes)
+        assertEquals(listOf(pushId, pullId), db.cycleSlotDao().domain().getAll().map { it.id })
 
-        db.workoutSetDao().insertAll(
+        db.workoutSetDao().domain().insertAll(
             listOf(
                 WorkoutSet(id = 10L, exerciseId = 2L, date = "2026-05-20", setNumber = 1, weightLbs = 650, reps = 10, completed = false),
                 WorkoutSet(id = 11L, exerciseId = 1L, date = "2026-05-20", setNumber = 2, weightLbs = 1850, reps = 5, completed = true),
@@ -418,17 +483,17 @@ class DatabaseHardeningInstrumentedTest {
         )
 
         repository.saveSplitFromDate(pushId, "2026-05-20")
-        assertEquals(listOf(2L, 1L), db.splitExerciseDao().getForSplit(pushId).map { it.exerciseId })
+        assertEquals(listOf(2L, 1L), db.splitExerciseDao().domain().getForSplit(pushId).map { it.exerciseId })
 
         val assignedDay = repository.assignCycleSlot("2026-05-21", pushId)
         assertEquals(pushId, assignedDay.cycleSlotId)
         assertEquals(1, assignedDay.cycleSlotOccurrence)
         assertEquals(0, assignedDay.cycleSlotType)
-        assertEquals(pushId, db.workoutDayDao().getByDate("2026-05-21")?.cycleSlotId)
+        assertEquals(pushId, db.workoutDayDao().domain().getByDate("2026-05-21")?.cycleSlotId)
 
         repository.deleteCycleSlot(pullId)
-        assertEquals(1, db.cycleDao().getCycle()?.numTypes)
-        assertEquals(listOf(pushId), db.cycleSlotDao().getAll().map { it.id })
+        assertEquals(1, db.cycleDao().domain().getCycle()?.numTypes)
+        assertEquals(listOf(pushId), db.cycleSlotDao().domain().getAll().map { it.id })
     }
 
     @Test
@@ -436,8 +501,8 @@ class DatabaseHardeningInstrumentedTest {
         val db = createDb(FLUID_SET_LIFECYCLE_DB)
         val sets = SetRepository(db)
         val workouts = WorkoutRepository(db)
-        db.exerciseDao().insertAll(listOf(Exercise(id = 1L, name = "Bench Press", muscleGroups = "CHEST")))
-        db.cycleDao().upsert(Cycle(id = 1, numTypes = 1, isActive = true, startDate = "2026-05-01"))
+        db.exerciseDao().domain().insertAll(listOf(Exercise(id = 1L, name = "Bench Press", muscleGroups = "CHEST")))
+        db.cycleDao().domain().upsert(Cycle(id = 1, numTypes = 1, isActive = true, startDate = "2026-05-01"))
 
         val firstDraft = sets.addSet("2026-05-15", 1L)
         assertFalse(firstDraft.completed)
@@ -483,13 +548,13 @@ class DatabaseHardeningInstrumentedTest {
     @Test
     fun completedOnlyProgressQueriesIgnoreUncheckedWorkingSets() = runTest {
         val db = createDb(COMPLETED_ONLY_DB)
-        db.exerciseDao().insertAll(
+        db.exerciseDao().domain().insertAll(
             listOf(
                 Exercise(id = 1L, name = "Bench Press", muscleGroups = "CHEST"),
                 Exercise(id = 2L, name = "Back Squat", muscleGroups = "LEGS"),
             )
         )
-        db.workoutSetDao().insertAll(
+        db.workoutSetDao().domain().insertAll(
             listOf(
                 WorkoutSet(id = 1L, exerciseId = 1L, date = "2026-05-10", setNumber = 1, weightLbs = 1850, reps = 5, completed = true),
                 WorkoutSet(id = 2L, exerciseId = 1L, date = "2026-05-10", setNumber = 2, weightLbs = 2250, reps = 5, completed = false),
@@ -498,7 +563,7 @@ class DatabaseHardeningInstrumentedTest {
             )
         )
 
-        val dao = db.workoutSetDao()
+        val dao = db.workoutSetDao().domain()
 
         assertEquals(
             listOf(ExerciseProgressSummary(1L, "Bench Press", false, sessionCount = 2, lastSessionDate = "2026-05-11")),
@@ -521,12 +586,12 @@ class DatabaseHardeningInstrumentedTest {
     @Test
     fun archiveCurrentCyclePersistsSnapshotAndAdvancesCycleStart() = runTest {
         val db = createDb(ARCHIVE_SOURCE_DB)
-        db.exerciseDao().insertAll(listOf(Exercise(id = 1L, name = "Bench Press", muscleGroups = "CHEST")))
-        db.cycleDao().upsert(Cycle(id = 1, numTypes = 1, isActive = true, nextSessionType = 0, startDate = "2026-05-01"))
-        db.cycleSlotDao().insertAll(listOf(CycleSlot(id = 10L, name = "Push", orderIndex = 0)))
-        db.splitExerciseDao().insertAll(listOf(SplitExercise(id = 20L, splitId = 10L, exerciseId = 1L, orderIndex = 0)))
-        db.workoutDayDao().insertAll(listOf(WorkoutDay(date = "2026-05-16", cycleSlotId = 10L)))
-        db.workoutSetDao().insertAll(
+        db.exerciseDao().domain().insertAll(listOf(Exercise(id = 1L, name = "Bench Press", muscleGroups = "CHEST")))
+        db.cycleDao().domain().upsert(Cycle(id = 1, numTypes = 1, isActive = true, nextSessionType = 0, startDate = "2026-05-01"))
+        db.cycleSlotDao().domain().insertAll(listOf(CycleSlot(id = 10L, name = "Push", orderIndex = 0)))
+        db.splitExerciseDao().domain().insertAll(listOf(SplitExercise(id = 20L, splitId = 10L, exerciseId = 1L, orderIndex = 0)))
+        db.workoutDayDao().domain().insertAll(listOf(WorkoutDay(date = "2026-05-16", cycleSlotId = 10L)))
+        db.workoutSetDao().domain().insertAll(
             listOf(
                 WorkoutSet(id = 1L, exerciseId = 1L, date = "2026-05-16", setNumber = 1, weightLbs = 1850, reps = 5, completed = true),
                 WorkoutSet(id = 2L, exerciseId = 1L, date = "2026-05-16", setNumber = 2, weightLbs = 1850, reps = 5, completed = false),
@@ -534,7 +599,7 @@ class DatabaseHardeningInstrumentedTest {
         )
 
         val archiveId = WorkoutRepository(db).archiveCurrentCycle("Spring Block", "2026-05-01", "2026-05-31")
-        val archive = db.archivedCycleDao().getById(archiveId)
+        val archive = db.archivedCycleDao().domain().getById(archiveId)
         assertNotNull(archive)
         val snapshot = Json { ignoreUnknownKeys = true }
             .decodeFromString<CycleSnapshot>(archive!!.snapshotJson)
@@ -544,19 +609,19 @@ class DatabaseHardeningInstrumentedTest {
         assertEquals(1, archive.totalSessions)
         assertEquals(1, archive.splitCount)
         assertEquals(1, snapshot.totals.totalSets)
-        val currentCycle = db.cycleDao().getCycle()
+        val currentCycle = db.cycleDao().domain().getCycle()
         assertEquals("2026-06-01", currentCycle?.startDate)
         assertFalse(currentCycle?.isActive ?: true)
         assertEquals(0, currentCycle?.numTypes)
         assertNull(currentCycle?.nextSessionType)
-        assertTrue(db.cycleSlotDao().getAll().isEmpty())
-        assertTrue(db.splitExerciseDao().getAll().isEmpty())
+        assertTrue(db.cycleSlotDao().domain().getAll().isEmpty())
+        assertTrue(db.splitExerciseDao().domain().getAll().isEmpty())
     }
 
     @Test
     fun archivedCycleOverlapQueryIsInclusive() = runTest {
         val db = createDb(ARCHIVE_OVERLAP_DB)
-        db.archivedCycleDao().insert(
+        db.archivedCycleDao().domain().insert(
             ArchivedCycle(
                 name = "Block",
                 startDate = "2026-05-01",
@@ -570,7 +635,7 @@ class DatabaseHardeningInstrumentedTest {
             )
         )
 
-        val dao = db.archivedCycleDao()
+        val dao = db.archivedCycleDao().domain()
         assertEquals(1, dao.countOverlapping("2026-04-01", "2026-05-01"))
         assertEquals(1, dao.countOverlapping("2026-05-31", "2026-06-10"))
         assertEquals(0, dao.countOverlapping("2026-06-01", "2026-06-10"))
@@ -592,23 +657,23 @@ class DatabaseHardeningInstrumentedTest {
             .also(openDbs::add)
 
     private suspend fun seedBackupSource(db: AppDatabase) {
-        db.exerciseDao().insertAll(
+        db.exerciseDao().domain().insertAll(
             listOf(
                 Exercise(id = 1L, name = "Bench Press", muscleGroups = "CHEST", createdAt = 1L),
                 Exercise(id = 2L, name = "Back Squat", muscleGroups = "LEGS", createdAt = 2L),
             )
         )
-        db.cycleDao().upsert(Cycle(id = 1, numTypes = 2, isActive = true, nextSessionType = 0))
-        db.cycleSlotDao().insertAll(listOf(CycleSlot(id = 10L, name = "Push", orderIndex = 0)))
-        db.workoutDayDao().insertAll(listOf(WorkoutDay(date = "2026-05-16", cycleSlotId = 10L)))
-        db.workoutSetDao().insertAll(
+        db.cycleDao().domain().upsert(Cycle(id = 1, numTypes = 2, isActive = true, nextSessionType = 0))
+        db.cycleSlotDao().domain().insertAll(listOf(CycleSlot(id = 10L, name = "Push", orderIndex = 0)))
+        db.workoutDayDao().domain().insertAll(listOf(WorkoutDay(date = "2026-05-16", cycleSlotId = 10L)))
+        db.workoutSetDao().domain().insertAll(
             listOf(
                 WorkoutSet(id = 100L, exerciseId = 1L, date = "2026-05-16", setNumber = 1, weightLbs = 1850, reps = 5, completed = true),
                 WorkoutSet(id = 101L, exerciseId = 2L, date = "2026-05-16", setNumber = 1, weightLbs = 2250, reps = 5, completed = true),
             )
         )
-        db.pendingReviewDao().insertAll(listOf(PendingReview(id = 200L, rawInput = "bench maybe 185x5", dateLogged = "2026-05-16")))
-        db.splitExerciseDao().insertAll(listOf(SplitExercise(id = 300L, splitId = 10L, exerciseId = 1L, orderIndex = 0)))
+        db.pendingReviewDao().domain().insertAll(listOf(PendingReview(id = 200L, rawInput = "bench maybe 185x5", dateLogged = "2026-05-16")))
+        db.splitExerciseDao().domain().insertAll(listOf(SplitExercise(id = 300L, splitId = 10L, exerciseId = 1L, orderIndex = 0)))
         db.tempSessionSwapDao().insertAll(
             listOf(TempSessionSwap(id = 400L, weekStartDate = "2026-05-11", sourceSlotType = 0, sourceExerciseId = 1L, targetSlotType = 1, targetExerciseId = 2L, createdAt = 1L))
         )
@@ -632,7 +697,7 @@ class DatabaseHardeningInstrumentedTest {
                 auditId = 500L,
             )
         )
-        db.archivedCycleDao().insertAll(
+        db.archivedCycleDao().domain().insertAll(
             listOf(
                 ArchivedCycle(
                     id = 700L,
@@ -648,7 +713,7 @@ class DatabaseHardeningInstrumentedTest {
                 )
             )
         )
-        db.cardioSessionDao().insertAll(
+        db.cardioSessionDao().domain().insertAll(
             listOf(
                 CardioSession(
                     id = 800L,
@@ -685,7 +750,7 @@ class DatabaseHardeningInstrumentedTest {
                 ),
             )
         )
-        db.userSettingsDao().upsert(UserSettings(userBodyweightLbs = 185))
+        db.userSettingsDao().domain().upsert(UserSettings(userBodyweightLbs = 185))
     }
 
     private fun SupportSQLiteDatabase.seedCoreWorkoutRows(weightLbs: Int = 135) {
@@ -731,6 +796,26 @@ class DatabaseHardeningInstrumentedTest {
         assertTrue(columnExists("cardio_sessions", "pace_sec_per_500m"))
         assertTrue(columnExists("cardio_sessions", "floors"))
         assertTrue(columnExists("cardio_sessions", "steps"))
+        assertNotNull(stringFor("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'workout_exercise_card'"))
+        assertNotNull(stringFor("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'exercise_alias'"))
+        assertNotNull(stringFor("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'exercise_distinct_pair'"))
+        assertNotNull(
+            stringFor(
+                "SELECT name FROM sqlite_master WHERE type = 'index' " +
+                    "AND name = 'index_workout_set_exerciseId_date_setNumber'",
+            ),
+        )
+        assertTrue(columnExists("exercise", "mergedIntoId"))
+        assertTrue(columnExists("workout_set", "syncId"))
+        assertTrue(columnExists("workout_set", "rowRevision"))
+        assertTrue(columnExists("workout_set", "cardId"))
+        assertTrue(columnExists("workout_set", "isWarmup"))
+        assertTrue(columnExists("cycle_slot", "learned"))
+        assertTrue(columnExists("cycle_slot", "colorIndex"))
+        assertTrue(columnExists("split_exercise", "userAdded"))
+        assertTrue(columnExists("user_settings", "time_zone"))
+        assertTrue(columnExists("user_settings", "unit_system"))
+        assertTrue(columnExists("user_settings", "smart_suggest"))
     }
 
     // ── Fix A: deleteSetAndCompact + add produces unique contiguous setNumbers ─
@@ -739,20 +824,20 @@ class DatabaseHardeningInstrumentedTest {
     fun deleteMiddleSetThenAddProducesUniqueContiguousSetNumbers() = runTest {
         val db = createDb(DATA_HARDENING_SET_DEDUP_DB)
         val sets = SetRepository(db)
-        db.exerciseDao().insertAll(listOf(Exercise(id = 1L, name = "Squat", muscleGroups = "LEGS")))
+        db.exerciseDao().domain().insertAll(listOf(Exercise(id = 1L, name = "Squat", muscleGroups = "LEGS")))
 
         // Seed three sets: 1, 2, 3
         val s1 = sets.addSet("2026-06-01", 1L)
         val s2 = sets.addSet("2026-06-01", 1L)
         val s3 = sets.addSet("2026-06-01", 1L)
-        assertEquals(listOf(1, 2, 3), db.workoutSetDao().getForDateAndExercise("2026-06-01", 1L).map { it.setNumber })
+        assertEquals(listOf(1, 2, 3), db.workoutSetDao().domain().getForDateAndExercise("2026-06-01", 1L).map { it.setNumber })
 
         // Delete the middle set and compact
         sets.deleteSetAndCompact(s2)
 
         // Now add a new set, must get setNumber 3, not a duplicate
         val s4 = sets.addSet("2026-06-01", 1L)
-        val remaining = db.workoutSetDao().getForDateAndExercise("2026-06-01", 1L)
+        val remaining = db.workoutSetDao().domain().getForDateAndExercise("2026-06-01", 1L)
         assertEquals(3, remaining.size)
         val numbers = remaining.map { it.setNumber }.sorted()
         assertEquals(listOf(1, 2, 3), numbers)
@@ -760,7 +845,7 @@ class DatabaseHardeningInstrumentedTest {
         assertEquals(numbers.distinct(), numbers)
         // s3 was renumbered by the compaction, so re-read it. The instance
         // returned by addSet still carries the number it had before the delete.
-        assertEquals(2, db.workoutSetDao().getById(s3.id)?.setNumber)
+        assertEquals(2, db.workoutSetDao().domain().getById(s3.id)?.setNumber)
         assertEquals(3, s4.setNumber)
     }
 
@@ -768,7 +853,7 @@ class DatabaseHardeningInstrumentedTest {
     fun deleteSetAndCompactRenumbersSurvivorsContiguously() = runTest {
         val db = createDb(DATA_HARDENING_COMPACT_DB)
         val sets = SetRepository(db)
-        db.exerciseDao().insertAll(listOf(Exercise(id = 1L, name = "Deadlift", muscleGroups = "BACK")))
+        db.exerciseDao().domain().insertAll(listOf(Exercise(id = 1L, name = "Deadlift", muscleGroups = "BACK")))
 
         val s1 = sets.addSet("2026-06-02", 1L)
         val s2 = sets.addSet("2026-06-02", 1L)
@@ -777,7 +862,7 @@ class DatabaseHardeningInstrumentedTest {
         // Delete set #2 (middle)
         sets.deleteSetAndCompact(s2)
 
-        val survivors = db.workoutSetDao().getForDateAndExercise("2026-06-02", 1L)
+        val survivors = db.workoutSetDao().domain().getForDateAndExercise("2026-06-02", 1L)
         assertEquals(2, survivors.size)
         assertEquals(listOf(1, 2), survivors.map { it.setNumber }.sorted())
         assertTrue(survivors.none { it.id == s2.id })
@@ -789,7 +874,7 @@ class DatabaseHardeningInstrumentedTest {
     fun uncheckRecheckRoundTripPreservesRepsAndWeightAndVolumeFlag() = runTest {
         val db = createDb(DATA_HARDENING_RECHECK_DB)
         val sets = SetRepository(db)
-        db.exerciseDao().insertAll(listOf(Exercise(id = 1L, name = "OHP", muscleGroups = "SHOULDERS")))
+        db.exerciseDao().domain().insertAll(listOf(Exercise(id = 1L, name = "OHP", muscleGroups = "SHOULDERS")))
 
         val s = sets.addSet("2026-06-03", 1L)
         val completed = s.copy(weightLbs = 1000, reps = 8, completed = true)
@@ -819,12 +904,12 @@ class DatabaseHardeningInstrumentedTest {
     @Test
     fun archiveCardVolumeEqualsDetailVolumeAfterSetEdit() = runTest {
         val db = createDb(DATA_HARDENING_ARCHIVE_DETAIL_DB)
-        db.exerciseDao().insertAll(listOf(Exercise(id = 1L, name = "Bench Press", muscleGroups = "CHEST")))
-        db.cycleDao().upsert(Cycle(id = 1, numTypes = 1, isActive = true, nextSessionType = 0, startDate = "2026-06-01"))
-        db.cycleSlotDao().insertAll(listOf(CycleSlot(id = 10L, name = "Push", orderIndex = 0)))
-        db.splitExerciseDao().insertAll(listOf(SplitExercise(id = 20L, splitId = 10L, exerciseId = 1L, orderIndex = 0)))
-        db.workoutDayDao().insertAll(listOf(WorkoutDay(date = "2026-06-10", cycleSlotId = 10L)))
-        db.workoutSetDao().insertAll(
+        db.exerciseDao().domain().insertAll(listOf(Exercise(id = 1L, name = "Bench Press", muscleGroups = "CHEST")))
+        db.cycleDao().domain().upsert(Cycle(id = 1, numTypes = 1, isActive = true, nextSessionType = 0, startDate = "2026-06-01"))
+        db.cycleSlotDao().domain().insertAll(listOf(CycleSlot(id = 10L, name = "Push", orderIndex = 0)))
+        db.splitExerciseDao().domain().insertAll(listOf(SplitExercise(id = 20L, splitId = 10L, exerciseId = 1L, orderIndex = 0)))
+        db.workoutDayDao().domain().insertAll(listOf(WorkoutDay(date = "2026-06-10", cycleSlotId = 10L)))
+        db.workoutSetDao().domain().insertAll(
             listOf(
                 WorkoutSet(id = 1L, exerciseId = 1L, date = "2026-06-10", setNumber = 1, weightLbs = 2000, reps = 5, completed = true),
             )
@@ -834,11 +919,11 @@ class DatabaseHardeningInstrumentedTest {
         val archiveId = repo.archiveCurrentCycle("Summer Block", "2026-06-01", "2026-06-30")
 
         // Edit a set inside the archive date range (simulating historical edit)
-        db.workoutSetDao().update(
+        db.workoutSetDao().domain().update(
             WorkoutSet(id = 1L, exerciseId = 1L, date = "2026-06-10", setNumber = 1, weightLbs = 3000, reps = 5, completed = true)
         )
 
-        val archive = db.archivedCycleDao().getById(archiveId)!!
+        val archive = db.archivedCycleDao().domain().getById(archiveId)!!
         val cardVolume = repo.archiveSummary(archive).totalVolumeLbs
         val detailVolume = repo.archivedCycleSnapshot(archiveId).totals.totalVolumeLbs
 
@@ -865,5 +950,6 @@ class DatabaseHardeningInstrumentedTest {
         const val DATA_HARDENING_COMPACT_DB = "data-hardening-compact.db"
         const val DATA_HARDENING_RECHECK_DB = "data-hardening-recheck.db"
         const val DATA_HARDENING_ARCHIVE_DETAIL_DB = "data-hardening-archive-detail.db"
+        const val V19_BACKUP_DB = "v19-backup.db"
     }
 }

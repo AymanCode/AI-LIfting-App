@@ -5,29 +5,30 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
+import com.ayman.ecolift.data.room.Exercise as RoomExercise
 
 @Dao
 interface ExerciseDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insert(exercise: Exercise): Long
+    suspend fun insert(exercise: RoomExercise): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(exercises: List<Exercise>)
+    suspend fun insertAll(exercises: List<RoomExercise>)
 
     @Query("SELECT * FROM exercise ORDER BY name ASC")
-    fun observeAll(): Flow<List<Exercise>>
+    fun observeAll(): Flow<List<RoomExercise>>
 
     @Query("SELECT * FROM exercise ORDER BY name ASC")
-    suspend fun getAll(): List<Exercise>
+    suspend fun getAll(): List<RoomExercise>
 
     @Query("SELECT * FROM exercise WHERE lower(name) = lower(:name) LIMIT 1")
-    suspend fun getByExactName(name: String): Exercise?
+    suspend fun getByExactName(name: String): RoomExercise?
 
     @Query("SELECT * FROM exercise WHERE id = :id")
-    suspend fun getById(id: Long): Exercise?
+    suspend fun getById(id: Long): RoomExercise?
 
     @Query("SELECT * FROM exercise WHERE id IN (:ids)")
-    suspend fun getByIds(ids: List<Long>): List<Exercise>
+    suspend fun getByIds(ids: List<Long>): List<RoomExercise>
 
     @Query(
         """
@@ -38,7 +39,7 @@ interface ExerciseDao {
         LIMIT :limit
         """
     )
-    suspend fun searchByName(query: String, limit: Int): List<Exercise>
+    suspend fun searchByName(query: String, limit: Int): List<RoomExercise>
 
     @Query(
         """
@@ -50,7 +51,7 @@ interface ExerciseDao {
         LIMIT :limit
         """
     )
-    suspend fun searchByFrequency(query: String, limit: Int): List<Exercise>
+    suspend fun searchByFrequency(query: String, limit: Int): List<RoomExercise>
 
     @Query("UPDATE exercise SET name = :newName WHERE id = :id")
     suspend fun updateName(id: Long, newName: String)
@@ -59,7 +60,7 @@ interface ExerciseDao {
     suspend fun updateMuscleGroups(id: Long, muscleGroups: String)
 
     @androidx.room.Upsert
-    suspend fun upsert(exercise: Exercise): Long
+    suspend fun upsert(exercise: RoomExercise): Long
 
     @Query("DELETE FROM exercise WHERE id = :id")
     suspend fun deleteById(id: Long)

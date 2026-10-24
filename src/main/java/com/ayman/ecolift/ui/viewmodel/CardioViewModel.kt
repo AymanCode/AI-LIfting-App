@@ -1,515 +1,1067 @@
 package com.ayman.ecolift.ui.viewmodel
 
-import android.app.Application
-import android.net.Uri
-import androidx.core.content.FileProvider
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayman.ecolift.cardio.CardioActivitySpecs
 import com.ayman.ecolift.cardio.CardioEntryField
 import com.ayman.ecolift.cardio.CardioEntryParser
-import com.ayman.ecolift.cardio.health.CardioHealthConnectReader
-import com.ayman.ecolift.cardio.ocr.CardioOcrResult
-import com.ayman.ecolift.cardio.ocr.MlKitCardioOcrEngine
-import com.ayman.ecolift.data.AppDatabase
+import com.ayman.ecolift.cardio.CardioFieldRules
+import com.ayman.ecolift.cardio.CardioInsights
 import com.ayman.ecolift.data.CardioActivityType
-import com.ayman.ecolift.data.CardioRepository
 import com.ayman.ecolift.data.CardioSession
+import com.ayman.ecolift.data.CardioSessionSource
+import com.ayman.ecolift.web.AppRepos
+import com.ayman.ecolift.web.VisionService
+import com.ayman.ecolift.web.ai.VisionStats
+import com.ayman.ecolift.web.demo.DemoGuard
+import com.ayman.ecolift.web.pickPhoto
+import com.ayman.ecolift.web.util.nowMillis
+import com.ayman.ecolift.web.util.todayLocalDate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.io.File
-import java.time.LocalDate
-import java.util.Locale
-import java.util.UUID
+import kotlinx.datetime.LocalDate
+import kotlin.math.pow
+import kotlin.math.round
+
+enum class ReadState { READ, CHECK, UNREAD }
+enum class SaveState { IDLE, SAVING, FAILED }
+
+data class HeldEditValue(
+    val machine: CardioActivityType,
+    val display: Double,
+)
+
+data class CardioDraft(
+    val type: CardioActivityType,
+    val values: Map<CardioEntryField, Double>,
+    val notes: String,
+    val readStates: Map<CardioEntryField, ReadState> = emptyMap(),
+    val fromPhoto: Boolean = false,
+    val scanConfidence: Double? = null,
+    val machineType: String? = null,
+    val editingId: Long? = null,
+    val editingSessionOriginal: CardioSession? = null,
+    val invalid: Set<CardioEntryField> = emptySet(),
+    val photoValues: Map<CardioEntryField, Double> = emptyMap(),
+    val held: Map<CardioEntryField, HeldEditValue> = emptyMap(),
+)
+
+data class CardioToast(
+    val text: String,
+    val emphasis: String? = null,
+    val action: String? = null,
+)
 
 data class CardioUiState(
     val sessions: List<CardioSession> = emptyList(),
-    val todayLoggedCalories: Int = 0,
-    val healthConnectAvailable: Boolean = false,
-    val healthConnectPermissionGranted: Boolean = false,
-    val healthConnectCaloriesToday: Int? = null,
-    val healthConnectMessage: String? = null,
-    val selectedActivityType: CardioActivityType = CardioActivityType.RUN,
-    val durationText: String = "",
-    val distanceText: String = "",
-    val avgSpeedText: String = "",
-    val inclineText: String = "",
-    val caloriesText: String = "",
-    val heartRateText: String = "",
-    val maxHeartRateText: String = "",
-    val cadenceText: String = "",
-    val resistanceText: String = "",
-    val powerText: String = "",
-    val strokeRateText: String = "",
-    val pace500Text: String = "",
-    val floorsText: String = "",
-    val stepsText: String = "",
-    val notesText: String = "",
-    val entryError: String? = null,
-    val entrySource: String = "manual",
-    val selectedFilter: CardioActivityType? = null,
+    val loading: Boolean = true,
+    val loadFailed: Boolean = false,
+    val draft: CardioDraft? = null,
+    val expandedField: CardioEntryField? = null,
+    val typingField: CardioEntryField? = null,
+    val saveState: SaveState = SaveState.IDLE,
+    val saveError: String? = null,
     val selectedSessionId: Long? = null,
-    val editingSessionId: Long? = null,
-    val lastOcrResult: CardioOcrResult? = null,
-    val ocrMessage: String? = null,
-    val isOcrRunning: Boolean = false,
-    val showEntrySheet: Boolean = false,
-) {
-    val canSaveEntry: Boolean
-        get() {
-            val fields = CardioActivitySpecs.specFor(selectedActivityType).fields.toSet()
-            return CardioEntryParser.hasSaveableMetric(
-                durationSec = CardioEntryParser.parseDurationSeconds(durationText).takeIf { CardioEntryField.DURATION in fields },
-                distanceM = CardioEntryParser.parseMilesToMeters(distanceText).takeIf { CardioEntryField.DISTANCE_MILES in fields },
-                calories = CardioEntryParser.parseInt(caloriesText).takeIf { CardioEntryField.CALORIES in fields },
-                avgHeartRate = CardioEntryParser.parseInt(heartRateText).takeIf { CardioEntryField.AVG_HEART_RATE in fields },
-                maxHeartRate = CardioEntryParser.parseInt(maxHeartRateText).takeIf { CardioEntryField.MAX_HEART_RATE in fields },
-                avgSpeed = CardioEntryParser.parseMphToMetersPerSecond(avgSpeedText).takeIf { CardioEntryField.AVG_SPEED_MPH in fields },
-                avgInclinePercent = CardioEntryParser.parseDouble(inclineText).takeIf { CardioEntryField.AVG_INCLINE_PERCENT in fields },
-                cadenceRpm = CardioEntryParser.parseInt(cadenceText).takeIf { CardioEntryField.CADENCE_RPM in fields },
-                resistanceLevel = CardioEntryParser.parseDouble(resistanceText).takeIf { CardioEntryField.RESISTANCE_LEVEL in fields },
-                avgPowerWatts = CardioEntryParser.parseInt(powerText).takeIf { CardioEntryField.AVG_POWER_WATTS in fields },
-                strokeRateSpm = CardioEntryParser.parseInt(strokeRateText).takeIf { CardioEntryField.STROKE_RATE_SPM in fields },
-                paceSecPer500m = CardioEntryParser.parsePaceSeconds(pace500Text).takeIf { CardioEntryField.PACE_500M in fields },
-                floors = CardioEntryParser.parseInt(floorsText).takeIf { CardioEntryField.FLOORS in fields },
-                steps = CardioEntryParser.parseInt(stepsText).takeIf { CardioEntryField.STEPS in fields },
-                notes = notesText.takeIf { CardioEntryField.NOTES in fields }.orEmpty(),
+    val daySheetDate: LocalDate? = null,
+    val scanning: Boolean = false,
+    val scanPhotoBase64: String? = null,
+    val scanPhotoMime: String? = null,
+    val scanReadCount: Int = 0,
+    val scanFieldCount: Int = 0,
+    val scanLowConfidence: Boolean = false,
+    val scansLeft: Int? = null,
+    val toast: CardioToast? = null,
+    val lastSavedId: Long? = null,
+    val undoDeadlineMillis: Long? = null,
+    val sessionsFilter: CardioActivityType? = null,
+)
+
+data class CardioWrite(
+    val date: String,
+    val activityType: String,
+    val activityLabel: String? = null,
+    val durationSec: Int? = null,
+    val distanceM: Double? = null,
+    val calories: Int? = null,
+    val avgHeartRate: Int? = null,
+    val maxHeartRate: Int? = null,
+    val avgSpeed: Double? = null,
+    val avgInclinePercent: Double? = null,
+    val cadenceRpm: Int? = null,
+    val resistanceLevel: Double? = null,
+    val avgPowerWatts: Int? = null,
+    val strokeRateSpm: Int? = null,
+    val paceSecPer500m: Int? = null,
+    val floors: Int? = null,
+    val steps: Int? = null,
+    val notes: String = "",
+    val machineType: String? = null,
+    val ocrConfidence: Double? = null,
+    val source: String = CardioSessionSource.MANUAL,
+    val editingId: Long? = null,
+)
+
+internal object CardioDraftLogic {
+    fun newDraft(sessions: List<CardioSession>, today: LocalDate): CardioDraft {
+        val lastOverall = sessions.firstOrNull()
+        val type = lastOverall?.let { CardioActivitySpecs.fromStoredType(it.activityType) } ?: CardioActivityType.TREADMILL
+        val last = CardioInsights.lastOnMachine(sessions, type)
+        val values = mutableMapOf<CardioEntryField, Double>()
+        if (last != null) {
+            values[CardioEntryField.DURATION] = last.durationSec?.toDouble() ?: 1800.0
+            if (type == CardioActivityType.STAIR_CLIMBER) {
+                last.floors?.let { values[CardioEntryField.FLOORS] = it.toDouble() }
+            } else {
+                last.distanceM?.let {
+                    values[CardioEntryField.DISTANCE_MILES] = CardioFieldRules.fromStorage(CardioEntryField.DISTANCE_MILES, type, it)
+                }
+            }
+        } else {
+            values[CardioEntryField.DURATION] = 1800.0
+        }
+        return CardioDraft(
+            type = type,
+            values = values,
+            notes = "",
+            readStates = emptyMap(),
+            fromPhoto = false,
+            invalid = emptySet(),
+        )
+    }
+
+    fun editDraft(session: CardioSession): CardioDraft {
+        val type = CardioActivitySpecs.fromStoredType(session.activityType)
+        val values = mutableMapOf<CardioEntryField, Double>()
+        session.durationSec?.let { values[CardioEntryField.DURATION] = it.toDouble() }
+        session.distanceM?.let { values[CardioEntryField.DISTANCE_MILES] = CardioFieldRules.fromStorage(CardioEntryField.DISTANCE_MILES, type, it) }
+        session.avgSpeed?.let { values[CardioEntryField.AVG_SPEED_MPH] = CardioFieldRules.fromStorage(CardioEntryField.AVG_SPEED_MPH, type, it) }
+        session.avgInclinePercent?.let { values[CardioEntryField.AVG_INCLINE_PERCENT] = it }
+        session.calories?.let { values[CardioEntryField.CALORIES] = it.toDouble() }
+        session.avgHeartRate?.let { values[CardioEntryField.AVG_HEART_RATE] = it.toDouble() }
+        session.maxHeartRate?.let { values[CardioEntryField.MAX_HEART_RATE] = it.toDouble() }
+        session.cadenceRpm?.let { values[CardioEntryField.CADENCE_RPM] = it.toDouble() }
+        session.resistanceLevel?.let { values[CardioEntryField.RESISTANCE_LEVEL] = it }
+        session.avgPowerWatts?.let { values[CardioEntryField.AVG_POWER_WATTS] = it.toDouble() }
+        session.strokeRateSpm?.let { values[CardioEntryField.STROKE_RATE_SPM] = it.toDouble() }
+        session.paceSecPer500m?.let { values[CardioEntryField.PACE_500M] = it.toDouble() }
+        session.floors?.let { values[CardioEntryField.FLOORS] = it.toDouble() }
+        session.steps?.let { values[CardioEntryField.STEPS] = it.toDouble() }
+
+        return CardioDraft(
+            type = type,
+            values = values,
+            notes = session.notes,
+            fromPhoto = (session.source == CardioSessionSource.OCR),
+            machineType = session.machineType,
+            scanConfidence = session.ocrConfidence,
+            editingId = session.id,
+            editingSessionOriginal = session,
+            invalid = emptySet(),
+        )
+    }
+
+    fun applyScrub(draft: CardioDraft, field: CardioEntryField, ticks: Int): CardioDraft {
+        val rule = CardioFieldRules.rule(field, draft.type)
+        val cur = draft.values[field] ?: rule.min
+        var newVal = (cur + ticks * rule.step).coerceIn(rule.min, rule.max)
+        newVal = if (rule.decimals == 0) {
+            round(newVal)
+        } else {
+            val factor = 10.0.pow(rule.decimals)
+            round(newVal * factor) / factor
+        }
+        val newReadStates = if (draft.readStates.containsKey(field)) {
+            draft.readStates + (field to ReadState.READ)
+        } else {
+            draft.readStates
+        }
+        return draft.copy(
+            values = draft.values + (field to newVal),
+            readStates = newReadStates,
+            invalid = draft.invalid - field,
+        )
+    }
+
+    fun applyTyped(draft: CardioDraft, field: CardioEntryField, text: String): CardioDraft {
+        val trimmed = text.trim()
+        val parsed = if (field == CardioEntryField.DURATION) {
+            CardioEntryParser.parseDurationSeconds(trimmed)?.toDouble()
+        } else {
+            CardioFieldRules.parse(field, draft.type, trimmed)
+        }
+        return if (parsed == null || !CardioFieldRules.isPlausible(field, draft.type, parsed)) {
+            draft.copy(invalid = draft.invalid + field)
+        } else {
+            val newReadStates = if (draft.readStates.containsKey(field)) {
+                draft.readStates + (field to ReadState.READ)
+            } else {
+                draft.readStates
+            }
+            draft.copy(
+                values = draft.values + (field to parsed),
+                readStates = newReadStates,
+                invalid = draft.invalid - field,
             )
         }
+    }
+
+    fun reuseField(draft: CardioDraft, field: CardioEntryField, last: CardioSession): CardioDraft {
+        val type = draft.type
+        val value: Double? = when (field) {
+            CardioEntryField.DURATION -> last.durationSec?.toDouble()
+            CardioEntryField.DISTANCE_MILES -> last.distanceM?.let { CardioFieldRules.fromStorage(CardioEntryField.DISTANCE_MILES, type, it) }
+            CardioEntryField.AVG_SPEED_MPH -> last.avgSpeed?.let { CardioFieldRules.fromStorage(CardioEntryField.AVG_SPEED_MPH, type, it) }
+            CardioEntryField.AVG_INCLINE_PERCENT -> last.avgInclinePercent
+            CardioEntryField.CALORIES -> last.calories?.toDouble()
+            CardioEntryField.AVG_HEART_RATE -> last.avgHeartRate?.toDouble()
+            CardioEntryField.MAX_HEART_RATE -> last.maxHeartRate?.toDouble()
+            CardioEntryField.CADENCE_RPM -> last.cadenceRpm?.toDouble()
+            CardioEntryField.RESISTANCE_LEVEL -> last.resistanceLevel
+            CardioEntryField.AVG_POWER_WATTS -> last.avgPowerWatts?.toDouble()
+            CardioEntryField.STROKE_RATE_SPM -> last.strokeRateSpm?.toDouble()
+            CardioEntryField.PACE_500M -> last.paceSecPer500m?.toDouble()
+            CardioEntryField.FLOORS -> last.floors?.toDouble()
+            CardioEntryField.STEPS -> last.steps?.toDouble()
+            CardioEntryField.NOTES -> null
+        }
+        return if (value != null) {
+            val newReadStates = if (draft.readStates.containsKey(field)) draft.readStates + (field to ReadState.READ) else draft.readStates
+            draft.copy(
+                values = draft.values + (field to value),
+                readStates = newReadStates,
+                invalid = draft.invalid - field,
+            )
+        } else {
+            draft
+        }
+    }
+
+    fun fromScan(stats: VisionStats, sessions: List<CardioSession>, today: LocalDate): CardioDraft {
+        val type = if (!stats.activityType.isNullOrBlank()) {
+            runCatching { CardioActivityType.valueOf(stats.activityType.uppercase()) }.getOrNull()
+                ?: machineTypeToActivityType(stats.machineType)
+        } else {
+            machineTypeToActivityType(stats.machineType)
+        }
+
+        val spec = CardioActivitySpecs.specFor(type)
+        val last = CardioInsights.lastOnMachine(sessions, type)
+        val values = mutableMapOf<CardioEntryField, Double>()
+        val readStates = mutableMapOf<CardioEntryField, ReadState>()
+        val photoValues = mutableMapOf<CardioEntryField, Double>()
+
+        for (field in spec.fields) {
+            if (field == CardioEntryField.NOTES) continue
+
+            val statValue: Double? = when (field) {
+                CardioEntryField.DURATION -> stats.durationSec?.toDouble()
+                CardioEntryField.DISTANCE_MILES -> stats.distanceM?.let { CardioFieldRules.fromStorage(CardioEntryField.DISTANCE_MILES, type, it) }
+                CardioEntryField.AVG_SPEED_MPH -> stats.avgSpeed?.let { CardioFieldRules.fromStorage(CardioEntryField.AVG_SPEED_MPH, type, it) }
+                CardioEntryField.AVG_INCLINE_PERCENT -> stats.avgInclinePercent
+                CardioEntryField.CALORIES -> stats.calories?.toDouble()
+                CardioEntryField.AVG_HEART_RATE -> stats.avgHeartRate?.toDouble()
+                CardioEntryField.MAX_HEART_RATE -> stats.maxHeartRate?.toDouble()
+                CardioEntryField.CADENCE_RPM -> stats.cadenceRpm?.toDouble()
+                CardioEntryField.RESISTANCE_LEVEL -> stats.resistanceLevel
+                CardioEntryField.AVG_POWER_WATTS -> stats.avgPowerWatts?.toDouble()
+                CardioEntryField.STROKE_RATE_SPM -> stats.strokeRateSpm?.toDouble()
+                CardioEntryField.PACE_500M -> stats.paceSecPer500m?.toDouble()
+                CardioEntryField.FLOORS -> stats.floors?.toDouble()
+                CardioEntryField.STEPS -> stats.steps?.toDouble()
+                CardioEntryField.NOTES -> null
+            }
+
+            if (statValue != null) {
+                val plausible = CardioFieldRules.isPlausible(field, type, statValue)
+                readStates[field] = if (plausible) ReadState.READ else ReadState.CHECK
+                values[field] = statValue
+                photoValues[field] = statValue
+            } else {
+                readStates[field] = ReadState.UNREAD
+                // HR stays absent
+                if (field != CardioEntryField.AVG_HEART_RATE && field != CardioEntryField.MAX_HEART_RATE && last != null) {
+                    val prefill: Double? = when (field) {
+                        CardioEntryField.DURATION -> last.durationSec?.toDouble()
+                        CardioEntryField.DISTANCE_MILES -> last.distanceM?.let { CardioFieldRules.fromStorage(CardioEntryField.DISTANCE_MILES, type, it) }
+                        CardioEntryField.AVG_SPEED_MPH -> last.avgSpeed?.let { CardioFieldRules.fromStorage(CardioEntryField.AVG_SPEED_MPH, type, it) }
+                        CardioEntryField.AVG_INCLINE_PERCENT -> last.avgInclinePercent
+                        CardioEntryField.CALORIES -> last.calories?.toDouble()
+                        CardioEntryField.CADENCE_RPM -> last.cadenceRpm?.toDouble()
+                        CardioEntryField.RESISTANCE_LEVEL -> last.resistanceLevel
+                        CardioEntryField.AVG_POWER_WATTS -> last.avgPowerWatts?.toDouble()
+                        CardioEntryField.STROKE_RATE_SPM -> last.strokeRateSpm?.toDouble()
+                        CardioEntryField.PACE_500M -> last.paceSecPer500m?.toDouble()
+                        CardioEntryField.FLOORS -> last.floors?.toDouble()
+                        CardioEntryField.STEPS -> last.steps?.toDouble()
+                        else -> null
+                    }
+                    if (prefill != null) {
+                        values[field] = prefill
+                    }
+                }
+            }
+        }
+
+        return CardioDraft(
+            type = type,
+            values = values,
+            notes = "",
+            readStates = readStates,
+            fromPhoto = true,
+            scanConfidence = stats.confidence,
+            machineType = stats.machineType,
+            invalid = emptySet(),
+            photoValues = photoValues,
+        )
+    }
+
+    fun canSave(draft: CardioDraft): Boolean {
+        if (draft.invalid.isNotEmpty()) return false
+        return draft.values.isNotEmpty() || draft.notes.isNotBlank()
+    }
+
+    fun retargetEdit(draft: CardioDraft, newType: CardioActivityType): CardioDraft {
+        val shown = CardioActivitySpecs.specFor(newType).fields
+            .filter { it != CardioEntryField.NOTES }
+            .toSet()
+        val held = draft.held.toMutableMap()
+        val visible = draft.values.toMutableMap()
+        for (field in visible.keys.toList()) {
+            if (field !in shown) {
+                held[field] = HeldEditValue(draft.type, visible.getValue(field))
+                visible.remove(field)
+            }
+        }
+        for (field in shown) {
+            if (field in draft.values) {
+                visible[field] = displayForMachine(draft, field, newType)
+                held.remove(field)
+            } else {
+                val parked = held[field] ?: continue
+                visible[field] = if (parked.machine == newType) {
+                    parked.display
+                } else {
+                    displayForMachine(
+                        draft.copy(type = parked.machine, values = mapOf(field to parked.display)),
+                        field,
+                        newType,
+                    )
+                }
+                held.remove(field)
+            }
+        }
+        val readStates = if (draft.fromPhoto) {
+            val next = draft.readStates.toMutableMap()
+            for (field in shown) {
+                next[field] = if (field !in visible) {
+                    ReadState.UNREAD
+                } else {
+                    draft.readStates[field] ?: ReadState.READ
+                }
+            }
+            next
+        } else {
+            draft.readStates
+        }
+        return draft.copy(
+            type = newType,
+            values = visible,
+            held = held,
+            readStates = readStates,
+            invalid = draft.invalid.filter { it in visible }.toSet(),
+        )
+    }
+
+    fun displayForMachine(draft: CardioDraft, field: CardioEntryField, newType: CardioActivityType): Double {
+        val shown = draft.values.getValue(field)
+        val oldType = draft.type
+        if (CardioFieldRules.rule(field, oldType).unit == CardioFieldRules.rule(field, newType).unit) {
+            return shown
+        }
+        val stored = storedForUnitChange(draft.editingSessionOriginal, field)
+        if (stored != null && shown == CardioFieldRules.fromStorage(field, oldType, stored)) {
+            return CardioFieldRules.fromStorage(field, newType, stored)
+        }
+        val converted = CardioFieldRules.toStorage(field, oldType, shown)
+        return CardioFieldRules.fromStorage(field, newType, converted)
+    }
+
+    private fun storedForUnitChange(session: CardioSession?, field: CardioEntryField): Double? = when (field) {
+        CardioEntryField.DISTANCE_MILES -> session?.distanceM
+        CardioEntryField.AVG_SPEED_MPH -> session?.avgSpeed
+        else -> null
+    }
+
+    fun toWrite(draft: CardioDraft, today: LocalDate = todayLocalDate()): CardioWrite {
+        val orig = draft.editingSessionOriginal
+        val machineFields = CardioActivitySpecs.specFor(draft.type).fields
+        fun Double.roundToIntOrNull() = round(this).toInt()
+        fun <T> onMachine(field: CardioEntryField, value: T?): T? = if (field in machineFields) value else null
+
+        val durationSec = onMachine(CardioEntryField.DURATION, if (orig != null && draft.values[CardioEntryField.DURATION] == orig.durationSec?.toDouble()) {
+            orig.durationSec
+        } else {
+            draft.values[CardioEntryField.DURATION]?.roundToIntOrNull()
+        })
+
+        val distanceM = onMachine(CardioEntryField.DISTANCE_MILES, if (orig != null && draft.values[CardioEntryField.DISTANCE_MILES] == orig.distanceM?.let { CardioFieldRules.fromStorage(CardioEntryField.DISTANCE_MILES, draft.type, it) }) {
+            orig.distanceM
+        } else {
+            draft.values[CardioEntryField.DISTANCE_MILES]?.let { CardioFieldRules.toStorage(CardioEntryField.DISTANCE_MILES, draft.type, it) }
+        })
+
+        val avgSpeed = onMachine(CardioEntryField.AVG_SPEED_MPH, if (orig != null && draft.values[CardioEntryField.AVG_SPEED_MPH] == orig.avgSpeed?.let { CardioFieldRules.fromStorage(CardioEntryField.AVG_SPEED_MPH, draft.type, it) }) {
+            orig.avgSpeed
+        } else {
+            draft.values[CardioEntryField.AVG_SPEED_MPH]?.let { CardioFieldRules.toStorage(CardioEntryField.AVG_SPEED_MPH, draft.type, it) }
+        })
+
+        val avgInclinePercent = onMachine(CardioEntryField.AVG_INCLINE_PERCENT, if (orig != null && draft.values[CardioEntryField.AVG_INCLINE_PERCENT] == orig.avgInclinePercent) {
+            orig.avgInclinePercent
+        } else {
+            draft.values[CardioEntryField.AVG_INCLINE_PERCENT]
+        })
+
+        val calories = onMachine(CardioEntryField.CALORIES, if (orig != null && draft.values[CardioEntryField.CALORIES] == orig.calories?.toDouble()) {
+            orig.calories
+        } else {
+            draft.values[CardioEntryField.CALORIES]?.roundToIntOrNull()
+        })
+
+        val avgHeartRate = onMachine(CardioEntryField.AVG_HEART_RATE, if (orig != null && draft.values[CardioEntryField.AVG_HEART_RATE] == orig.avgHeartRate?.toDouble()) {
+            orig.avgHeartRate
+        } else {
+            draft.values[CardioEntryField.AVG_HEART_RATE]?.roundToIntOrNull()
+        })
+
+        val maxHeartRate = onMachine(CardioEntryField.MAX_HEART_RATE, if (orig != null && draft.values[CardioEntryField.MAX_HEART_RATE] == orig.maxHeartRate?.toDouble()) {
+            orig.maxHeartRate
+        } else {
+            draft.values[CardioEntryField.MAX_HEART_RATE]?.roundToIntOrNull()
+        })
+
+        val cadenceRpm = onMachine(CardioEntryField.CADENCE_RPM, if (orig != null && draft.values[CardioEntryField.CADENCE_RPM] == orig.cadenceRpm?.toDouble()) {
+            orig.cadenceRpm
+        } else {
+            draft.values[CardioEntryField.CADENCE_RPM]?.roundToIntOrNull()
+        })
+
+        val resistanceLevel = onMachine(CardioEntryField.RESISTANCE_LEVEL, if (orig != null && draft.values[CardioEntryField.RESISTANCE_LEVEL] == orig.resistanceLevel) {
+            orig.resistanceLevel
+        } else {
+            draft.values[CardioEntryField.RESISTANCE_LEVEL]
+        })
+
+        val avgPowerWatts = onMachine(CardioEntryField.AVG_POWER_WATTS, if (orig != null && draft.values[CardioEntryField.AVG_POWER_WATTS] == orig.avgPowerWatts?.toDouble()) {
+            orig.avgPowerWatts
+        } else {
+            draft.values[CardioEntryField.AVG_POWER_WATTS]?.roundToIntOrNull()
+        })
+
+        val strokeRateSpm = onMachine(CardioEntryField.STROKE_RATE_SPM, if (orig != null && draft.values[CardioEntryField.STROKE_RATE_SPM] == orig.strokeRateSpm?.toDouble()) {
+            orig.strokeRateSpm
+        } else {
+            draft.values[CardioEntryField.STROKE_RATE_SPM]?.roundToIntOrNull()
+        })
+
+        val paceSecPer500m = onMachine(CardioEntryField.PACE_500M, if (orig != null && draft.values[CardioEntryField.PACE_500M] == orig.paceSecPer500m?.toDouble()) {
+            orig.paceSecPer500m
+        } else {
+            draft.values[CardioEntryField.PACE_500M]?.roundToIntOrNull()
+        })
+
+        val floors = onMachine(CardioEntryField.FLOORS, if (orig != null && draft.values[CardioEntryField.FLOORS] == orig.floors?.toDouble()) {
+            orig.floors
+        } else {
+            draft.values[CardioEntryField.FLOORS]?.roundToIntOrNull()
+        })
+
+        val steps = onMachine(CardioEntryField.STEPS, if (orig != null && draft.values[CardioEntryField.STEPS] == orig.steps?.toDouble()) {
+            orig.steps
+        } else {
+            draft.values[CardioEntryField.STEPS]?.roundToIntOrNull()
+        })
+
+        val date = orig?.date ?: today.toString()
+        val source = if (draft.fromPhoto) CardioSessionSource.OCR else (orig?.source ?: CardioSessionSource.MANUAL)
+
+        return CardioWrite(
+            date = date,
+            activityType = draft.type.name,
+            activityLabel = orig?.activityLabel,
+            durationSec = durationSec,
+            distanceM = distanceM,
+            calories = calories,
+            avgHeartRate = avgHeartRate,
+            maxHeartRate = maxHeartRate,
+            avgSpeed = avgSpeed,
+            avgInclinePercent = avgInclinePercent,
+            cadenceRpm = cadenceRpm,
+            resistanceLevel = resistanceLevel,
+            avgPowerWatts = avgPowerWatts,
+            strokeRateSpm = strokeRateSpm,
+            paceSecPer500m = paceSecPer500m,
+            floors = floors,
+            steps = steps,
+            notes = draft.notes,
+            machineType = draft.machineType ?: orig?.machineType,
+            ocrConfidence = draft.scanConfidence ?: orig?.ocrConfidence,
+            source = source,
+            editingId = draft.editingId,
+        )
+    }
+
+    private fun machineTypeToActivityType(machineType: String?): CardioActivityType = when (machineType?.lowercase()) {
+        "treadmill" -> CardioActivityType.TREADMILL
+        "bike" -> CardioActivityType.BIKE
+        "rower", "row" -> CardioActivityType.ROW
+        "elliptical" -> CardioActivityType.ELLIPTICAL
+        "stair_climber", "stairs" -> CardioActivityType.STAIR_CLIMBER
+        "run" -> CardioActivityType.RUN
+        "walk" -> CardioActivityType.WALK
+        "swim" -> CardioActivityType.SWIM
+        else -> CardioActivityType.TREADMILL
+    }
 }
 
-class CardioViewModel(application: Application) : AndroidViewModel(application) {
-    private val appContext = application.applicationContext
-    private val db = AppDatabase.getInstance(appContext)
-    private val repository = CardioRepository(db)
-    private val ocrEngine = MlKitCardioOcrEngine()
-    private val healthReader = CardioHealthConnectReader(appContext)
-
-    private var pendingOcrFile: File? = null
-    private var lastManualActivity: CardioActivityType = CardioActivityType.TREADMILL
+class CardioViewModel(
+    private val repos: AppRepos,
+    private val vision: VisionService,
+    private val photoPicker: (((Pair<String, String>?) -> Unit) -> Unit) = ::pickPhoto,
+) : ViewModel() {
+    private val repository = repos.cardio
+    private val draftsByMachine = mutableMapOf<CardioActivityType, CardioDraft>()
+    private class ScanRequest
+    private var currentScanToken: ScanRequest? = null
 
     private val _uiState = MutableStateFlow(CardioUiState())
     val uiState: StateFlow<CardioUiState> = _uiState.asStateFlow()
 
-    val healthConnectPermissions: Set<String> = healthReader.permissions
-
     init {
-        cleanupStaleOcrFiles()
-        _uiState.update { it.copy(healthConnectAvailable = healthReader.isAvailable()) }
         viewModelScope.launch {
-            repository.observeSessions().collect { sessions ->
-                _uiState.update { it.copy(sessions = sessions) }
+            try {
+                repository.observeSessions().collect { sessions ->
+                    _uiState.update { it.copy(sessions = sessions, loading = false, loadFailed = false) }
+                }
+            } catch (e: Throwable) {
+                _uiState.update { it.copy(loading = false, loadFailed = true) }
             }
         }
-        viewModelScope.launch {
-            repository.observeCaloriesForDate(LocalDate.now().toString()).collect { calories ->
-                _uiState.update { it.copy(todayLoggedCalories = calories) }
+        refreshScansLeft()
+        repos.dataGeneration?.let { generation ->
+            val initial = generation.changes.value
+            viewModelScope.launch {
+                var observed = initial
+                generation.changes.collect { current ->
+                    if (current != observed) {
+                        observed = current
+                        currentScanToken = ScanRequest()
+                        draftsByMachine.clear()
+                        _uiState.update {
+                            it.copy(
+                                draft = null,
+                                expandedField = null,
+                                typingField = null,
+                                saveState = SaveState.IDLE,
+                                saveError = null,
+                                selectedSessionId = null,
+                                daySheetDate = null,
+                                scanning = false,
+                                scanPhotoBase64 = null,
+                                scanPhotoMime = null,
+                                scanReadCount = 0,
+                                scanFieldCount = 0,
+                                scanLowConfidence = false,
+                                toast = null,
+                                lastSavedId = null,
+                                undoDeadlineMillis = null,
+                            )
+                        }
+                    }
+                }
             }
         }
-        refreshHealthConnectCalories()
     }
 
-    fun openManualEntry() {
+    private fun dataGeneration(): Long = repos.dataGeneration?.changes?.value ?: 0L
+
+    private suspend fun <T : Any> withDataGeneration(expected: Long, block: suspend () -> T): T? {
+        val generation = repos.dataGeneration ?: return block()
+        return generation.withCurrent(expected, block)
+    }
+
+    fun startNewDraft() {
+        currentScanToken = null
+        draftsByMachine.clear()
+        val draft = CardioDraftLogic.newDraft(repository.sessions.value, todayLocalDate())
         _uiState.update {
             it.copy(
-                showEntrySheet = true,
-                entrySource = "manual",
-                editingSessionId = null,
-                selectedActivityType = lastManualActivity,
-                lastOcrResult = null,
-                ocrMessage = null,
-                entryError = null,
+                draft = draft,
+                scanning = false,
+                scanPhotoBase64 = null,
+                scanPhotoMime = null,
+                toast = null,
+                saveState = SaveState.IDLE,
+                saveError = null,
+                expandedField = null,
+                typingField = null,
             )
         }
     }
 
-    fun openEditEntry(id: Long) {
+    fun startEditDraft(id: Long) {
+        currentScanToken = null
         viewModelScope.launch {
             val session = repository.getById(id) ?: return@launch
-            val type = CardioActivitySpecs.fromStoredType(session.activityType)
+            draftsByMachine.clear()
+            val draft = CardioDraftLogic.editDraft(session)
             _uiState.update {
-                it.clearEntryFields().copy(
-                    showEntrySheet = true,
-                    selectedSessionId = null,
-                    editingSessionId = session.id,
-                    entrySource = "manual",
-                    selectedActivityType = type,
-                    durationText = session.durationSec?.let(::formatDuration).orEmpty(),
-                    distanceText = session.distanceM?.let(::formatMiles).orEmpty(),
-                    avgSpeedText = session.avgSpeed?.let(::formatMph).orEmpty(),
-                    inclineText = session.avgInclinePercent?.let(::formatDecimal).orEmpty(),
-                    caloriesText = session.calories?.toString().orEmpty(),
-                    heartRateText = session.avgHeartRate?.toString().orEmpty(),
-                    maxHeartRateText = session.maxHeartRate?.toString().orEmpty(),
-                    cadenceText = session.cadenceRpm?.toString().orEmpty(),
-                    resistanceText = session.resistanceLevel?.let(::formatDecimal).orEmpty(),
-                    powerText = session.avgPowerWatts?.toString().orEmpty(),
-                    strokeRateText = session.strokeRateSpm?.toString().orEmpty(),
-                    pace500Text = session.paceSecPer500m?.let(::formatDuration).orEmpty(),
-                    floorsText = session.floors?.toString().orEmpty(),
-                    stepsText = session.steps?.toString().orEmpty(),
-                    notesText = session.notes,
-                    lastOcrResult = null,
-                    ocrMessage = null,
-                    entryError = null,
+                it.copy(
+                    draft = draft,
+                    scanning = false,
+                    scanPhotoBase64 = null,
+                    scanPhotoMime = null,
+                    toast = null,
+                    saveState = SaveState.IDLE,
+                    saveError = null,
+                    expandedField = null,
+                    typingField = null,
                 )
             }
         }
     }
 
-    fun closeEntrySheet() {
-        _uiState.update { it.copy(showEntrySheet = false, editingSessionId = null).clearEntryFields() }
-    }
-
-    fun updateActivityType(type: CardioActivityType) {
-        _uiState.update { it.copy(selectedActivityType = type) }
-    }
-
-    fun updateDuration(value: String) {
-        _uiState.update { it.copy(durationText = value) }
-    }
-
-    fun updateDistance(value: String) {
-        _uiState.update { it.copy(distanceText = value) }
-    }
-
-    fun updateCalories(value: String) {
-        _uiState.update { it.copy(caloriesText = value) }
-    }
-
-    fun updateHeartRate(value: String) {
-        _uiState.update { it.copy(heartRateText = value) }
-    }
-
-    fun updateNotes(value: String) {
-        _uiState.update { it.copy(notesText = value) }
-    }
-
-    fun updateEntryField(field: CardioEntryField, value: String) {
+    fun cancelDraft() {
+        currentScanToken = null
+        draftsByMachine.clear()
         _uiState.update {
-            when (field) {
-                CardioEntryField.DURATION -> it.copy(durationText = value, entryError = null)
-                CardioEntryField.DISTANCE_MILES -> it.copy(distanceText = value, entryError = null)
-                CardioEntryField.AVG_SPEED_MPH -> it.copy(avgSpeedText = value, entryError = null)
-                CardioEntryField.AVG_INCLINE_PERCENT -> it.copy(inclineText = value, entryError = null)
-                CardioEntryField.CALORIES -> it.copy(caloriesText = value, entryError = null)
-                CardioEntryField.AVG_HEART_RATE -> it.copy(heartRateText = value, entryError = null)
-                CardioEntryField.MAX_HEART_RATE -> it.copy(maxHeartRateText = value, entryError = null)
-                CardioEntryField.CADENCE_RPM -> it.copy(cadenceText = value, entryError = null)
-                CardioEntryField.RESISTANCE_LEVEL -> it.copy(resistanceText = value, entryError = null)
-                CardioEntryField.AVG_POWER_WATTS -> it.copy(powerText = value, entryError = null)
-                CardioEntryField.STROKE_RATE_SPM -> it.copy(strokeRateText = value, entryError = null)
-                CardioEntryField.PACE_500M -> it.copy(pace500Text = value, entryError = null)
-                CardioEntryField.FLOORS -> it.copy(floorsText = value, entryError = null)
-                CardioEntryField.STEPS -> it.copy(stepsText = value, entryError = null)
-                CardioEntryField.NOTES -> it.copy(notesText = value, entryError = null)
+            it.copy(
+                draft = null,
+                scanning = false,
+                scanPhotoBase64 = null,
+                scanPhotoMime = null,
+                expandedField = null,
+                typingField = null,
+                saveState = SaveState.IDLE,
+                saveError = null,
+            )
+        }
+    }
+
+    fun selectMachine(type: CardioActivityType) {
+        val cur = _uiState.value.draft ?: return
+        if (cur.type == type) return
+        if (cur.editingId != null) {
+            val nextDraft = CardioDraftLogic.retargetEdit(cur, type)
+            val shown = CardioActivitySpecs.specFor(type).fields.filter { it != CardioEntryField.NOTES }
+            _uiState.update { state ->
+                state.copy(
+                    draft = nextDraft,
+                    expandedField = null,
+                    typingField = null,
+                    scanReadCount = if (cur.fromPhoto) {
+                        nextDraft.readStates.filterKeys { it in shown }
+                            .count { it.value == ReadState.READ || it.value == ReadState.CHECK }
+                    } else {
+                        state.scanReadCount
+                    },
+                    scanFieldCount = if (cur.fromPhoto) shown.size else state.scanFieldCount,
+                )
+            }
+            return
+        }
+        if (cur.fromPhoto) {
+            val spec = CardioActivitySpecs.specFor(type)
+            val last = CardioInsights.lastOnMachine(repository.sessions.value, type)
+            val newValues = mutableMapOf<CardioEntryField, Double>()
+            val newReadStates = mutableMapOf<CardioEntryField, ReadState>()
+            for (field in spec.fields) {
+                if (field == CardioEntryField.NOTES) continue
+                if (cur.values.containsKey(field)) {
+                    newValues[field] = CardioDraftLogic.displayForMachine(cur, field, type)
+                    newReadStates[field] = cur.readStates[field] ?: ReadState.READ
+                } else {
+                    newReadStates[field] = ReadState.UNREAD
+                    if (field != CardioEntryField.AVG_HEART_RATE && field != CardioEntryField.MAX_HEART_RATE && last != null) {
+                        val prefill: Double? = when (field) {
+                            CardioEntryField.DURATION -> last.durationSec?.toDouble()
+                            CardioEntryField.DISTANCE_MILES -> last.distanceM?.let { CardioFieldRules.fromStorage(CardioEntryField.DISTANCE_MILES, type, it) }
+                            CardioEntryField.AVG_SPEED_MPH -> last.avgSpeed?.let { CardioFieldRules.fromStorage(CardioEntryField.AVG_SPEED_MPH, type, it) }
+                            CardioEntryField.AVG_INCLINE_PERCENT -> last.avgInclinePercent
+                            CardioEntryField.CALORIES -> last.calories?.toDouble()
+                            CardioEntryField.CADENCE_RPM -> last.cadenceRpm?.toDouble()
+                            CardioEntryField.RESISTANCE_LEVEL -> last.resistanceLevel
+                            CardioEntryField.AVG_POWER_WATTS -> last.avgPowerWatts?.toDouble()
+                            CardioEntryField.STROKE_RATE_SPM -> last.strokeRateSpm?.toDouble()
+                            CardioEntryField.PACE_500M -> last.paceSecPer500m?.toDouble()
+                            CardioEntryField.FLOORS -> last.floors?.toDouble()
+                            CardioEntryField.STEPS -> last.steps?.toDouble()
+                            else -> null
+                        }
+                        if (prefill != null) newValues[field] = prefill
+                    }
+                }
+            }
+            val nextDraft = cur.copy(
+                type = type,
+                values = newValues,
+                readStates = newReadStates,
+                invalid = cur.invalid.filter { spec.fields.contains(it) }.toSet(),
+            )
+            val readCount = nextDraft.readStates.count { it.value == ReadState.READ || it.value == ReadState.CHECK }
+            val fieldCount = spec.fields.count { it != CardioEntryField.NOTES }
+            _uiState.update {
+                it.copy(
+                    draft = nextDraft,
+                    scanReadCount = readCount,
+                    scanFieldCount = fieldCount,
+                    expandedField = null,
+                    typingField = null,
+                )
+            }
+            return
+        }
+        draftsByMachine[cur.type] = cur
+        val existing = draftsByMachine[type]
+        val nextDraft = existing ?: CardioDraftLogic.newDraft(repository.sessions.value, todayLocalDate()).copy(type = type)
+        _uiState.update { it.copy(draft = nextDraft, expandedField = null, typingField = null) }
+    }
+
+    fun scrub(field: CardioEntryField, ticks: Int) {
+        val cur = _uiState.value.draft ?: return
+        val updated = CardioDraftLogic.applyScrub(cur, field, ticks)
+        _uiState.update { it.copy(draft = updated) }
+    }
+
+    fun reuseLast(field: CardioEntryField) {
+        val cur = _uiState.value.draft ?: return
+        val last = CardioInsights.lastOnMachine(repository.sessions.value, cur.type) ?: return
+        val updated = CardioDraftLogic.reuseField(cur, field, last)
+        _uiState.update { it.copy(draft = updated) }
+    }
+
+    fun beginTyping(field: CardioEntryField) {
+        _uiState.update { it.copy(typingField = field) }
+    }
+
+    fun commitTyped(field: CardioEntryField, text: String) {
+        val cur = _uiState.value.draft ?: return
+        val updated = CardioDraftLogic.applyTyped(cur, field, text)
+        _uiState.update { it.copy(draft = updated, typingField = null) }
+    }
+
+    fun clearField(field: CardioEntryField) {
+        val cur = _uiState.value.draft ?: return
+        val updated = cur.copy(
+            values = cur.values - field,
+            invalid = cur.invalid - field,
+        )
+        _uiState.update { it.copy(draft = updated) }
+    }
+
+    fun setNotes(text: String) {
+        val cur = _uiState.value.draft ?: return
+        val updated = cur.copy(notes = text)
+        _uiState.update { it.copy(draft = updated) }
+    }
+
+    fun expandField(field: CardioEntryField?) {
+        _uiState.update { it.copy(expandedField = field) }
+    }
+
+    fun save() {
+        if (DemoGuard.blockIfDemo()) return
+        val draft = _uiState.value.draft ?: return
+        if (!CardioDraftLogic.canSave(draft)) return
+        val expected = dataGeneration()
+
+        _uiState.update { it.copy(saveState = SaveState.SAVING, saveError = null) }
+        viewModelScope.launch {
+            try {
+                val write = CardioDraftLogic.toWrite(draft, todayLocalDate())
+                val savedSession = withDataGeneration(expected) {
+                    if (draft.editingId != null) {
+                        val orig = draft.editingSessionOriginal ?: repository.getById(draft.editingId)
+                        if (orig != null) {
+                            val updated = orig.copy(
+                                activityType = write.activityType,
+                                activityLabel = write.activityLabel,
+                                durationSec = write.durationSec,
+                                distanceM = write.distanceM,
+                                calories = write.calories,
+                                avgHeartRate = write.avgHeartRate,
+                                maxHeartRate = write.maxHeartRate,
+                                avgSpeed = write.avgSpeed,
+                                avgInclinePercent = write.avgInclinePercent,
+                                cadenceRpm = write.cadenceRpm,
+                                resistanceLevel = write.resistanceLevel,
+                                avgPowerWatts = write.avgPowerWatts,
+                                strokeRateSpm = write.strokeRateSpm,
+                                paceSecPer500m = write.paceSecPer500m,
+                                floors = write.floors,
+                                steps = write.steps,
+                                notes = write.notes,
+                            )
+                            repository.update(updated)
+                        } else {
+                            error("Session not found")
+                        }
+                    } else if (draft.fromPhoto) {
+                        repository.saveOcrConfirmed(
+                            date = write.date,
+                            activityType = write.activityType,
+                            activityLabel = write.activityLabel,
+                            durationSec = write.durationSec,
+                            distanceM = write.distanceM,
+                            calories = write.calories,
+                            avgHeartRate = write.avgHeartRate,
+                            maxHeartRate = write.maxHeartRate,
+                            avgSpeed = write.avgSpeed,
+                            avgInclinePercent = write.avgInclinePercent,
+                            cadenceRpm = write.cadenceRpm,
+                            resistanceLevel = write.resistanceLevel,
+                            avgPowerWatts = write.avgPowerWatts,
+                            strokeRateSpm = write.strokeRateSpm,
+                            paceSecPer500m = write.paceSecPer500m,
+                            floors = write.floors,
+                            steps = write.steps,
+                            machineType = write.machineType,
+                            ocrConfidence = write.ocrConfidence,
+                            notes = write.notes,
+                        )
+                    } else {
+                        repository.saveManual(
+                            date = write.date,
+                            activityType = write.activityType,
+                            activityLabel = write.activityLabel,
+                            durationSec = write.durationSec,
+                            distanceM = write.distanceM,
+                            calories = write.calories,
+                            avgHeartRate = write.avgHeartRate,
+                            maxHeartRate = write.maxHeartRate,
+                            avgSpeed = write.avgSpeed,
+                            avgInclinePercent = write.avgInclinePercent,
+                            cadenceRpm = write.cadenceRpm,
+                            resistanceLevel = write.resistanceLevel,
+                            avgPowerWatts = write.avgPowerWatts,
+                            strokeRateSpm = write.strokeRateSpm,
+                            paceSecPer500m = write.paceSecPer500m,
+                            floors = write.floors,
+                            steps = write.steps,
+                            notes = write.notes,
+                        )
+                    }
+                } ?: run {
+                    _uiState.update { state ->
+                        if (state.saveState == SaveState.SAVING) state.copy(saveState = SaveState.IDLE) else state
+                    }
+                    return@launch
+                }
+                if (dataGeneration() != expected) return@launch
+
+                val isEdit = draft.editingId != null
+                val dayName = todayLocalDate().dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }
+                val toast = if (isEdit) {
+                    CardioToast(text = "Session updated", emphasis = null, action = null)
+                } else {
+                    CardioToast(
+                        text = "Saved.",
+                        emphasis = if (CardioInsights.countsForActivity(savedSession)) "$dayName filled in." else null,
+                        action = "Undo",
+                    )
+                }
+                val now = nowMillis()
+                _uiState.update {
+                    it.copy(
+                        draft = null,
+                        scanPhotoBase64 = null,
+                        scanPhotoMime = null,
+                        saveState = SaveState.IDLE,
+                        saveError = null,
+                        toast = toast,
+                        lastSavedId = if (isEdit) null else savedSession.id,
+                        undoDeadlineMillis = if (isEdit) null else now + 8000,
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                _uiState.update {
+                    it.copy(
+                        saveState = SaveState.FAILED,
+                        saveError = "Couldn't save.",
+                    )
+                }
             }
         }
     }
 
-    fun selectFilter(type: CardioActivityType?) {
-        _uiState.update { it.copy(selectedFilter = type) }
+    fun undoLastSave() {
+        if (DemoGuard.blockIfDemo()) return
+        val id = _uiState.value.lastSavedId ?: return
+        val expected = dataGeneration()
+        viewModelScope.launch {
+            try {
+                withDataGeneration(expected) {
+                    repository.delete(id)
+                    true
+                } ?: return@launch
+                if (dataGeneration() != expected) return@launch
+                _uiState.update {
+                    it.copy(
+                        lastSavedId = null,
+                        undoDeadlineMillis = null,
+                        toast = CardioToast(text = "Removed.", emphasis = null, action = null),
+                    )
+                }
+            } catch (e: Throwable) {
+                _uiState.update {
+                    it.copy(
+                        toast = CardioToast(text = "Couldn't undo.", emphasis = null, action = null),
+                    )
+                }
+            }
+        }
     }
 
-    fun selectSession(id: Long) {
+    fun startScan() {
+        if (DemoGuard.blockIfDemo()) return
+        val token = ScanRequest()
+        currentScanToken = token
+        draftsByMachine.clear()
+        _uiState.update {
+            it.copy(
+                scanning = true,
+                draft = null,
+                toast = null,
+                scanPhotoBase64 = null,
+                scanPhotoMime = null,
+                scanReadCount = 0,
+                scanFieldCount = 0,
+                scanLowConfidence = false,
+                expandedField = null,
+                typingField = null,
+                saveState = SaveState.IDLE,
+                saveError = null,
+            )
+        }
+        photoPicker onPhoto@{ photo ->
+            if (token !== currentScanToken) return@onPhoto
+            if (photo == null) {
+                cancelScan()
+                return@onPhoto
+            }
+            _uiState.update {
+                it.copy(
+                    scanning = true,
+                    scanPhotoBase64 = photo.second,
+                    scanPhotoMime = photo.first,
+                )
+            }
+            viewModelScope.launch {
+                try {
+                    val stats = vision.scanStats(photo.second, photo.first)
+                    if (token !== currentScanToken) return@launch
+                    if (stats == null) {
+                        handleScanFailure()
+                        return@launch
+                    }
+                    val draft = CardioDraftLogic.fromScan(stats, repository.sessions.value, todayLocalDate())
+                    val lowConf = (stats.confidence ?: 1.0) < 0.6
+                    val readCount = draft.readStates.count { it.value == ReadState.READ || it.value == ReadState.CHECK }
+                    val fieldCount = CardioActivitySpecs.specFor(draft.type).fields.count { it != CardioEntryField.NOTES }
+                    _uiState.update {
+                        it.copy(
+                            scanning = false,
+                            draft = draft,
+                            scanLowConfidence = lowConf,
+                            scanReadCount = readCount,
+                            scanFieldCount = fieldCount,
+                        )
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    if (token !== currentScanToken) return@launch
+                    handleScanFailure()
+                }
+            }
+        }
+    }
+
+    private fun handleScanFailure() {
+        val sessions = repository.sessions.value
+        val today = todayLocalDate()
+        val draft = CardioDraftLogic.newDraft(sessions, today)
+        val last = CardioInsights.lastOnMachine(sessions, draft.type)
+        val toast = CardioToast(
+            text = "Couldn't read the photo.",
+            emphasis = if (last != null) "Filled from last time." else null,
+            action = null,
+        )
+        _uiState.update {
+            it.copy(
+                scanning = false,
+                draft = draft,
+                scanPhotoBase64 = null,
+                scanPhotoMime = null,
+                toast = toast,
+            )
+        }
+    }
+
+    fun cancelScan() {
+        if (currentScanToken == null) return
+        currentScanToken = null
+        _uiState.update {
+            it.copy(
+                scanning = false,
+                scanPhotoBase64 = null,
+                scanPhotoMime = null,
+                draft = null,
+                expandedField = null,
+                typingField = null,
+            )
+        }
+    }
+
+    fun selectSession(id: Long?) {
         _uiState.update { it.copy(selectedSessionId = id) }
     }
 
-    fun closeSessionDetail() {
-        _uiState.update { it.copy(selectedSessionId = null) }
-    }
-
-    fun createOcrCaptureUri(): Uri {
-        val directory = File(appContext.cacheDir, OCR_CACHE_DIR).apply { mkdirs() }
-        val file = File(directory, "${UUID.randomUUID()}.jpg")
-        pendingOcrFile = file
-        return FileProvider.getUriForFile(
-            appContext,
-            "${appContext.packageName}.fileprovider",
-            file,
-        )
-    }
-
-    fun handleOcrCaptureResult(success: Boolean) {
-        val file = pendingOcrFile
-        pendingOcrFile = null
-        if (!success || file == null || !file.exists()) {
-            file?.delete()
-            _uiState.update {
-                it.copy(
-                    isOcrRunning = false,
-                    ocrMessage = "No image captured.",
-                )
-            }
-            return
-        }
-
-        viewModelScope.launch {
-            _uiState.update { it.copy(isOcrRunning = true, ocrMessage = "Reading machine screen...") }
-            try {
-                val uri = FileProvider.getUriForFile(
-                    appContext,
-                    "${appContext.packageName}.fileprovider",
-                    file,
-                )
-                val result = ocrEngine.analyze(appContext, uri)
-                applyOcrResult(result)
-            } catch (error: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isOcrRunning = false,
-                        ocrMessage = error.message ?: "OCR failed.",
-                        showEntrySheet = true,
-                    )
-                }
-            } finally {
-                file.delete()
-            }
-        }
-    }
-
-    fun saveEntry() {
-        val state = _uiState.value
-        val fields = CardioActivitySpecs.specFor(state.selectedActivityType).fields.toSet()
-        val duration = CardioEntryParser.parseDurationSeconds(state.durationText).takeIf { CardioEntryField.DURATION in fields }
-        val distanceM = CardioEntryParser.parseMilesToMeters(state.distanceText).takeIf { CardioEntryField.DISTANCE_MILES in fields }
-        val calories = CardioEntryParser.parseInt(state.caloriesText).takeIf { CardioEntryField.CALORIES in fields }
-        val heartRate = CardioEntryParser.parseInt(state.heartRateText).takeIf { CardioEntryField.AVG_HEART_RATE in fields }
-        val maxHeartRate = CardioEntryParser.parseInt(state.maxHeartRateText).takeIf { CardioEntryField.MAX_HEART_RATE in fields }
-        val avgSpeed = CardioEntryParser.parseMphToMetersPerSecond(state.avgSpeedText).takeIf { CardioEntryField.AVG_SPEED_MPH in fields }
-        val avgInclinePercent = CardioEntryParser.parseDouble(state.inclineText).takeIf { CardioEntryField.AVG_INCLINE_PERCENT in fields }
-        val cadenceRpm = CardioEntryParser.parseInt(state.cadenceText).takeIf { CardioEntryField.CADENCE_RPM in fields }
-        val resistanceLevel = CardioEntryParser.parseDouble(state.resistanceText).takeIf { CardioEntryField.RESISTANCE_LEVEL in fields }
-        val avgPowerWatts = CardioEntryParser.parseInt(state.powerText).takeIf { CardioEntryField.AVG_POWER_WATTS in fields }
-        val strokeRateSpm = CardioEntryParser.parseInt(state.strokeRateText).takeIf { CardioEntryField.STROKE_RATE_SPM in fields }
-        val paceSecPer500m = CardioEntryParser.parsePaceSeconds(state.pace500Text).takeIf { CardioEntryField.PACE_500M in fields }
-        val floors = CardioEntryParser.parseInt(state.floorsText).takeIf { CardioEntryField.FLOORS in fields }
-        val steps = CardioEntryParser.parseInt(state.stepsText).takeIf { CardioEntryField.STEPS in fields }
-        val notes = state.notesText.trim().takeIf { CardioEntryField.NOTES in fields }.orEmpty()
-
-        if (!CardioEntryParser.hasSaveableMetric(
-                durationSec = duration,
-                distanceM = distanceM,
-                calories = calories,
-                avgHeartRate = heartRate,
-                maxHeartRate = maxHeartRate,
-                avgSpeed = avgSpeed,
-                avgInclinePercent = avgInclinePercent,
-                cadenceRpm = cadenceRpm,
-                resistanceLevel = resistanceLevel,
-                avgPowerWatts = avgPowerWatts,
-                strokeRateSpm = strokeRateSpm,
-                paceSecPer500m = paceSecPer500m,
-                floors = floors,
-                steps = steps,
-                notes = notes,
-            )
-        ) {
-            _uiState.update { it.copy(entryError = "Add at least one metric before saving.") }
-            return
-        }
-
-        viewModelScope.launch {
-            val editingId = state.editingSessionId
-            if (editingId != null) {
-                repository.getById(editingId)?.let { existing ->
-                    repository.update(
-                        existing.copy(
-                            activityType = state.selectedActivityType.name,
-                            durationSec = duration,
-                            distanceM = distanceM,
-                            calories = calories,
-                            avgHeartRate = heartRate,
-                            maxHeartRate = maxHeartRate,
-                            avgSpeed = avgSpeed,
-                            avgInclinePercent = avgInclinePercent,
-                            cadenceRpm = cadenceRpm,
-                            resistanceLevel = resistanceLevel,
-                            avgPowerWatts = avgPowerWatts,
-                            strokeRateSpm = strokeRateSpm,
-                            paceSecPer500m = paceSecPer500m,
-                            floors = floors,
-                            steps = steps,
-                            notes = notes,
-                        ),
-                    )
-                }
-            } else if (state.entrySource == "ocr") {
-                repository.saveOcrConfirmed(
-                    activityType = state.selectedActivityType,
-                    durationSec = duration,
-                    distanceM = distanceM,
-                    calories = calories,
-                    avgHeartRate = heartRate,
-                    maxHeartRate = maxHeartRate,
-                    avgSpeed = avgSpeed,
-                    avgInclinePercent = avgInclinePercent,
-                    cadenceRpm = cadenceRpm,
-                    resistanceLevel = resistanceLevel,
-                    avgPowerWatts = avgPowerWatts,
-                    strokeRateSpm = strokeRateSpm,
-                    paceSecPer500m = paceSecPer500m,
-                    floors = floors,
-                    steps = steps,
-                    machineType = state.lastOcrResult?.machineType,
-                    ocrConfidence = state.lastOcrResult?.confidence,
-                    ocrEngineVersion = "mlkit-text-v1",
-                    notes = notes,
-                )
-            } else {
-                repository.saveManual(
-                    activityType = state.selectedActivityType,
-                    durationSec = duration,
-                    distanceM = distanceM,
-                    calories = calories,
-                    avgHeartRate = heartRate,
-                    maxHeartRate = maxHeartRate,
-                    avgSpeed = avgSpeed,
-                    avgInclinePercent = avgInclinePercent,
-                    cadenceRpm = cadenceRpm,
-                    resistanceLevel = resistanceLevel,
-                    avgPowerWatts = avgPowerWatts,
-                    strokeRateSpm = strokeRateSpm,
-                    paceSecPer500m = paceSecPer500m,
-                    floors = floors,
-                    steps = steps,
-                    notes = notes,
-                )
-                lastManualActivity = state.selectedActivityType
-            }
-            _uiState.update {
-                it.copy(
-                    showEntrySheet = false,
-                    notesText = "",
-                    entrySource = "manual",
-                    editingSessionId = null,
-                    lastOcrResult = null,
-                    ocrMessage = null,
-                    entryError = null,
-                ).clearEntryFields()
-            }
-        }
+    fun openDay(date: LocalDate?) {
+        _uiState.update { it.copy(daySheetDate = date) }
     }
 
     fun deleteSession(id: Long) {
+        if (DemoGuard.blockIfDemo()) return
+        val expected = dataGeneration()
         viewModelScope.launch {
-            repository.delete(id)
-            _uiState.update { state ->
-                if (state.selectedSessionId == id) state.copy(selectedSessionId = null) else state
-            }
-        }
-    }
-
-    fun refreshHealthConnectCalories() {
-        viewModelScope.launch {
-            val result = healthReader.readTodayCalories()
+            withDataGeneration(expected) {
+                repository.delete(id)
+                true
+            } ?: return@launch
+            if (dataGeneration() != expected) return@launch
             _uiState.update {
                 it.copy(
-                    healthConnectAvailable = result.available,
-                    healthConnectPermissionGranted = result.permissionGranted,
-                    healthConnectCaloriesToday = result.calories,
-                    healthConnectMessage = result.message,
+                    selectedSessionId = if (it.selectedSessionId == id) null else it.selectedSessionId,
                 )
             }
         }
     }
 
-    fun onHealthPermissionsResult(granted: Set<String>) {
-        _uiState.update {
-            it.copy(healthConnectPermissionGranted = granted.containsAll(healthConnectPermissions))
-        }
-        refreshHealthConnectCalories()
+    fun setSessionsFilter(type: CardioActivityType?) {
+        _uiState.update { it.copy(sessionsFilter = type) }
     }
 
-    private fun applyOcrResult(result: CardioOcrResult) {
-        val type = when (result.machineType) {
-            "treadmill" -> CardioActivityType.TREADMILL
-            "bike" -> CardioActivityType.BIKE
-            "rower" -> CardioActivityType.ROW
-            "elliptical" -> CardioActivityType.ELLIPTICAL
-            "stair_climber" -> CardioActivityType.STAIR_CLIMBER
-            else -> CardioActivityType.RUN
+    fun refreshScansLeft() {
+        viewModelScope.launch {
+            val left = vision.scansLeftToday()
+            _uiState.update { it.copy(scansLeft = left) }
         }
-        _uiState.update {
-            it.copy(
-                isOcrRunning = false,
-                showEntrySheet = true,
-                entrySource = if (result.recognizedCardioScreen) "ocr" else "manual",
-                selectedActivityType = type,
-                durationText = result.durationSec?.let(::formatDuration) ?: it.durationText,
-                distanceText = result.distanceM?.let(::formatMiles) ?: it.distanceText,
-                avgSpeedText = result.avgSpeed?.let(::formatMph) ?: it.avgSpeedText,
-                caloriesText = result.calories?.toString() ?: it.caloriesText,
-                heartRateText = result.avgHeartRate?.toString() ?: it.heartRateText,
-                lastOcrResult = result,
-                ocrMessage = if (result.recognizedCardioScreen) {
-                    "OCR filled ${recognizedFieldCount(result)} fields."
-                } else {
-                    "Could not confidently read the screen."
-                },
-            )
-        }
-    }
-
-    private fun cleanupStaleOcrFiles() {
-        val cutoff = System.currentTimeMillis() - OCR_FILE_TTL_MS
-        File(appContext.cacheDir, OCR_CACHE_DIR)
-            .listFiles()
-            .orEmpty()
-            .filter { it.isFile && it.lastModified() < cutoff }
-            .forEach { it.delete() }
-    }
-
-    private fun formatDuration(seconds: Int): String {
-        val hours = seconds / 3600
-        val minutes = (seconds % 3600) / 60
-        val secs = seconds % 60
-        return if (hours > 0) {
-            "%d:%02d:%02d".format(hours, minutes, secs)
-        } else {
-            "%d:%02d".format(minutes, secs)
-        }
-    }
-
-    private fun formatMiles(meters: Double): String =
-        "%.2f".format(Locale.US, meters / METERS_PER_MILE)
-
-    private fun formatMph(metersPerSecond: Double): String =
-        "%.1f".format(Locale.US, metersPerSecond / METERS_PER_SECOND_PER_MPH)
-
-    private fun formatDecimal(value: Double): String =
-        if (value % 1.0 == 0.0) value.toInt().toString() else "%.1f".format(Locale.US, value)
-
-    private fun recognizedFieldCount(result: CardioOcrResult): Int =
-        listOf(result.durationSec, result.distanceM, result.calories, result.avgHeartRate, result.avgSpeed)
-            .count { it != null }
-
-    private fun CardioUiState.clearEntryFields(): CardioUiState = copy(
-        durationText = "",
-        distanceText = "",
-        avgSpeedText = "",
-        inclineText = "",
-        caloriesText = "",
-        heartRateText = "",
-        maxHeartRateText = "",
-        cadenceText = "",
-        resistanceText = "",
-        powerText = "",
-        strokeRateText = "",
-        pace500Text = "",
-        floorsText = "",
-        stepsText = "",
-        notesText = "",
-        entryError = null,
-    )
-
-    private companion object {
-        const val OCR_CACHE_DIR = "cardio_ocr"
-        const val OCR_FILE_TTL_MS = 24L * 60L * 60L * 1000L
-        const val METERS_PER_MILE = 1609.344
-        const val METERS_PER_SECOND_PER_MPH = 0.44704
     }
 }

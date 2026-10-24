@@ -1,8 +1,26 @@
 package com.ayman.ecolift.agent
 
-import java.time.DayOfWeek
-import java.time.LocalDate
-import java.time.temporal.TemporalAdjusters
+import com.ayman.ecolift.web.util.minusDays
+import com.ayman.ecolift.web.util.todayLocalDate
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.minus
+
+/** ISO day number: Monday=1 .. Sunday=7 */
+val DayOfWeek.isoDayNumber: Int get() = when (this) {
+    DayOfWeek.MONDAY -> 1
+    DayOfWeek.TUESDAY -> 2
+    DayOfWeek.WEDNESDAY -> 3
+    DayOfWeek.THURSDAY -> 4
+    DayOfWeek.FRIDAY -> 5
+    DayOfWeek.SATURDAY -> 6
+    DayOfWeek.SUNDAY -> 7
+    else -> throw IllegalArgumentException("Unknown DayOfWeek: $this")
+}
+
+/** ISO day number of the weekday of this date: Monday=1 .. Sunday=7 */
+val LocalDate.isoDayNumber: Int get() = dayOfWeek.isoDayNumber
 
 /**
  * Parses date references from natural language into ISO yyyy-MM-dd strings.
@@ -17,40 +35,49 @@ import java.time.temporal.TemporalAdjusters
  */
 object DateExtractor {
 
-    fun extract(text: String, today: LocalDate = LocalDate.now()): String? {
+    fun withoutDateReferences(text: String, today: LocalDate = todayLocalDate()): String =
+        dateReference.replace(text) { match ->
+            if (extract(match.value, today) != null) " " else match.value
+        }
+
+    fun extract(text: String, today: LocalDate = todayLocalDate()): String? {
         val t = text.lowercase()
 
         if (t.contains("yesterday")) return today.minusDays(1).toString()
-        if (t.contains("today")) return today.toString()
+        if (t.contains("today"))     return today.toString()
 
         val dayMap = mapOf(
-            "monday" to DayOfWeek.MONDAY, "tuesday" to DayOfWeek.TUESDAY,
+            "monday"    to DayOfWeek.MONDAY,    "tuesday"  to DayOfWeek.TUESDAY,
             "wednesday" to DayOfWeek.WEDNESDAY, "thursday" to DayOfWeek.THURSDAY,
-            "friday" to DayOfWeek.FRIDAY, "saturday" to DayOfWeek.SATURDAY,
-            "sunday" to DayOfWeek.SUNDAY
+            "friday"    to DayOfWeek.FRIDAY,    "saturday" to DayOfWeek.SATURDAY,
+            "sunday"    to DayOfWeek.SUNDAY
         )
         for ((name, dow) in dayMap) {
             if (t.contains(name)) {
-                var target = today.with(TemporalAdjusters.previousOrSame(dow))
-                if (target == today) target = target.minusWeeks(1)
+                // Find most recent past occurrence of dow (never same day - go back 1 week if today matches)
+                val todayIso = today.isoDayNumber   // Mon=1..Sun=7
+                val targetIso = dow.isoDayNumber
+                val daysBack = when {
+                    todayIso > targetIso -> (todayIso - targetIso).toLong()
+                    todayIso == targetIso -> 7L  // same weekday -> go back a full week
+                    else -> (7 - targetIso + todayIso).toLong()
+                }
+                val target = today.minusDays(daysBack)
                 return target.toString()
             }
         }
 
-        // "April 5th": "march 12", "January 1"
-        val monthDayRe = Regex(
-            """(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?"""
-        )
+        // "April 5th", "march 12", "January 1"
         monthDayRe.find(t)?.let { m ->
             val monthNames = listOf(
                 "january", "february", "march", "april", "may", "june",
                 "july", "august", "september", "october", "november", "december"
             )
             val month = monthNames.indexOf(m.groupValues[1]) + 1
-            val day = m.groupValues[2].toIntOrNull() ?: return@let
+            val day   = m.groupValues[2].toIntOrNull() ?: return@let
             return try {
-                var d = LocalDate.of(today.year, month, day)
-                if (d.isAfter(today)) d = d.minusYears(1)
+                var d = LocalDate(today.year, month, day)
+                if (d > today) d = d.minus(1, DateTimeUnit.YEAR)
                 d.toString()
             } catch (_: Exception) {
                 null
@@ -61,4 +88,12 @@ object DateExtractor {
 
         return null
     }
+
+    private val monthDayRe = Regex(
+        """(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?"""
+    )
+    private val dateReference = Regex(
+        """\b(?:yesterday|today|(?:last\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|${monthDayRe.pattern}|\d{4}-\d{2}-\d{2})\b""",
+        RegexOption.IGNORE_CASE,
+    )
 }

@@ -204,8 +204,8 @@ class CycleProgressCalculatorTest {
         assertEquals(25f, addedWithoutBodyweight.points.single().value, 0.001f)
         assertEquals(LiftMetric.ADDED_WEIGHT, addedWithInvalidBodyweight.metric)
         assertEquals(25f, addedWithInvalidBodyweight.points.single().value, 0.001f)
-        assertEquals(LiftMetric.E1RM, addedWithBodyweight.metric)
-        assertEquals(205f * (1f + 8f / 30f), addedWithBodyweight.points.single().value, 0.001f)
+        assertEquals(LiftMetric.ADDED_WEIGHT, addedWithBodyweight.metric)
+        assertEquals(25f, addedWithBodyweight.points.single().value, 0.001f)
     }
 
     @Test

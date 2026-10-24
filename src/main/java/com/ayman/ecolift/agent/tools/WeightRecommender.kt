@@ -1,61 +1,87 @@
 package com.ayman.ecolift.agent.tools
 
 import com.ayman.ecolift.data.WeightLbs
+import com.ayman.ecolift.data.progress.inferWeightStepStored
+import com.ayman.ecolift.web.util.countLabel
+import kotlin.math.max
 
 /**
  * Pure Kotlin weight recommendation logic. No model, no DB - takes history as input.
  *
  * Rules (all weights in lbs):
  *   - No history -> NO_DATA
- *   - Bodyweight exercise -> null weight, MEDIUM confidence
- *   - Last top set reps >= targetReps + 2 -> increase by 5 lbs
- *   - Last top set reps < targetReps      -> decrease by 5 lbs
- *   - Otherwise                           -> hold current weight
+ *   - Bodyweight exercise -> one more rep, null weight
+ *   - Weighted exercise -> infer a realistic step, then progress from the
+ *     latest session's estimated-1RM top set.
  */
 object WeightRecommender {
-
-    private val stepStorage = WeightLbs.fromWholePounds(5) ?: 50
 
     fun suggest(
         history: HistorySummary,
         targetReps: Int,
         isBodyweight: Boolean
     ): WeightSuggestion {
+        val latestTopSet = history.topSetsBySession.firstOrNull()
+            ?: history.topSetWeightLbs?.let { weight ->
+                SessionTopSet(date = "", weightLbs = weight, reps = history.topSetReps)
+            }
+        val topWeight = latestTopSet?.weightLbs
+        val topReps = latestTopSet?.reps
+
+        if (topReps == null || topReps <= 0 || history.sessionCount == 0) {
+            return noData(history.exerciseId, targetReps)
+        }
+
         if (isBodyweight) {
+            val suggestedReps = topReps + 1
             return WeightSuggestion(
                 exerciseId = history.exerciseId,
                 targetReps = targetReps,
                 suggestedWeightLbs = null,
                 confidence = WeightSuggestion.Confidence.MEDIUM,
-                reasoning = "Bodyweight exercise - no load to suggest."
+                reasoning = "You did $topReps last time — try $suggestedReps.",
+                suggestedReps = suggestedReps,
             )
         }
 
-        val topWeight = history.topSetWeightLbs
-        val topReps = history.topSetReps
+        if (topWeight == null || topWeight <= 0) return noData(history.exerciseId, targetReps)
 
-        if (topWeight == null || topReps == null || history.sessionCount == 0) {
-            return WeightSuggestion(
-                exerciseId = history.exerciseId,
-                targetReps = targetReps,
-                suggestedWeightLbs = null,
-                confidence = WeightSuggestion.Confidence.NO_DATA,
-                reasoning = "No logged history for this exercise."
-            )
-        }
+        val step = inferWeightStepStored(
+            distinctStoredWeights = history.distinctCompletedWeights,
+            exerciseName = history.exerciseName,
+            topStoredWeight = topWeight,
+        )
 
-        val (suggested, reasoning) = when {
-            topReps >= targetReps + 2 ->
-                topWeight + stepStorage to
-                    "Last top set: ${WeightLbs.formatStored(topWeight)}lbs x $topReps reps. Reps >= target + 2 -> increase by 5lbs."
+        val stepUp = topReps >= 12 ||
+            (topReps >= 10 && (history.previousTopRepsAtLatestWeight ?: 0) >= 10)
 
-            topReps < targetReps ->
-                maxOf(topWeight - stepStorage, stepStorage) to
-                    "Last top set: ${WeightLbs.formatStored(topWeight)}lbs x $topReps reps. Reps < target -> decrease by 5lbs."
+        val (suggestedWeight, suggestedReps, reasoning) = when {
+            stepUp -> {
+                val nextWeight = topWeight + step
+                Triple(
+                    nextWeight,
+                    max(6, topReps - 4),
+                    "You've hit ${fmt(topWeight)}×$topReps — move up to ${fmt(nextWeight)}.",
+                )
+            }
 
-            else ->
-                topWeight to
-                    "Last top set: ${WeightLbs.formatStored(topWeight)}lbs x $topReps reps. On target - hold weight."
+            targetReps > 0 && topReps < targetReps -> {
+                val nextWeight = maxOf(topWeight - step, step)
+                Triple(
+                    nextWeight,
+                    targetReps,
+                    "Last top set: ${fmt(topWeight)} lb × ${countLabel(topReps, "rep")}. Reps < target -> decrease by ${fmt(step)} lb.",
+                )
+            }
+
+            else -> {
+                val nextReps = topReps + 1
+                Triple(
+                    topWeight,
+                    nextReps,
+                    "Last time: ${fmt(topWeight)}×$topReps. Try one more rep.",
+                )
+            }
         }
 
         val confidence = when {
@@ -67,9 +93,21 @@ object WeightRecommender {
         return WeightSuggestion(
             exerciseId = history.exerciseId,
             targetReps = targetReps,
-            suggestedWeightLbs = suggested,
+            suggestedWeightLbs = suggestedWeight,
             confidence = confidence,
-            reasoning = reasoning
+            reasoning = reasoning,
+            suggestedReps = suggestedReps,
         )
     }
+
+    private fun noData(exerciseId: Long, targetReps: Int): WeightSuggestion =
+        WeightSuggestion(
+            exerciseId = exerciseId,
+            targetReps = targetReps,
+            suggestedWeightLbs = null,
+            confidence = WeightSuggestion.Confidence.NO_DATA,
+            reasoning = "No logged history for this exercise.",
+        )
+
+    private fun fmt(storedWeight: Int): String = WeightLbs.formatStored(storedWeight)
 }

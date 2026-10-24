@@ -38,6 +38,12 @@ ktlint_standard_blank-line-before-declaration = disabled
 ktlint_standard_no-empty-first-line-in-class-body = disabled
 ktlint_standard_trailing-comma-on-call-site = disabled
 ktlint_standard_trailing-comma-on-declaration-site = disabled
+# Ported when branches line the arrow up in a column, and collapsing that column fights the port.
+ktlint_standard_no-multi-spaces = disabled
+# Parameter lists in the port stay on the opening line, the same wrapping choice as argument-list-wrapping.
+ktlint_standard_parameter-list-wrapping = disabled
+# A comment sits on the declaration it describes, and the port does not insert a blank line between them.
+ktlint_standard_spacing-between-declarations-with-comments = disabled
 
 # @Composable functions are PascalCase by convention.
 ktlint_function_naming_ignore_when_annotated_with = Composable
@@ -56,3 +62,15 @@ ktlint_standard_value-parameter-comment = disabled
 # `org.junit.Assert.*` and `org.mockito.kotlin.*` are the conventional way to
 # pull in assertion and stubbing DSLs. Production code stays explicit.
 ktlint_standard_no-wildcard-imports = disabled
+
+# Copied from the web snapshot. Leaving the imports as copied keeps a later snapshot diffable.
+[src/main/java/com/ayman/ecolift/ui/**.kt]
+ktlint_standard_no-wildcard-imports = disabled
+ktlint_standard_filename = disabled
+
+[src/main/java/com/ayman/ecolift/web/**.kt]
+ktlint_standard_no-wildcard-imports = disabled
+ktlint_standard_filename = disabled
+
+[src/main/java/com/ayman/ecolift/data/splits/YearEras.kt]
+ktlint_standard_filename = disabled

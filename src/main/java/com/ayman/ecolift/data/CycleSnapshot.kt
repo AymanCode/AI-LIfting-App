@@ -11,6 +11,7 @@ data class CycleSnapshot(
     val endDate: String,
     val totals: CycleTotals,
     val splits: List<SplitSnapshot>,
+    val volumeDefinition: String = "LEGACY_BODYWEIGHT_ESTIMATE",
 )
 
 @Serializable

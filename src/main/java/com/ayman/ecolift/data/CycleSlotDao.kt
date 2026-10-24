@@ -7,20 +7,21 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
+import com.ayman.ecolift.data.room.CycleSlot as RoomCycleSlot
 
 @Dao
 interface CycleSlotDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(slots: List<CycleSlot>)
+    suspend fun insertAll(slots: List<RoomCycleSlot>)
 
     @Query("SELECT * FROM cycle_slot ORDER BY orderIndex ASC, id ASC")
-    fun observeAll(): Flow<List<CycleSlot>>
+    fun observeAll(): Flow<List<RoomCycleSlot>>
 
     @Query("SELECT * FROM cycle_slot ORDER BY orderIndex ASC, id ASC")
-    suspend fun getAll(): List<CycleSlot>
+    suspend fun getAll(): List<RoomCycleSlot>
 
     @Upsert
-    suspend fun upsert(slot: CycleSlot): Long
+    suspend fun upsert(slot: RoomCycleSlot): Long
 
     @Query("DELETE FROM cycle_slot WHERE id = :id")
     suspend fun delete(id: Long)
@@ -29,7 +30,7 @@ interface CycleSlotDao {
     suspend fun deleteAll()
 
     @Query("SELECT * FROM cycle_slot WHERE id = :id LIMIT 1")
-    suspend fun getById(id: Long): CycleSlot?
+    suspend fun getById(id: Long): RoomCycleSlot?
 
     @Query("UPDATE cycle_slot SET name = :name WHERE id = :id")
     suspend fun updateName(id: Long, name: String)

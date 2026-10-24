@@ -1,6 +1,6 @@
 package com.ayman.ecolift.data
 
-import java.util.Locale
+import com.ayman.ecolift.web.util.formatTenths
 import kotlin.math.roundToInt
 
 object WeightLbs {
@@ -16,7 +16,7 @@ object WeightLbs {
         return if (rounded % SCALE == 0) {
             (rounded / SCALE).toString()
         } else {
-            String.format(Locale.US, "%.1f", rounded.toDouble() / SCALE)
+            formatTenths(rounded)
         }
     }
 
@@ -25,8 +25,10 @@ object WeightLbs {
         if (cleaned.isEmpty() || cleaned == ".") return null
         val normalized = cleaned.removeSuffix(".")
         val numeric = normalized.toDoubleOrNull() ?: return null
-        return (numeric * SCALE).roundToInt()
+        return fromLbs(numeric)
     }
+
+    fun fromLbs(value: Double): Int = (value * SCALE).roundToInt()
 
     fun sanitizeInput(input: String): String {
         val builder = StringBuilder()

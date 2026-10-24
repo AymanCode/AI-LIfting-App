@@ -6,26 +6,27 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
+import com.ayman.ecolift.data.room.WorkoutDay as RoomWorkoutDay
 
 @Dao
 interface WorkoutDayDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(workoutDays: List<WorkoutDay>)
+    suspend fun insertAll(workoutDays: List<RoomWorkoutDay>)
 
     @Upsert
-    suspend fun upsert(workoutDay: WorkoutDay)
+    suspend fun upsert(workoutDay: RoomWorkoutDay)
 
     @Query("SELECT * FROM workout_day WHERE date = :date LIMIT 1")
-    fun observeByDate(date: String): Flow<WorkoutDay?>
+    fun observeByDate(date: String): Flow<RoomWorkoutDay?>
 
     @Query("SELECT * FROM workout_day WHERE date = :date LIMIT 1")
-    suspend fun getByDate(date: String): WorkoutDay?
+    suspend fun getByDate(date: String): RoomWorkoutDay?
 
     @Query("SELECT * FROM workout_day ORDER BY date ASC")
-    fun observeAll(): Flow<List<WorkoutDay>>
+    fun observeAll(): Flow<List<RoomWorkoutDay>>
 
     @Query("SELECT * FROM workout_day ORDER BY date ASC")
-    suspend fun getAll(): List<WorkoutDay>
+    suspend fun getAll(): List<RoomWorkoutDay>
 
     @Query(
         """
@@ -35,7 +36,7 @@ interface WorkoutDayDao {
         LIMIT 1
         """
     )
-    suspend fun getLatestForSlotIdBefore(beforeDate: String, slotId: Long): WorkoutDay?
+    suspend fun getLatestForSlotIdBefore(beforeDate: String, slotId: Long): RoomWorkoutDay?
 
     @Query(
         """
@@ -45,7 +46,7 @@ interface WorkoutDayDao {
         LIMIT 1
         """
     )
-    suspend fun getLatestForSlotTypeBefore(beforeDate: String, slotType: Int): WorkoutDay?
+    suspend fun getLatestForSlotTypeBefore(beforeDate: String, slotType: Int): RoomWorkoutDay?
 
     @Query(
         """
@@ -69,7 +70,7 @@ interface WorkoutDayDao {
         slotId: Long,
         occurrence: Int,
         beforeDate: String,
-    ): WorkoutDay?
+    ): RoomWorkoutDay?
 
     @Query("DELETE FROM workout_day WHERE date = :date")
     suspend fun deleteByDate(date: String)
@@ -96,5 +97,5 @@ interface WorkoutDayDao {
         slotType: Int,
         occurrence: Int,
         beforeDate: String,
-    ): WorkoutDay?
+    ): RoomWorkoutDay?
 }

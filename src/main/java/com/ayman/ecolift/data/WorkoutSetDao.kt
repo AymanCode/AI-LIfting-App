@@ -6,20 +6,21 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
+import com.ayman.ecolift.data.room.WorkoutSet as RoomWorkoutSet
 
 @Dao
 interface WorkoutSetDao {
     @Insert
-    suspend fun insert(set: WorkoutSet): Long
+    suspend fun insert(set: RoomWorkoutSet): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(sets: List<WorkoutSet>)
+    suspend fun insertAll(sets: List<RoomWorkoutSet>)
 
     @androidx.room.Upsert
-    suspend fun upsert(set: WorkoutSet): Long
+    suspend fun upsert(set: RoomWorkoutSet): Long
 
     @Update
-    suspend fun update(set: WorkoutSet)
+    suspend fun update(set: RoomWorkoutSet)
 
     @Query("DELETE FROM workout_set WHERE id = :id")
     suspend fun deleteById(id: Long)
@@ -31,16 +32,19 @@ interface WorkoutSetDao {
     fun observeCompletedDistinctDates(): Flow<List<String>>
 
     @Query("SELECT * FROM workout_set WHERE completed = 1 ORDER BY date ASC, setNumber ASC, id ASC")
-    fun observeCompletedSets(): Flow<List<WorkoutSet>>
+    fun observeCompletedSets(): Flow<List<RoomWorkoutSet>>
 
     @Query("SELECT * FROM workout_set")
-    suspend fun getAll(): List<WorkoutSet>
+    suspend fun getAll(): List<RoomWorkoutSet>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM workout_set LIMIT 1)")
+    suspend fun hasAny(): Boolean
 
     @Query("SELECT * FROM workout_set WHERE date = :date ORDER BY exerciseId ASC, setNumber ASC")
-    fun observeForDate(date: String): Flow<List<WorkoutSet>>
+    fun observeForDate(date: String): Flow<List<RoomWorkoutSet>>
 
     @Query("SELECT * FROM workout_set WHERE date = :date ORDER BY exerciseId ASC, setNumber ASC")
-    suspend fun getForDate(date: String): List<WorkoutSet>
+    suspend fun getForDate(date: String): List<RoomWorkoutSet>
 
     @Query(
         """
@@ -49,7 +53,7 @@ interface WorkoutSetDao {
         ORDER BY setNumber ASC
         """
     )
-    suspend fun getForDateAndExercise(date: String, exerciseId: Long): List<WorkoutSet>
+    suspend fun getForDateAndExercise(date: String, exerciseId: Long): List<RoomWorkoutSet>
 
     @Query(
         """
@@ -59,7 +63,7 @@ interface WorkoutSetDao {
         LIMIT 1
         """
     )
-    suspend fun getLastForDateAndExercise(date: String, exerciseId: Long): WorkoutSet?
+    suspend fun getLastForDateAndExercise(date: String, exerciseId: Long): RoomWorkoutSet?
 
     @Query(
         """
@@ -69,7 +73,7 @@ interface WorkoutSetDao {
         LIMIT 1
         """
     )
-    suspend fun getMostRecentBeforeDate(exerciseId: Long, beforeDate: String): WorkoutSet?
+    suspend fun getMostRecentBeforeDate(exerciseId: Long, beforeDate: String): RoomWorkoutSet?
 
     @Query(
         """
@@ -78,7 +82,7 @@ interface WorkoutSetDao {
         ORDER BY date DESC, setNumber ASC
         """
     )
-    suspend fun getHistoryBeforeDate(exerciseId: Long, beforeDate: String): List<WorkoutSet>
+    suspend fun getHistoryBeforeDate(exerciseId: Long, beforeDate: String): List<RoomWorkoutSet>
 
     @Query(
         """
@@ -118,7 +122,7 @@ interface WorkoutSetDao {
     suspend fun getVolumesSince(sinceDate: String): List<ExerciseVolume>
 
     @Query("SELECT * FROM workout_set WHERE id = :id LIMIT 1")
-    suspend fun getById(id: Long): WorkoutSet?
+    suspend fun getById(id: Long): RoomWorkoutSet?
 
     @Query("UPDATE workout_set SET date = :newDate WHERE date = :oldDate")
     suspend fun updateDate(oldDate: String, newDate: String)
@@ -145,7 +149,7 @@ interface WorkoutSetDao {
         ORDER BY date ASC, setNumber ASC, id ASC
         """
     )
-    suspend fun getSetsInRange(startDate: String, endDate: String): List<WorkoutSet>
+    suspend fun getSetsInRange(startDate: String, endDate: String): List<RoomWorkoutSet>
 
     @Query(
         """
@@ -154,7 +158,7 @@ interface WorkoutSetDao {
         ORDER BY date ASC, setNumber ASC, id ASC
         """
     )
-    suspend fun getCompletedSetsInRange(startDate: String, endDate: String): List<WorkoutSet>
+    suspend fun getCompletedSetsInRange(startDate: String, endDate: String): List<RoomWorkoutSet>
 
     @Query("""
         SELECT e.name FROM workout_set s
@@ -165,7 +169,7 @@ interface WorkoutSetDao {
     suspend fun getMostRecentExerciseName(): String?
 
     @Query("SELECT * FROM workout_set WHERE date = :date")
-    suspend fun getSetsByDate(date: String): List<WorkoutSet>
+    suspend fun getSetsByDate(date: String): List<RoomWorkoutSet>
 
     @Query(
         """
@@ -174,7 +178,7 @@ interface WorkoutSetDao {
         ORDER BY date DESC, exerciseId ASC, setNumber ASC
         """
     )
-    suspend fun getForDates(dates: List<String>): List<WorkoutSet>
+    suspend fun getForDates(dates: List<String>): List<RoomWorkoutSet>
 
     @Query(
         """
@@ -183,7 +187,7 @@ interface WorkoutSetDao {
         ORDER BY date DESC, exerciseId ASC, setNumber ASC
         """
     )
-    suspend fun getCompletedForDates(dates: List<String>): List<WorkoutSet>
+    suspend fun getCompletedForDates(dates: List<String>): List<RoomWorkoutSet>
 
     @Query(
         """
@@ -193,7 +197,7 @@ interface WorkoutSetDao {
         LIMIT 100
         """
     )
-    suspend fun getRecentHistoryForExercise(exerciseId: Long, beforeDate: String): List<WorkoutSet>
+    suspend fun getRecentHistoryForExercise(exerciseId: Long, beforeDate: String): List<RoomWorkoutSet>
 
     @Query(
         """
@@ -210,7 +214,7 @@ interface WorkoutSetDao {
         ORDER BY date ASC
         """
     )
-    suspend fun getSetsSince(exerciseId: Long, sinceDate: String): List<WorkoutSet>
+    suspend fun getSetsSince(exerciseId: Long, sinceDate: String): List<RoomWorkoutSet>
 
     @Query(
         """
@@ -219,7 +223,7 @@ interface WorkoutSetDao {
         ORDER BY date ASC, setNumber ASC
         """
     )
-    fun observeSetsSince(exerciseId: Long, sinceDate: String): Flow<List<WorkoutSet>>
+    fun observeSetsSince(exerciseId: Long, sinceDate: String): Flow<List<RoomWorkoutSet>>
 
     @Query(
         """
@@ -241,19 +245,3 @@ interface WorkoutSetDao {
     )
     suspend fun getMaxWeightsForExercises(exerciseIds: List<Long>): List<ExerciseMaxWeight>
 }
-
-data class ExerciseVolume(val exerciseId: Long, val volume: Long)
-data class ExerciseMaxWeight(val exerciseId: Long, val maxWeight: Int)
-
-data class ExerciseProgressSummary(
-    val exerciseId: Long,
-    val exerciseName: String,
-    val isBodyweight: Boolean,
-    val sessionCount: Int,
-    val lastSessionDate: String
-)
-
-data class DateVolume(
-    val date: String,
-    val volume: Long
-)

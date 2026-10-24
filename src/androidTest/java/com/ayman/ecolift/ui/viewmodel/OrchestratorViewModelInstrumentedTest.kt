@@ -1,15 +1,23 @@
 package com.ayman.ecolift.ui.viewmodel
 
 import android.app.Application
+import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.ayman.ecolift.android.room.RoomRepos
+import com.ayman.ecolift.android.services.AndroidGenAiEngine
 import com.ayman.ecolift.data.AppDatabase
 import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.data.PendingReview
 import com.ayman.ecolift.data.WeightLbs
+import com.ayman.ecolift.data.domain
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -17,16 +25,29 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class OrchestratorViewModelInstrumentedTest {
+    private var repos: RoomRepos? = null
+    private var reposScope: CoroutineScope? = null
+    private var db: AppDatabase? = null
+
+    @After
+    fun tearDown() {
+        repos?.close()
+        reposScope?.cancel()
+        db?.close()
+        repos = null
+        reposScope = null
+        db = null
+    }
 
     @Test
     fun sendMessageImportsDatedWorkoutRowsThroughProductionViewModel() = runBlocking {
         val app = ApplicationProvider.getApplicationContext<Application>()
-        val db = AppDatabase.getInstance(app)
+        val db = openDatabase()
         val calfId = getOrCreateExercise(db, "QA Calf Raise Machine")
         val lateralId = getOrCreateExercise(db, "QA Lateral Raise Machine")
         val initialCalfCount = db.workoutSetDao().getForDateAndExercise("2026-05-11", calfId).size
         val initialLateralCount = db.workoutSetDao().getForDateAndExercise("2026-05-11", lateralId).size
-        val viewModel = OrchestratorViewModel(app)
+        val viewModel = productionViewModel(app, db)
 
         viewModel.updateInput(
             "5/11/26 QA Calf Raise Machine 90lbs for 12, 10, 8; " +
@@ -57,12 +78,12 @@ class OrchestratorViewModelInstrumentedTest {
     @Test
     fun sendMessageSavesAndResolvesPendingReviewRowsThroughProductionViewModel() = runBlocking {
         val app = ApplicationProvider.getApplicationContext<Application>()
-        val db = AppDatabase.getInstance(app)
+        val db = openDatabase()
         val hipId = getOrCreateExercise(db, "QA Hip Abduction")
         val initialHipSets = db.workoutSetDao().getForDateAndExercise("2026-05-10", hipId)
         val initialHipCount = initialHipSets.size
         val nextSetNumber = (initialHipSets.maxOfOrNull { it.setNumber } ?: 0) + 1
-        val pendingDao = db.pendingReviewDao()
+        val pendingDao = db.pendingReviewDao().domain()
         pendingDao.getUnresolved().forEach { pendingDao.markResolved(it.id) }
         val pendingId = pendingDao.insert(
             PendingReview(
@@ -70,7 +91,7 @@ class OrchestratorViewModelInstrumentedTest {
                 dateLogged = "2026-05-10"
             )
         )
-        val viewModel = OrchestratorViewModel(app)
+        val viewModel = productionViewModel(app, db)
 
         viewModel.updateInput("all pending review items are QA Hip Abduction")
         viewModel.sendMessage()
@@ -90,11 +111,30 @@ class OrchestratorViewModelInstrumentedTest {
         assertTrue(pendingDao.getUnresolved().none { it.id == pendingId })
     }
 
+    private fun openDatabase(): AppDatabase {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        return Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+            .also { db = it }
+    }
+
+    private suspend fun productionViewModel(app: Application, db: AppDatabase): OrchestratorViewModel {
+        repos?.close()
+        reposScope?.cancel()
+        val scope = CoroutineScope(SupervisorJob())
+        val room = RoomRepos(db = db, scope = scope)
+        reposScope = scope
+        repos = room
+        room.loadAll()
+        return OrchestratorViewModel(room, AndroidGenAiEngine(app))
+    }
+
     private suspend fun getOrCreateExercise(db: AppDatabase, name: String): Long {
-        val existing = db.exerciseDao().getByExactName(name)
+        val existing = db.exerciseDao().domain().getByExactName(name)
         if (existing != null) return existing.id
-        db.exerciseDao().insert(Exercise(name = name, muscleGroups = "QA"))
-        return requireNotNull(db.exerciseDao().getByExactName(name)).id
+        db.exerciseDao().domain().insert(Exercise(name = name, muscleGroups = "QA"))
+        return requireNotNull(db.exerciseDao().domain().getByExactName(name)).id
     }
 
     private suspend fun waitUntil(condition: suspend () -> Boolean) {

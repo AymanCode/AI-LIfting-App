@@ -1330,7 +1330,12 @@ class AiRescueEvalTest {
             suggestWeight(targetExerciseId, targetReps)
 
         override suspend fun getSessionByDate(date: String): SessionSnapshot =
-            SessionSnapshot(date, listOf(ExerciseSnapshot(1L, "Bench Press", getRecentSets(1L, 2))))
+            SessionSnapshot(
+                date,
+                EXERCISE_IDS.map { (name, id) ->
+                    ExerciseSnapshot(id, name, getRecentSets(id, 2).filter { it.date == date })
+                }.filter { it.sets.isNotEmpty() },
+            )
 
         override suspend fun getProgressTrend(exerciseId: Long): ProgressTrend =
             ProgressTrend(

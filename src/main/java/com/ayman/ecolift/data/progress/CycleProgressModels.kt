@@ -19,15 +19,14 @@ data class CycleProgressCore(
     val sessionDates: List<String>, // for the heatmap
     val totalSets: Int,
     val repBuckets: List<RepBucket>, // Strength/Hypertrophy/Endurance/Metabolic
-    val lifts: List<LiftTrend>, // per-exercise within-cycle trend
+    val liftsBySplit: List<LiftTrend>, // per-exercise, per-split within-cycle trend
+    val lifts: List<ExerciseLiftTrend>, // one rolled-up trend per exercise
 )
 
 data class RepBucket(
     val label: String, // "Strength" etc.
-    val minReps: Int,
-    val maxReps: Int, // maxReps = Int.MAX_VALUE for open bucket
-    val sets: Int,
-    val pctOfSets: Float,
+    val minReps: Int, val maxReps: Int, // maxReps = Int.MAX_VALUE for open bucket
+    val sets: Int, val pctOfSets: Float,
 )
 
 data class LiftTrend(
@@ -40,7 +39,18 @@ data class LiftTrend(
     val points: List<TrendPoint>, // within-cycle session series, date-sorted
     val slopePerWeek: Float?, // null if <2 points or zero variance
     val r2: Float?, // null if undefined
-    val unitLabel: String, // "lb/wk" or "reps/wk"
+    val unitLabel: String,              // "lb/wk" or "reps/wk"
+)
+
+data class ExerciseLiftTrend(
+    val exerciseId: Long,
+    val name: String,
+    val metric: LiftMetric,
+    val isBodyweight: Boolean,
+    val points: List<TrendPoint>,
+    val slopePerWeek: Float?,
+    val r2: Float?,
+    val unitLabel: String,
 )
 
 // Window-DEPENDENT comparison vs the user's own prior history.
@@ -50,10 +60,8 @@ data class CycleComparison(
     val progression: Float, // 0..100
     val momentum: Float, // 0..100
     val consistency: Float, // 0..100
-    val improvedCount: Int,
-    val heldCount: Int,
-    val regressedCount: Int,
-    val comparedCount: Int, // lifts with a usable prior baseline
+    val improvedCount: Int, val heldCount: Int, val regressedCount: Int,
+    val comparedCount: Int,             // lifts with a usable prior baseline
 )
 
 data class LiftComparison(
@@ -80,7 +88,5 @@ data class ScoreWeights(
 
 data class ScoreBreakdown(
     val composite: Int, // 0..100
-    val progression: Float,
-    val momentum: Float,
-    val consistency: Float,
+    val progression: Float, val momentum: Float, val consistency: Float,
 )

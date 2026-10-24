@@ -1,14 +1,14 @@
 package com.ayman.ecolift.agent
 
+import kotlinx.datetime.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import java.time.LocalDate
 
 class DateExtractorTest {
 
     // Pin a reference date: Wednesday, 2026-04-15
-    private val today = LocalDate.of(2026, 4, 15)
+    private val today = LocalDate(2026, 4, 15)
 
     @Test fun `yesterday returns day before today`() {
         assertEquals("2026-04-14", DateExtractor.extract("what did I do yesterday", today))

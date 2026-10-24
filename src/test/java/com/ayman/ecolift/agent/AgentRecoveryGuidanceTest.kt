@@ -52,9 +52,7 @@ class AgentRecoveryGuidanceTest {
         assertEquals(original, draft.originalText)
         assertEquals("2026-04-16", draft.saveDate)
         assertFalse(draft.canTryModel)
-        assertTrue(draft.detail.contains("I kept your text"))
-        assertTrue(draft.detail.contains("exact exercise name"))
-        assertTrue(draft.detail.contains("pounds"))
+        assertTrue(draft.detail.contains("Your text is kept below"))
         assertTrue(draft.suggestedTemplate.contains("exercise name"))
         assertTrue(draft.suggestedTemplate.contains("135x8"))
     }

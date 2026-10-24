@@ -1,7 +1,5 @@
 package com.ayman.ecolift.ai
 
-import java.util.concurrent.ConcurrentHashMap
-
 enum class MovementPattern {
     HorizontalPress,
     InclinePress,
@@ -19,7 +17,7 @@ enum class MovementPattern {
 }
 
 object ExercisePatternMatcher {
-    private val classificationCache = ConcurrentHashMap<String, MovementPattern>()
+    private val classificationCache = mutableMapOf<String, MovementPattern>()
 
     fun classify(name: String): MovementPattern {
         val normalized = name.trim().lowercase()

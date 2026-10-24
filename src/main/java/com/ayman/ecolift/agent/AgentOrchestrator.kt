@@ -14,25 +14,36 @@ import com.ayman.ecolift.agent.tools.ExerciseMatch
 import com.ayman.ecolift.agent.tools.HistorySummary
 import com.ayman.ecolift.agent.tools.ProgressTrend
 import com.ayman.ecolift.agent.tools.SessionSnapshot
+import com.ayman.ecolift.agent.tools.SetSummary
 import com.ayman.ecolift.agent.tools.WeightSuggestion
 import com.ayman.ecolift.data.WeightLbs
+import com.ayman.ecolift.web.util.MONTH_ABBREV
+import com.ayman.ecolift.web.util.countLabel
+import com.ayman.ecolift.web.util.formatFixed
+import com.ayman.ecolift.web.util.plusDays
+import com.ayman.ecolift.web.util.todayLocalDate
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.doubleOrNull
-import java.time.DayOfWeek
-import java.time.LocalDate
-import java.time.temporal.TemporalAdjusters
-import java.util.UUID
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 data class AgentProcessingOptions(
     val allowModelFallback: Boolean = true
 )
 
+private data class ReadResponse(
+    val text: String,
+    val card: AgentResponseCard? = null,
+)
+
 /**
- * Single entry point from the UI into the IronMind agent layer.
+ * Single entry point from the UI into the agent layer.
  *
  * Flow: route intent, ground against local workout data, build a typed patch,
  * require confirmation when needed, then apply through the patch service.
@@ -45,7 +56,7 @@ class AgentOrchestrator(
     private val tools: AgentTools,
     private val patchApplier: PatchApplier,
     private val engine: LocalGenAiEngine? = null,
-    private val today: () -> String = { LocalDate.now().toString() }
+    private val today: () -> String = { todayLocalDate().toString() }
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -54,12 +65,15 @@ class AgentOrchestrator(
         userText: String,
         options: AgentProcessingOptions = AgentProcessingOptions()
     ): AgentTurn {
+        if (AgentWeightInput.hasInvalidLoad(userText) && AgentRecoveryGuidance.looksLikeWorkoutLog(userText)) {
+            return recoverLogSetFailure(userText)
+        }
         handleWorkoutImport(userText)?.let { return it }
 
         val routing = router.route(userText, allowModelFallback = options.allowModelFallback)
         return when (val intent = routing.intent) {
-            is Intent.Write -> handleWrite(intent, userText, options)
-            is Intent.Read -> handleRead(intent, userText, options)
+            is Intent.Write   -> handleWrite(intent, userText, options)
+            is Intent.Read    -> handleRead(intent, userText, options)
             is Intent.Clarify -> {
                 if (AgentRecoveryGuidance.looksLikeWorkoutLog(userText)) {
                     recoverLogSetFailure(userText)
@@ -76,12 +90,13 @@ class AgentOrchestrator(
      */
     suspend fun confirm(requestId: String, patches: List<DbPatch>): AgentTurn {
         return when (val r = patchApplier.applyPatches(requestId, patches, userConfirmed = true)) {
-            is PatchResult.Applied -> AgentTurn.Applied(
-                text = "Done - ${r.patchCount} change(s) applied.",
-                auditId = r.auditId
+            is PatchResult.Applied  -> AgentTurn.Applied(
+                text    = "${countLabel(r.patchCount, "change")} applied.",
+                auditId = r.auditId,
+                changes = patchChangeLabels(patches, null)
             )
             is PatchResult.Rejected -> AgentTurn.Error(r.reason)
-            is PatchResult.Failed -> AgentTurn.Error(r.error)
+            is PatchResult.Failed   -> AgentTurn.Error(r.error)
         }
     }
 
@@ -91,9 +106,9 @@ class AgentOrchestrator(
      */
     suspend fun undo(auditId: Long): AgentTurn {
         return when (val r = patchApplier.undo(auditId)) {
-            is PatchResult.Applied -> AgentTurn.Applied("Undone.", r.auditId)
+            is PatchResult.Applied  -> AgentTurn.Applied("Undone.", r.auditId)
             is PatchResult.Rejected -> AgentTurn.Error(r.reason)
-            is PatchResult.Failed -> AgentTurn.Error(r.error)
+            is PatchResult.Failed   -> AgentTurn.Error(r.error)
         }
     }
 
@@ -152,7 +167,8 @@ class AgentOrchestrator(
             )
         }
 
-        val requestId = UUID.randomUUID().toString()
+        @OptIn(ExperimentalUuidApi::class)
+        val requestId = Uuid.random().toString()
         return when (val r = patchApplier.applyPatches(requestId, patches, userConfirmed = false)) {
             is PatchResult.Applied -> AgentTurn.ImportApplied(
                 text = importSummary(
@@ -161,7 +177,8 @@ class AgentOrchestrator(
                 ),
                 auditId = r.auditId,
                 appliedPatchCount = r.patchCount,
-                pendingReviews = pendingReviews
+                pendingReviews = pendingReviews,
+                changes = patchChangeLabels(patches, null)
             )
             is PatchResult.Rejected -> AgentTurn.TextResponse("Couldn't import: ${r.reason}")
             is PatchResult.Failed -> AgentTurn.Error(r.error)
@@ -182,21 +199,23 @@ class AgentOrchestrator(
                 )
             }
 
-        val requestId = UUID.randomUUID().toString()
+        @OptIn(ExperimentalUuidApi::class)
+        val requestId = Uuid.random().toString()
 
         // Gate destructive patches on explicit user confirmation.
         if (patches.any { DbPatch.isDestructive(it) }) {
             return AgentTurn.NeedsConfirmation(
-                summary = "Are you sure you want to ${describePatch(patches.first())}?",
-                patches = patches,
+                summary   = "Are you sure you want to ${describePatch(patches.first())}?",
+                patches   = patches,
                 requestId = requestId
             )
         }
 
+        val changes = patchChangeLabels(patches, userText)
         return when (val r = patchApplier.applyPatches(requestId, patches, userConfirmed = false)) {
-            is PatchResult.Applied -> AgentTurn.Applied(confirmText(patches), r.auditId)
+            is PatchResult.Applied  -> AgentTurn.Applied(confirmText(patches), r.auditId, changes)
             is PatchResult.Rejected -> AgentTurn.TextResponse("Couldn't apply: ${r.reason}")
-            is PatchResult.Failed -> AgentTurn.Error(r.error)
+            is PatchResult.Failed   -> AgentTurn.Error(r.error)
         }
     }
 
@@ -207,55 +226,63 @@ class AgentOrchestrator(
         userText: String,
         options: AgentProcessingOptions
     ): AgentTurn {
-        val text = when (intent.queryType) {
+        val response = when (intent.queryType) {
             ReadType.QueryDate -> {
                 val date = extractDate(userText, today())
                     ?: return AgentTurn.TextResponse("Which date? I couldn't parse one from your message.")
                 val snapshot = tools.getSessionByDate(date)
-                summarizeSession(snapshot)
+                ReadResponse(summarizeSession(snapshot))
             }
             ReadType.QueryProgress -> {
                 val ex = extractAndFindExercise(userText)
                     ?: return AgentTurn.TextResponse("Which exercise? I couldn't identify one in your message.")
                 val trend = tools.getProgressTrend(ex.exerciseId)
-                summarizeTrend(trend)
+                ReadResponse(
+                    text = summarizeTrend(trend),
+                    card = trendHistoryCard(trend)
+                )
             }
             ReadType.AskHistory -> {
                 val ex = extractAndFindExercise(userText)
                     ?: return AgentTurn.TextResponse("Which exercise? I couldn't identify one in your message.")
                 val history = tools.getExerciseHistory(ex.exerciseId, windowDays = 30)
-                formatHistory(ex.name, history)
+                ReadResponse(
+                    text = formatHistory(ex.name, history),
+                    card = historyCard(ex.name, history)
+                )
             }
             ReadType.AskSimilar -> {
                 val ex = extractAndFindExercise(userText)
                     ?: return AgentTurn.TextResponse("Which exercise would you like alternatives for?")
                 val similar = tools.getSimilarExercises(ex.exerciseId)
-                if (similar.isEmpty()) "No similar exercises found in your catalog."
-                else "Similar to ${ex.name}: ${similar.joinToString(", ") { it.name }}"
+                ReadResponse(
+                    if (similar.isEmpty()) "No similar exercises found in your catalog."
+                    else "Similar to ${ex.name}: ${similar.joinToString(", ") { it.name }}"
+                )
             }
             ReadType.AskRecommendation -> {
                 val ex = extractAndFindExercise(userText)
                     ?: return AgentTurn.TextResponse("Which exercise? I couldn't identify one.")
                 val suggestion = tools.suggestWeight(ex.exerciseId, targetReps = 8)
-                formatSuggestion(ex.name, suggestion)
+                ReadResponse(formatSuggestion(ex.name, suggestion))
             }
         }
 
         // Let a ready local model polish read-only responses; deterministic text is the fallback.
-        val final = if (options.allowModelFallback && engine?.isReady == true && text.isNotBlank()) {
+        val final = if (options.allowModelFallback && engine?.isReady == true && response.text.isNotBlank()) {
             try {
-                engine.generateStructured(
-                    Prompts.formatReadResult(intent.queryType.name, text, userText),
+                humanizeIsoDatesInText(engine.generateStructured(
+                    Prompts.formatReadResult(intent.queryType.name, response.text, userText),
                     "{}"
-                ).trim().ifBlank { text }
+                ).trim().ifBlank { response.text })
             } catch (_: Exception) {
-                text
+                response.text
             }
         } else {
-            text
+            response.text
         }
 
-        return AgentTurn.TextResponse(final)
+        return AgentTurn.TextResponse(humanizeIsoDatesInText(final), response.card)
     }
 
     // Patch generation
@@ -277,9 +304,9 @@ class AgentOrchestrator(
         options: AgentProcessingOptions
     ): List<DbPatch>? =
         when (intent.patchType) {
-            PatchType.LogSet -> generateLogSetPatches(userText, options.allowModelFallback)
-            PatchType.EditSet -> generateEditSet(userText)?.let(::listOf)
-            PatchType.DeleteSet -> generateDeleteSet(userText)?.let(::listOf)
+            PatchType.LogSet         -> generateLogSetPatches(userText, options.allowModelFallback)
+            PatchType.EditSet        -> generateEditSet(userText)?.let(::listOf)
+            PatchType.DeleteSet      -> generateDeleteSet(userText)?.let(::listOf)
             PatchType.MoveWorkoutDay -> generateMoveWorkoutDay(userText)?.let(::listOf)
             PatchType.RenameExercise -> generateRenameExercise(userText)?.let(::listOf)
         }
@@ -289,7 +316,7 @@ class AgentOrchestrator(
         allowModelFallback: Boolean
     ): List<DbPatch>? {
         val targetDate = extractDate(userText, today()) ?: today()
-        val parsed = LogSetTextParser.parseOneExercise(userText)
+        val parsed = LogSetTextParser.parseOneExercise(DateExtractor.withoutDateReferences(userText, LocalDate.parse(today())))
         if (parsed != null) {
             val ex = tools.findExercise(parsed.exerciseQuery)
             if (ex != null) {
@@ -300,6 +327,8 @@ class AgentOrchestrator(
                 )
             }
         }
+
+        if (Regex("""\d+\s*x\s*\d+\s*x\s*\d+""", RegexOption.IGNORE_CASE).containsMatchIn(userText)) return null
 
         if (AgentRecoveryGuidance.shouldAvoidModelLogMutation(userText)) return null
 
@@ -313,7 +342,7 @@ class AgentOrchestrator(
         AgentRecoveryGuidance.logSetFailure(
             originalText = userText,
             saveDate = today(),
-            canTryModel = engine != null
+            canTryModel = engine?.isReady == true
         )
 
     private suspend fun generateLegacyLogSetPatch(userText: String, targetDate: String): List<DbPatch>? {
@@ -340,7 +369,7 @@ class AgentOrchestrator(
         }
         val extracted = parseModelLogSet(raw) ?: return null
         val ex = tools.findExercise(extracted.exerciseQuery) ?: return null
-        return buildLogSetPatches(ex, defaultDate, extracted.sets)
+        return buildLogSetPatches(ex, extracted.date ?: defaultDate, extracted.sets)
     }
 
     private suspend fun buildLogSetPatches(
@@ -354,11 +383,11 @@ class AgentOrchestrator(
         val nextSet = (recentSets.filter { it.date == targetDate }.maxOfOrNull { it.setNumber } ?: 0) + 1
         return sets.mapIndexed { index, set ->
             DbPatch.LogSet(
-                exerciseId = ex.exerciseId,
-                date = targetDate,
-                setNumber = nextSet + index,
-                weightLbs = set.weightLbs,
-                reps = set.reps,
+                exerciseId   = ex.exerciseId,
+                date         = targetDate,
+                setNumber    = nextSet + index,
+                weightLbs    = set.weightLbs,
+                reps         = set.reps,
                 isBodyweight = ex.isBodyweight
             )
         }
@@ -395,19 +424,31 @@ class AgentOrchestrator(
     }
 
     private suspend fun generateEditSet(userText: String): DbPatch? {
-        val ex = extractAndFindExercise(userText)
-        val recentSets = if (ex != null) tools.getRecentSets(ex.exerciseId, limit = 1) else emptyList()
-        val setId = recentSets.firstOrNull()?.setId ?: return null
+        val setId = mutationTarget(userText)?.setId ?: return null
         val (weight, reps) = extractWeightAndReps(userText) ?: Pair(null, null)
         if (weight == null && reps == null) return null
         return DbPatch.EditSet(setId = setId, weightLbs = weight, reps = reps)
     }
 
     private suspend fun generateDeleteSet(userText: String): DbPatch? {
-        val ex = extractAndFindExercise(userText)
-        val recentSets = if (ex != null) tools.getRecentSets(ex.exerciseId, limit = 1) else emptyList()
-        val setId = recentSets.firstOrNull()?.setId ?: return null
+        val setId = mutationTarget(userText)?.setId ?: return null
         return DbPatch.DeleteSet(setId = setId)
+    }
+
+    private suspend fun mutationTarget(userText: String): SetSummary? {
+        val ex = extractAndFindExercise(userText) ?: return null
+        val date = extractDate(userText, today())
+        val setNumber = Regex("""(?i)\bset\s+(\d+)\b""").find(userText)?.groupValues?.get(1)?.toIntOrNull()
+            ?: when {
+                Regex("""(?i)\bfirst\b""").containsMatchIn(userText) -> 1
+                Regex("""(?i)\bsecond\b""").containsMatchIn(userText) -> 2
+                Regex("""(?i)\bthird\b""").containsMatchIn(userText) -> 3
+                else -> null
+            }
+        if (date == null && setNumber == null) return tools.getRecentSets(ex.exerciseId, limit = 1).firstOrNull()
+        val sets = tools.getSessionByDate(date ?: today()).exercises
+            .firstOrNull { it.exerciseId == ex.exerciseId }?.sets.orEmpty()
+        return if (setNumber != null) sets.firstOrNull { it.setNumber == setNumber } else sets.maxByOrNull { it.setNumber }
     }
 
     private fun generateMoveWorkoutDay(userText: String): DbPatch? {
@@ -433,7 +474,9 @@ class AgentOrchestrator(
         }
 
         // 2. Heuristic fallback
-        val candidate = text
+        val candidate = DateExtractor.withoutDateReferences(text, LocalDate.parse(today()))
+            .replace(Regex("""(?i)\b(rename\s+.+?)\s+to\s+.+"""), "$1")
+            .replace(Regex("""(?i)\b(?:set\s+\d+|sets?|first|second|third|extra|twice|accidental|should|use|weight)\b"""), " ")
             .replace(Regex("""@[^@\s]+(?: [^@\s]+)*"""), " ") // Remove @mention if it failed above
             .replace(Regex("""\d+\s*(?:lbs?|kg|pounds?|kilos?|reps?|sets?)?"""), " ")
             .replace(
@@ -457,8 +500,8 @@ class AgentOrchestrator(
         if (setNotation != null) {
             val aRaw = setNotation.groupValues[1]
             val a = aRaw.toDoubleOrNull() ?: return null
-            val b = setNotation.groupValues[2].toInt()
-            return if (a > 20) Pair(WeightLbs.parseInputToStorage(aRaw), b) else Pair(null, b)
+            val b = setNotation.groupValues[2].toIntOrNull() ?: return null
+            return if (a > 20) Pair(AgentWeightInput.parse(aRaw), b) else Pair(null, b)
         }
 
         val weight = Regex("""(\d+(?:\.\d+)?)\s*(?:lbs?|kg|pounds?)""")
@@ -536,22 +579,29 @@ class AgentOrchestrator(
         val current = LocalDate.parse(currentDate)
 
         val dayMap = mapOf(
-            "monday" to DayOfWeek.MONDAY,
-            "tuesday" to DayOfWeek.TUESDAY,
+            "monday"    to DayOfWeek.MONDAY,
+            "tuesday"   to DayOfWeek.TUESDAY,
             "wednesday" to DayOfWeek.WEDNESDAY,
-            "thursday" to DayOfWeek.THURSDAY,
-            "friday" to DayOfWeek.FRIDAY,
-            "saturday" to DayOfWeek.SATURDAY,
-            "sunday" to DayOfWeek.SUNDAY
+            "thursday"  to DayOfWeek.THURSDAY,
+            "friday"    to DayOfWeek.FRIDAY,
+            "saturday"  to DayOfWeek.SATURDAY,
+            "sunday"    to DayOfWeek.SUNDAY
         )
         for ((name, dow) in dayMap) {
             if (t.contains(name)) {
-                val target = current.with(TemporalAdjusters.nextOrSame(dow))
-                return (if (target == current) target.plusWeeks(1) else target).toString()
+                // nextOrSame: if today is that day, return today; else return next occurrence
+                val currentIso = current.isoDayNumber   // Mon=1..Sun=7
+                val targetIso = dow.isoDayNumber
+                val daysAhead = when {
+                    targetIso >= currentIso -> (targetIso - currentIso).toLong()
+                    else -> (7 - currentIso + targetIso).toLong()
+                }
+                val target = current.plusDays(daysAhead)
+                return (if (target == current) target.plusDays(7) else target).toString()
             }
         }
-        if (t.contains("tomorrow")) return current.plusDays(1).toString()
-        if (t.contains("next week")) return current.plusWeeks(1).toString()
+        if (t.contains("tomorrow"))  return current.plusDays(1).toString()
+        if (t.contains("next week")) return current.plusDays(7).toString()
         return null
     }
 
@@ -602,12 +652,12 @@ class AgentOrchestrator(
     /** Compact session summary suitable for direct display or model polishing. */
     private fun summarizeSession(snapshot: SessionSnapshot): String {
         if (snapshot.exercises.isEmpty())
-            return "No workout logged on ${snapshot.date}."
+            return "No workout logged on ${humanDate(snapshot.date)}."
         return buildString {
-            append("On ${snapshot.date}: ")
+            append("On ${humanDate(snapshot.date)}: ")
             snapshot.exercises.joinTo(this, " | ") { ex ->
                 val top = ex.sets.maxByOrNull { it.weightLbs ?: 0 }
-                "${ex.name} (${ex.sets.size} sets, top ${top?.weightLbs?.let(WeightLbs::formatStored) ?: "bw"} x ${top?.reps ?: 0})"
+                "${ex.name} (${countLabel(ex.sets.size, "set")}, top ${top?.weightLbs?.let(WeightLbs::formatStored) ?: "BW"}×${top?.reps ?: 0})"
             }
         }
     }
@@ -616,18 +666,18 @@ class AgentOrchestrator(
     private fun summarizeTrend(trend: ProgressTrend): String {
         if (trend.sessionCount == 0) return "No history for ${trend.name} yet."
         return buildString {
-            append("${trend.name}: ${trend.sessionCount} sessions. ")
-            if (trend.prWeightLbs != null) append("PR ${WeightLbs.formatStored(trend.prWeightLbs)}lbs on ${trend.prDate}. ")
-            if (trend.est1Rm != null) append("Est 1RM ${trend.est1Rm}lbs. ")
+            append("${trend.name}: ${countLabel(trend.sessionCount, "session")}. ")
+            if (trend.prWeightLbs != null) append("PR ${WeightLbs.formatStored(trend.prWeightLbs)} lb on ${humanDate(trend.prDate)}. ")
+            if (trend.est1Rm != null)      append("Est. 1RM ${trend.est1Rm} lb. ")
             if (trend.deltaPercent != null) {
                 val dir = if (trend.deltaPercent >= 0.5f) "up (growing)"
                 else if (trend.deltaPercent <= -0.5f) "down (declining)"
                 else "stable (plateau)"
                 val sign = if (trend.deltaPercent >= 0) "+" else ""
-                append("${sign}${String.format(java.util.Locale.US, "%.1f", trend.deltaPercent)}% progress ($dir). ")
+                append("${sign}${formatFixed(trend.deltaPercent.toDouble(), 1)}% progress ($dir). ")
             }
             if (trend.recentSessions.isNotEmpty())
-                append("Recent: ${trend.recentSessions.take(3).joinToString(", ")}")
+                append("Recent: ${trend.recentSessions.take(3).mapNotNull(::parseRecentSessionRow).joinToString(", ") { "${it.date} · ${it.setLabel}" }}")
         }
     }
 
@@ -646,18 +696,148 @@ class AgentOrchestrator(
 
     // Formatting helpers
 
+    private fun humanDate(isoDate: String?): String {
+        val date = isoDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return ""
+        val currentYear = runCatching { LocalDate.parse(today()).year }.getOrDefault(todayLocalDate().year)
+        val base = "${MONTH_ABBREV[date.monthNumber - 1]} ${date.dayOfMonth}"
+        return if (date.year == currentYear) base else "$base, ${date.year}"
+    }
+
+    private fun humanizeIsoDatesInText(text: String): String =
+        ISO_DATE.replace(text) { match -> humanDate(match.value) }
+
+    private fun compactSetLabel(set: SetSummary): String {
+        val load = if (set.isBodyweight) {
+            set.weightLbs?.takeIf { it > 0 }?.let { "BW+${WeightLbs.formatStored(it)}" } ?: "BW"
+        } else {
+            set.weightLbs?.let(WeightLbs::formatStored) ?: "0"
+        }
+        return "$load×${set.reps ?: 0}"
+    }
+
+    private fun historyCard(name: String, history: HistorySummary): AgentResponseCard? {
+        if (history.sessionCount == 0) return null
+        val topSet = history.recentSets.maxWithOrNull(
+            compareBy<SetSummary> { it.weightLbs ?: 0 }
+                .thenBy { it.reps ?: 0 }
+        )
+        return AgentResponseCard.History(
+            exerciseName = name,
+            prLine = topSet?.let { "${compactSetLabel(it)} · ${humanDate(it.date)}" },
+            sessions = history.recentSets
+                .groupBy { it.date }
+                .entries
+                .sortedByDescending { it.key }
+                .take(4)
+                .mapNotNull { (date, sets) ->
+                    val top = sets.maxWithOrNull(
+                        compareBy<SetSummary> { it.weightLbs ?: 0 }
+                            .thenBy { it.reps ?: 0 }
+                    ) ?: return@mapNotNull null
+                    HistoryRow(humanDate(date), compactSetLabel(top))
+                }
+        )
+    }
+
+    private fun trendHistoryCard(trend: ProgressTrend): AgentResponseCard? {
+        if (trend.sessionCount == 0) return null
+        val prSession = trend.prDate?.let { prDate ->
+            trend.recentSessions
+                .mapNotNull(::parseRecentSessionRowWithIso)
+                .firstOrNull { it.first == prDate }
+                ?.second
+        }
+        return AgentResponseCard.History(
+            exerciseName = trend.name,
+            prLine = trend.prWeightLbs?.let { weight ->
+                "${prSession?.setLabel ?: WeightLbs.formatStored(weight)} · ${humanDate(trend.prDate)}"
+            },
+            sessions = trend.recentSessions.take(4).mapNotNull(::parseRecentSessionRow)
+        )
+    }
+
+    private fun parseRecentSessionRow(raw: String): HistoryRow? {
+        return parseRecentSessionRowWithIso(raw)?.second
+    }
+
+    private fun parseRecentSessionRowWithIso(raw: String): Pair<String, HistoryRow>? {
+        val parts = raw.split(":", limit = 2)
+        if (parts.size != 2) return null
+        val setLabel = parts[1].trim().replace("x", "×")
+        val isoDate = parts[0].trim()
+        return isoDate to HistoryRow(humanDate(isoDate), setLabel)
+    }
+
+    private suspend fun patchChangeLabels(patches: List<DbPatch>, userText: String?): List<String> {
+        val hintedExercise = userText?.let { extractAndFindExercise(it) }
+        val hintedSets = hintedExercise?.takeIf {
+            patches.any { patch -> patch is DbPatch.EditSet || patch is DbPatch.DeleteSet }
+        }?.let { exercise ->
+            val date = userText?.let { extractDate(it, today()) }
+            if (date != null) {
+                tools.getSessionByDate(date).exercises.firstOrNull { it.exerciseId == exercise.exerciseId }?.sets.orEmpty()
+            } else {
+                tools.getRecentSets(exercise.exerciseId, limit = 20)
+            }
+        }.orEmpty()
+        return patches.map { patch ->
+            val exerciseName = hintedExercise?.name ?: "Unknown lift"
+            when (patch) {
+                is DbPatch.LogSet -> {
+                    val load = if (patch.isBodyweight) {
+                        patch.weightLbs?.takeIf { it > 0 }?.let { "BW+${WeightLbs.formatStored(it)}" } ?: "BW"
+                    } else {
+                        patch.weightLbs?.let(WeightLbs::formatStored) ?: "0"
+                    }
+                    "$exerciseName · added $load×${patch.reps}"
+                }
+                is DbPatch.EditSet -> {
+                    val before = hintedSets.firstOrNull { it.setId == patch.setId }
+                    val setLabel = before?.setNumber?.let { "set $it" } ?: "set ${patch.setId}"
+                    val detail = editPatchDetail(before, patch)
+                    "$exerciseName · $setLabel: $detail"
+                }
+                is DbPatch.DeleteSet -> {
+                    val setLabel = hintedSets.firstOrNull { it.setId == patch.setId }?.setNumber?.let { "set $it" } ?: "set ${patch.setId}"
+                    "$exerciseName · deleted $setLabel"
+                }
+                is DbPatch.MoveWorkoutDay -> "Workout · moved ${humanDate(patch.currentDate)} → ${humanDate(patch.newDate)}"
+                is DbPatch.RenameExercise -> "Exercise ${patch.exerciseId} · renamed to ${patch.newName}"
+            }
+        }
+    }
+
+    private fun patchExerciseId(patch: DbPatch): Long? = when (patch) {
+        is DbPatch.LogSet -> patch.exerciseId
+        is DbPatch.RenameExercise -> patch.exerciseId
+        else -> null
+    }
+
+    private fun editPatchDetail(before: SetSummary?, patch: DbPatch.EditSet): String {
+        val pieces = mutableListOf<String>()
+        if (patch.weightLbs != null) {
+            val from = before?.weightLbs?.let(WeightLbs::formatStored) ?: "?"
+            pieces += "$from → ${WeightLbs.formatStored(patch.weightLbs)} lb"
+        }
+        if (patch.reps != null) {
+            val from = before?.reps?.toString() ?: "?"
+            pieces += "$from → ${countLabel(patch.reps, "rep")}"
+        }
+        return pieces.joinToString(" · ").ifBlank { "updated" }
+    }
+
     private fun confirmText(patch: DbPatch): String = when (patch) {
-        is DbPatch.LogSet -> "Logged ${patch.reps} reps${if (patch.weightLbs != null) " at ${WeightLbs.formatStored(patch.weightLbs)} lbs" else ""}."
-        is DbPatch.EditSet -> "Set updated."
-        is DbPatch.DeleteSet -> "Set deleted."
-        is DbPatch.MoveWorkoutDay -> "Workout moved to ${patch.newDate}."
+        is DbPatch.LogSet         -> "Logged ${countLabel(patch.reps, "rep")}${if (patch.weightLbs != null) " at ${WeightLbs.formatStored(patch.weightLbs)} lb" else ""}."
+        is DbPatch.EditSet        -> "Set updated."
+        is DbPatch.DeleteSet      -> "Set deleted."
+        is DbPatch.MoveWorkoutDay -> "Workout moved to ${humanDate(patch.newDate)}."
         is DbPatch.RenameExercise -> "Renamed to \"${patch.newName}\"."
     }
 
     private fun confirmText(patches: List<DbPatch>): String {
         if (patches.size == 1) return confirmText(patches.first())
         val logSets = patches.filterIsInstance<DbPatch.LogSet>()
-        if (logSets.size == patches.size) return "Logged ${logSets.size} sets."
+        if (logSets.size == patches.size) return "Logged ${countLabel(logSets.size, "set")}."
         return "Applied ${patches.size} changes."
     }
 
@@ -676,18 +856,18 @@ class AgentOrchestrator(
     }
 
     private fun describePatch(patch: DbPatch): String = when (patch) {
-        is DbPatch.DeleteSet -> "delete set ${patch.setId}"
+        is DbPatch.DeleteSet      -> "delete set ${patch.setId}"
         is DbPatch.RenameExercise -> "rename exercise to \"${patch.newName}\""
-        else -> "apply this change"
+        else                      -> "apply this change"
     }
 
     private fun formatHistory(name: String, history: HistorySummary): String {
         if (history.sessionCount == 0)
             return "No $name history in the last ${history.windowDays} days."
         return buildString {
-            append("$name - ${history.sessionCount} session(s) in the last ${history.windowDays} days. ")
+            append("$name - ${countLabel(history.sessionCount, "session")} in the last ${history.windowDays} days. ")
             if (history.topSetWeightLbs != null)
-                append("Best set: ${WeightLbs.formatStored(history.topSetWeightLbs)} lbs x ${history.topSetReps} reps.")
+                append("Best set: ${WeightLbs.formatStored(history.topSetWeightLbs)} lb${history.topSetReps?.let { " × ${countLabel(it, "rep")}" }.orEmpty()}.")
         }
     }
 
@@ -695,8 +875,8 @@ class AgentOrchestrator(
         WeightSuggestion.Confidence.NO_DATA ->
             "No history for $name yet. Start light and work up."
         else -> {
-            val w = s.suggestedWeightLbs?.let { "${WeightLbs.formatStored(it)} lbs" } ?: "bodyweight"
-            "$name: try $w for ${s.targetReps} reps. ${s.reasoning}"
+            val w = s.suggestedWeightLbs?.let { "${WeightLbs.formatStored(it)} lb" } ?: "bodyweight"
+            "$name: try $w for ${countLabel(s.suggestedReps ?: s.targetReps, "rep")}. ${s.reasoning}"
         }
     }
 

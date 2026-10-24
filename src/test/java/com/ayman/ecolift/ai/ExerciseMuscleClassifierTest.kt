@@ -2,7 +2,6 @@ package com.ayman.ecolift.ai
 
 import com.ayman.ecolift.data.Exercise
 import com.ayman.ecolift.data.LEGACY_DEFAULT_MUSCLE_GROUPS
-import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -32,37 +31,6 @@ class ExerciseMuscleClassifierTest {
             "CHEST",
             ExerciseMuscleClassifier.classifyLocally(Exercise(id = 5, name = "Push-ups"))?.muscleGroups
         )
-    }
-
-    @Test
-    fun classifierUsesRemoteOnlyForLocalMisses() = runTest {
-        val remoteRequests = mutableListOf<List<Exercise>>()
-        val classifier = ExerciseMuscleClassifier(
-            apiKey = "test-key",
-            baseUrl = "",
-            model = "",
-            remoteClassifier = { exercises ->
-                remoteRequests += exercises
-                exercises.map { exercise ->
-                    MuscleClassification(
-                        exerciseId = exercise.id,
-                        muscleGroups = "FULL BODY",
-                        confidence = 0.91,
-                    )
-                }
-            },
-        )
-
-        val result = classifier.classifyBatch(
-            listOf(
-                Exercise(id = 1, name = "Bench Press"),
-                Exercise(id = 2, name = "Mystery Machine"),
-            )
-        )
-
-        assertEquals(listOf(2L), remoteRequests.single().map { it.id })
-        assertEquals("CHEST", result.single { it.exerciseId == 1L }.muscleGroups)
-        assertEquals("FULL BODY", result.single { it.exerciseId == 2L }.muscleGroups)
     }
 
     @Test

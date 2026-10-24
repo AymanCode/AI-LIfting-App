@@ -4,11 +4,11 @@ import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 
 class SetRepository(private val db: AppDatabase) {
-    suspend fun getAllSets(): List<WorkoutSet> = db.workoutSetDao().getAll()
+    suspend fun getAllSets(): List<WorkoutSet> = db.workoutSetDao().domain().getAll()
 
-    fun observeSetsForDate(date: String): Flow<List<WorkoutSet>> = db.workoutSetDao().observeForDate(date)
+    fun observeSetsForDate(date: String): Flow<List<WorkoutSet>> = db.workoutSetDao().domain().observeForDate(date)
 
-    suspend fun getSetsForDate(date: String): List<WorkoutSet> = db.workoutSetDao().getForDate(date)
+    suspend fun getSetsForDate(date: String): List<WorkoutSet> = db.workoutSetDao().domain().getForDate(date)
 
     /**
      * Reading the current sets and inserting the next one share a transaction:
@@ -16,10 +16,10 @@ class SetRepository(private val db: AppDatabase) {
      * adds must not interleave between the read and the insert.
      */
     suspend fun addSet(date: String, exerciseId: Long): WorkoutSet = db.withTransaction {
-        val currentSets = db.workoutSetDao().getForDateAndExercise(date, exerciseId)
+        val currentSets = db.workoutSetDao().domain().getForDateAndExercise(date, exerciseId)
         val template = currentSets.lastOrNull()
-            ?: db.workoutSetDao().getMostRecentBeforeDate(exerciseId, date)
-        val exercise = if (template == null) db.exerciseDao().getById(exerciseId) else null
+            ?: db.workoutSetDao().domain().getMostRecentBeforeDate(exerciseId, date)
+        val exercise = if (template == null) db.exerciseDao().domain().getById(exerciseId) else null
         val isBodyweight = template?.isBodyweight ?: exercise?.isBodyweight ?: false
 
         val nextSetNumber = nextSetNumber(currentSets)
@@ -32,12 +32,12 @@ class SetRepository(private val db: AppDatabase) {
             isBodyweight = isBodyweight,
             completed = false,
         )
-        val insertedId = db.workoutSetDao().insert(newSet)
+        val insertedId = db.workoutSetDao().domain().insert(newSet)
         newSet.copy(id = insertedId)
     }
 
     suspend fun addExerciseSession(date: String, exerciseId: Long): List<WorkoutSet> = db.withTransaction {
-        val currentSets = db.workoutSetDao().getForDateAndExercise(date, exerciseId)
+        val currentSets = db.workoutSetDao().domain().getForDateAndExercise(date, exerciseId)
         if (currentSets.isNotEmpty()) {
             return@withTransaction listOf(addSet(date, exerciseId))
         }
@@ -45,14 +45,14 @@ class SetRepository(private val db: AppDatabase) {
         val sessionCopies = buildLastSessionSetCopies(
             date = date,
             exerciseId = exerciseId,
-            historyBeforeDate = db.workoutSetDao().getHistoryBeforeDate(exerciseId, date),
+            historyBeforeDate = db.workoutSetDao().domain().getHistoryBeforeDate(exerciseId, date),
         )
         if (sessionCopies.isEmpty()) {
             return@withTransaction listOf(addSet(date, exerciseId))
         }
 
         sessionCopies.map { set ->
-            val insertedId = db.workoutSetDao().insert(set)
+            val insertedId = db.workoutSetDao().domain().insert(set)
             set.copy(id = insertedId)
         }
     }
@@ -64,13 +64,13 @@ class SetRepository(private val db: AppDatabase) {
     }
 
     suspend fun cloneDay(templateDate: String, targetDate: String) {
-        val existing = db.workoutSetDao().getForDate(targetDate)
+        val existing = db.workoutSetDao().domain().getForDate(targetDate)
         val existingExerciseIds = existing.map { it.exerciseId }.toSet()
 
-        db.workoutSetDao().getForDate(templateDate).forEach { set ->
+        db.workoutSetDao().domain().getForDate(templateDate).forEach { set ->
             // Only add exercises that aren't already logged for today
             if (set.exerciseId !in existingExerciseIds) {
-                db.workoutSetDao().insert(
+                db.workoutSetDao().domain().insert(
                     set.copy(
                         id = 0,
                         date = targetDate,
@@ -82,61 +82,61 @@ class SetRepository(private val db: AppDatabase) {
     }
 
     suspend fun updateSet(set: WorkoutSet) {
-        db.workoutSetDao().update(set)
+        db.workoutSetDao().domain().update(set)
     }
 
     suspend fun upsertSet(set: WorkoutSet): Long {
-        return db.workoutSetDao().upsert(set)
+        return db.workoutSetDao().domain().upsert(set)
     }
 
-    suspend fun getLastForDateAndExercise(date: String, exerciseId: Long) = db.workoutSetDao().getLastForDateAndExercise(date, exerciseId)
+    suspend fun getLastForDateAndExercise(date: String, exerciseId: Long) = db.workoutSetDao().domain().getLastForDateAndExercise(date, exerciseId)
 
-    suspend fun getMostRecentBeforeDate(exerciseId: Long, date: String) = db.workoutSetDao().getMostRecentBeforeDate(exerciseId, date)
+    suspend fun getMostRecentBeforeDate(exerciseId: Long, date: String) = db.workoutSetDao().domain().getMostRecentBeforeDate(exerciseId, date)
 
-    suspend fun getRecentHistoryForExercise(exerciseId: Long, beforeDate: String) = db.workoutSetDao().getRecentHistoryForExercise(exerciseId, beforeDate)
+    suspend fun getRecentHistoryForExercise(exerciseId: Long, beforeDate: String) = db.workoutSetDao().domain().getRecentHistoryForExercise(exerciseId, beforeDate)
 
-    suspend fun getMaxWeightBeforeDate(exerciseId: Long, beforeDate: String) = db.workoutSetDao().getMaxWeightBeforeDate(exerciseId, beforeDate)
+    suspend fun getMaxWeightBeforeDate(exerciseId: Long, beforeDate: String) = db.workoutSetDao().domain().getMaxWeightBeforeDate(exerciseId, beforeDate)
 
-    suspend fun getLastSessionDate(beforeDate: String) = db.workoutSetDao().getLastSessionDate(beforeDate)
+    suspend fun getLastSessionDate(beforeDate: String) = db.workoutSetDao().domain().getLastSessionDate(beforeDate)
 
-    suspend fun getSetsByDate(date: String) = db.workoutSetDao().getSetsByDate(date)
+    suspend fun getSetsByDate(date: String) = db.workoutSetDao().domain().getSetsByDate(date)
 
     suspend fun getSetsForDates(dates: List<String>) =
-        if (dates.isEmpty()) emptyList() else db.workoutSetDao().getForDates(dates)
+        if (dates.isEmpty()) emptyList() else db.workoutSetDao().domain().getForDates(dates)
 
     suspend fun getCompletedSetsForDates(dates: List<String>) =
-        if (dates.isEmpty()) emptyList() else db.workoutSetDao().getCompletedForDates(dates)
+        if (dates.isEmpty()) emptyList() else db.workoutSetDao().domain().getCompletedForDates(dates)
 
-    suspend fun getById(id: Long): WorkoutSet? = db.workoutSetDao().getById(id)
+    suspend fun getById(id: Long): WorkoutSet? = db.workoutSetDao().domain().getById(id)
 
-    fun observeExerciseProgressSummaries(): Flow<List<ExerciseProgressSummary>> = db.workoutSetDao().observeExerciseProgressSummaries()
+    fun observeExerciseProgressSummaries(): Flow<List<ExerciseProgressSummary>> = db.workoutSetDao().domain().observeExerciseProgressSummaries()
 
     fun observeSetsSince(exerciseId: Long, sinceDate: String): Flow<List<WorkoutSet>> =
-        db.workoutSetDao().observeSetsSince(exerciseId, sinceDate)
+        db.workoutSetDao().domain().observeSetsSince(exerciseId, sinceDate)
 
-    suspend fun getVolumeHistory(exerciseId: Long, limit: Int) = db.workoutSetDao().getVolumeHistory(exerciseId, limit)
+    suspend fun getVolumeHistory(exerciseId: Long, limit: Int) = db.workoutSetDao().domain().getVolumeHistory(exerciseId, limit)
 
-    suspend fun getSetsSince(exerciseId: Long, sinceDate: String) = db.workoutSetDao().getSetsSince(exerciseId, sinceDate)
+    suspend fun getSetsSince(exerciseId: Long, sinceDate: String) = db.workoutSetDao().domain().getSetsSince(exerciseId, sinceDate)
 
-    suspend fun getVolumesSince(sinceDate: String) = db.workoutSetDao().getVolumesSince(sinceDate)
+    suspend fun getVolumesSince(sinceDate: String) = db.workoutSetDao().domain().getVolumesSince(sinceDate)
 
-    suspend fun getAllTimeMaxWeights() = db.workoutSetDao().getAllTimeMaxWeights()
+    suspend fun getAllTimeMaxWeights() = db.workoutSetDao().domain().getAllTimeMaxWeights()
 
     suspend fun getMaxWeightsForExercises(exerciseIds: List<Long>) =
-        if (exerciseIds.isEmpty()) emptyList() else db.workoutSetDao().getMaxWeightsForExercises(exerciseIds)
+        if (exerciseIds.isEmpty()) emptyList() else db.workoutSetDao().domain().getMaxWeightsForExercises(exerciseIds)
 
     suspend fun deleteSet(id: Long) {
-        db.workoutSetDao().deleteById(id)
+        db.workoutSetDao().domain().deleteById(id)
     }
 
     suspend fun deleteSetAndCompact(set: WorkoutSet) {
         db.withTransaction {
-            db.workoutSetDao().deleteById(set.id)
-            val survivors = db.workoutSetDao().getForDateAndExercise(set.date, set.exerciseId)
+            db.workoutSetDao().domain().deleteById(set.id)
+            val survivors = db.workoutSetDao().domain().getForDateAndExercise(set.date, set.exerciseId)
             renumberSequentially(survivors).forEach { renumbered ->
                 val original = survivors.find { it.id == renumbered.id }
                 if (original != null && original.setNumber != renumbered.setNumber) {
-                    db.workoutSetDao().update(renumbered)
+                    db.workoutSetDao().domain().update(renumbered)
                 }
             }
         }

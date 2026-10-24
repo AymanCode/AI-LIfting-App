@@ -5,6 +5,10 @@ import android.net.Uri
 import androidx.room.withTransaction
 import com.ayman.ecolift.agent.model.AgentTurnLog
 import com.ayman.ecolift.agent.model.AuditEntity
+import com.ayman.ecolift.android.room.RoomSplitMemberChoice
+import com.ayman.ecolift.android.room.toChoice
+import com.ayman.ecolift.android.room.toRoomChoice
+import com.ayman.ecolift.data.splits.EffectiveSplitMembers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -18,7 +22,26 @@ import java.io.IOException
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
+import com.ayman.ecolift.data.room.ArchivedCycle as RoomArchivedCycle
+import com.ayman.ecolift.data.room.CardioSession as RoomCardioSession
+import com.ayman.ecolift.data.room.Cycle as RoomCycle
+import com.ayman.ecolift.data.room.CycleSlot as RoomCycleSlot
+import com.ayman.ecolift.data.room.Exercise as RoomExercise
+import com.ayman.ecolift.data.room.ExerciseAlias as RoomExerciseAlias
+import com.ayman.ecolift.data.room.ExerciseDistinctPair as RoomExerciseDistinctPair
+import com.ayman.ecolift.data.room.ExerciseSwapReceiptRow as RoomExerciseSwapReceipt
+import com.ayman.ecolift.data.room.PendingReview as RoomPendingReview
+import com.ayman.ecolift.data.room.SplitAlternativeRow as RoomSplitAlternative
+import com.ayman.ecolift.data.room.SplitExercise as RoomSplitExercise
+import com.ayman.ecolift.data.room.SwapAlternativeQueueRow as RoomSwapAlternativeQueue
+import com.ayman.ecolift.data.room.TempSessionSwap as RoomTempSessionSwap
+import com.ayman.ecolift.data.room.UserSettings as RoomUserSettings
+import com.ayman.ecolift.data.room.WorkoutDay as RoomWorkoutDay
+import com.ayman.ecolift.data.room.WorkoutDayState as RoomWorkoutDayState
+import com.ayman.ecolift.data.room.WorkoutExerciseCard as RoomWorkoutExerciseCard
+import com.ayman.ecolift.data.room.WorkoutSet as RoomWorkoutSet
 
 @Serializable
 data class BackupMetadata(
@@ -31,19 +54,27 @@ data class BackupMetadata(
 @Serializable
 data class UserDataBackup(
     val metadata: BackupMetadata,
-    val cycle: Cycle?,
-    val exercises: List<Exercise>,
-    val workoutDays: List<WorkoutDay>,
-    val workoutSets: List<WorkoutSet>,
-    val pendingReviews: List<PendingReview>,
-    val cycleSlots: List<CycleSlot>,
-    val splitExercises: List<SplitExercise>,
-    val tempSessionSwaps: List<TempSessionSwap>,
+    val cycle: RoomCycle?,
+    val exercises: List<RoomExercise>,
+    val workoutDays: List<RoomWorkoutDay>,
+    val workoutSets: List<RoomWorkoutSet>,
+    val pendingReviews: List<RoomPendingReview>,
+    val cycleSlots: List<RoomCycleSlot>,
+    val splitExercises: List<RoomSplitExercise>,
+    val tempSessionSwaps: List<RoomTempSessionSwap>,
     val auditEntries: List<AuditEntity> = emptyList(),
     val agentTurns: List<AgentTurnLog> = emptyList(),
-    val archivedCycles: List<ArchivedCycle> = emptyList(),
-    val userSettings: UserSettings? = null,
-    val cardioSessions: List<CardioSession> = emptyList(),
+    val archivedCycles: List<RoomArchivedCycle> = emptyList(),
+    val userSettings: RoomUserSettings? = null,
+    val cardioSessions: List<RoomCardioSession> = emptyList(),
+    val workoutExerciseCards: List<RoomWorkoutExerciseCard> = emptyList(),
+    val exerciseAliases: List<RoomExerciseAlias> = emptyList(),
+    val exerciseDistinctPairs: List<RoomExerciseDistinctPair> = emptyList(),
+    val splitAlternatives: List<RoomSplitAlternative> = emptyList(),
+    val exerciseSwapReceipts: List<RoomExerciseSwapReceipt> = emptyList(),
+    val workoutDayStates: List<RoomWorkoutDayState> = emptyList(),
+    val swapAlternativeQueue: List<RoomSwapAlternativeQueue> = emptyList(),
+    val splitMemberChoices: List<RoomSplitMemberChoice> = emptyList(),
 )
 
 data class LocalBackupInfo(
@@ -75,7 +106,7 @@ object DataBackupManager {
     suspend fun exportToUri(context: Context, db: AppDatabase, uri: Uri): BackupResult =
         withContext(Dispatchers.IO) {
             val snapshot = buildSnapshot(db, source = "manual-export")
-            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+            context.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { writer ->
                 writer.write(json.encodeToString(snapshot))
             } ?: throw IOException("Unable to open export destination.")
             snapshot.toResult()
@@ -83,10 +114,11 @@ object DataBackupManager {
 
     suspend fun importFromUri(context: Context, db: AppDatabase, uri: Uri): BackupResult =
         withContext(Dispatchers.IO) {
-            createAutomaticBackup(context, db, reason = "pre-import", force = true)
             val snapshot = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
                 json.decodeFromString<UserDataBackup>(reader.readText())
             } ?: throw IOException("Unable to read backup file.")
+            requireDecodableNestedLists(snapshot)
+            createAutomaticBackup(context, db, reason = "pre-import", force = true)
             restoreSnapshot(db, snapshot)
             snapshot.toResult()
         }
@@ -106,7 +138,7 @@ object DataBackupManager {
 
         val snapshot = buildSnapshot(db, source = "automatic-$reason")
         val directory = automaticBackupDirectory(context).apply { mkdirs() }
-        val fileName = "ecolift-auto-${timestampFormatter.format(Instant.ofEpochMilli(snapshot.metadata.createdAtEpochMs))}.json"
+        val fileName = "ecolift-auto-${timestampFormatter.format(Instant.ofEpochMilli(snapshot.metadata.createdAtEpochMs))}-${UUID.randomUUID()}.json"
         val file = File(directory, fileName)
         file.writeText(json.encodeToString(snapshot))
         trimFiles(directory, AUTO_BACKUP_RETENTION)
@@ -122,12 +154,13 @@ object DataBackupManager {
         db: AppDatabase,
         fileName: String,
     ): BackupResult = withContext(Dispatchers.IO) {
-        createAutomaticBackup(context, db, reason = "pre-restore", force = true)
         val file = File(automaticBackupDirectory(context), fileName)
         if (!file.exists()) {
             throw IOException("Backup file not found: $fileName")
         }
         val snapshot = json.decodeFromString<UserDataBackup>(file.readText())
+        requireDecodableNestedLists(snapshot)
+        createAutomaticBackup(context, db, reason = "pre-restore", force = true)
         restoreSnapshot(db, snapshot)
         snapshot.toResult()
     }
@@ -184,12 +217,20 @@ object DataBackupManager {
             val pendingReviews = db.pendingReviewDao().getAll()
             val cycleSlots = db.cycleSlotDao().getAll()
             val splitExercises = db.splitExerciseDao().getAll()
+            val splitMemberChoices = db.splitMemberChoiceDao().getAll()
             val tempSessionSwaps = db.tempSessionSwapDao().getAll()
             val auditEntries = db.auditDao().getAll()
             val agentTurns = db.agentTurnLogDao().getAll()
             val archivedCycles = db.archivedCycleDao().getAll()
             val userSettings = db.userSettingsDao().get()
             val cardioSessions = db.cardioSessionDao().getAll()
+            val workoutExerciseCards = db.workoutExerciseCardDao().getAll()
+            val exerciseAliases = db.exerciseAliasDao().getAll()
+            val exerciseDistinctPairs = db.exerciseDistinctPairDao().getAll()
+            val splitAlternatives = db.splitAlternativeDao().getAll()
+            val exerciseSwapReceipts = db.exerciseSwapReceiptDao().getAll()
+            val workoutDayStates = db.workoutDayStateDao().getAll()
+            val swapAlternativeQueue = db.swapAlternativeQueueDao().all()
             val cycle = db.cycleDao().getCycle()
             UserDataBackup(
                 metadata = BackupMetadata(
@@ -204,14 +245,27 @@ object DataBackupManager {
                 pendingReviews = pendingReviews,
                 cycleSlots = cycleSlots,
                 splitExercises = splitExercises,
+                splitMemberChoices = splitMemberChoices,
                 tempSessionSwaps = tempSessionSwaps,
                 auditEntries = auditEntries,
                 agentTurns = agentTurns,
                 archivedCycles = archivedCycles,
                 userSettings = userSettings,
                 cardioSessions = cardioSessions,
+                workoutExerciseCards = workoutExerciseCards,
+                exerciseAliases = exerciseAliases,
+                exerciseDistinctPairs = exerciseDistinctPairs,
+                splitAlternatives = splitAlternatives,
+                exerciseSwapReceipts = exerciseSwapReceipts,
+                workoutDayStates = workoutDayStates,
+                swapAlternativeQueue = swapAlternativeQueue,
             )
         }
+
+    /** Decodes each board the same way a later read does, before any table is cleared. */
+    private fun requireDecodableNestedLists(snapshot: UserDataBackup) {
+        snapshot.splitMemberChoices.forEach { it.toChoice() }
+    }
 
     private suspend fun restoreSnapshot(db: AppDatabase, snapshot: UserDataBackup) {
         db.withTransaction {
@@ -219,23 +273,87 @@ object DataBackupManager {
 
             if (snapshot.exercises.isNotEmpty()) db.exerciseDao().insertAll(snapshot.exercises)
             snapshot.cycle?.let { db.cycleDao().upsert(it) }
-            if (snapshot.cycleSlots.isNotEmpty()) db.cycleSlotDao().insertAll(snapshot.cycleSlots)
+            if (snapshot.cycleSlots.isNotEmpty()) {
+                db.cycleSlotDao().insertAll(stampPredatedAnchors(snapshot.cycleSlots))
+            }
+            keptSplitBoards(snapshot).forEach { db.splitMemberChoiceDao().upsert(it) }
             if (snapshot.workoutDays.isNotEmpty()) db.workoutDayDao().insertAll(snapshot.workoutDays)
+            if (snapshot.exerciseAliases.isNotEmpty()) db.exerciseAliasDao().insertAll(snapshot.exerciseAliases)
+            if (snapshot.exerciseDistinctPairs.isNotEmpty()) {
+                db.exerciseDistinctPairDao().insertAll(snapshot.exerciseDistinctPairs)
+            }
+            if (snapshot.workoutExerciseCards.isNotEmpty()) {
+                db.workoutExerciseCardDao().insertAll(snapshot.workoutExerciseCards)
+            }
             if (snapshot.workoutSets.isNotEmpty()) db.workoutSetDao().insertAll(snapshot.workoutSets)
             if (snapshot.pendingReviews.isNotEmpty()) db.pendingReviewDao().insertAll(snapshot.pendingReviews)
             if (snapshot.splitExercises.isNotEmpty()) db.splitExerciseDao().insertAll(snapshot.splitExercises)
+            if (snapshot.splitAlternatives.isNotEmpty()) db.splitAlternativeDao().insertAll(snapshot.splitAlternatives)
+            if (snapshot.exerciseSwapReceipts.isNotEmpty()) {
+                db.exerciseSwapReceiptDao().insertAll(snapshot.exerciseSwapReceipts)
+            }
+            if (snapshot.workoutDayStates.isNotEmpty()) db.workoutDayStateDao().insertAll(snapshot.workoutDayStates)
+            if (snapshot.swapAlternativeQueue.isNotEmpty()) {
+                db.swapAlternativeQueueDao().insertAll(snapshot.swapAlternativeQueue)
+            }
             if (snapshot.tempSessionSwaps.isNotEmpty()) db.tempSessionSwapDao().insertAll(snapshot.tempSessionSwaps)
             if (snapshot.auditEntries.isNotEmpty()) db.auditDao().insertAll(snapshot.auditEntries)
             if (snapshot.agentTurns.isNotEmpty()) db.agentTurnLogDao().insertAll(snapshot.agentTurns)
             if (snapshot.archivedCycles.isNotEmpty()) db.archivedCycleDao().insertAll(snapshot.archivedCycles)
             snapshot.userSettings?.let { db.userSettingsDao().upsert(it) }
             if (snapshot.cardioSessions.isNotEmpty()) db.cardioSessionDao().insertAll(snapshot.cardioSessions)
+            Migrations.backfillLegacyCards(db.openHelper.writableDatabase)
+        }
+    }
+
+    /**
+     * A released-app backup has no learned-split fields. Decoding those slots yields createdAt 0
+     * and a null anchor, the same shape an upgrade used to leave behind. Stamp only that shape.
+     * A slot that already has a created time or an evidence window keeps the value it brought.
+     */
+    private fun stampPredatedAnchors(slots: List<RoomCycleSlot>): List<RoomCycleSlot> {
+        val now = System.currentTimeMillis()
+        return slots.map { slot ->
+            if (slot.createdAt == 0L && slot.anchorUpdatedAt == null) {
+                slot.copy(anchorUpdatedAt = now)
+            } else {
+                slot
+            }
+        }
+    }
+
+    private fun keptSplitBoards(snapshot: UserDataBackup): List<RoomSplitMemberChoice> {
+        val slotIds = snapshot.cycleSlots.mapTo(HashSet()) { it.id }
+        val exerciseIds = snapshot.exercises.mapTo(HashSet()) { it.id }
+        return snapshot.splitMemberChoices.mapNotNull { row ->
+            if (row.splitId !in slotIds) return@mapNotNull null
+            val choice = row.toChoice()
+            if (choice.board.inSplit.isEmpty() && choice.board.otherOptions.isEmpty()) {
+                return@mapNotNull row
+            }
+            val board = EffectiveSplitMembers.of(
+                choice.board.inSplit.filter { it in exerciseIds },
+                choice.board.otherOptions.filter { it in exerciseIds },
+            )
+            if (board.inSplit.isEmpty() && board.otherOptions.isEmpty()) {
+                null
+            } else {
+                choice.copy(board = board).toRoomChoice()
+            }
         }
     }
 
     private fun clearUserTables(db: AppDatabase) {
         val writableDb = db.openHelper.writableDatabase
+        writableDb.execSQL("DELETE FROM `split_alternative`")
+        writableDb.execSQL("DELETE FROM `exercise_swap_receipt`")
+        writableDb.execSQL("DELETE FROM `workout_day_state`")
+        writableDb.execSQL("DELETE FROM `swap_alternative_queue`")
+        writableDb.execSQL("DELETE FROM `exercise_alias`")
+        writableDb.execSQL("DELETE FROM `exercise_distinct_pair`")
+        writableDb.execSQL("DELETE FROM `workout_exercise_card`")
         writableDb.execSQL("DELETE FROM `split_exercise`")
+        writableDb.execSQL("DELETE FROM `split_member_choice`")
         writableDb.execSQL("DELETE FROM `temp_session_swap`")
         writableDb.execSQL("DELETE FROM `workout_set`")
         writableDb.execSQL("DELETE FROM `workout_day`")
@@ -287,11 +405,19 @@ object DataBackupManager {
             pendingReviews.size +
             cycleSlots.size +
             splitExercises.size +
+            splitMemberChoices.size +
             tempSessionSwaps.size +
             auditEntries.size +
             agentTurns.size +
             archivedCycles.size +
             cardioSessions.size +
+            workoutExerciseCards.size +
+            exerciseAliases.size +
+            exerciseDistinctPairs.size +
+            splitAlternatives.size +
+            exerciseSwapReceipts.size +
+            workoutDayStates.size +
+            swapAlternativeQueue.size +
             (if (userSettings != null) 1 else 0) +
             (if (cycle != null) 1 else 0)
         return BackupResult(

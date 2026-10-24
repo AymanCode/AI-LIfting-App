@@ -5,15 +5,15 @@ import java.time.LocalDate
 import java.util.UUID
 
 class CardioRepository(private val db: AppDatabase) {
-    fun observeSessions(): Flow<List<CardioSession>> = db.cardioSessionDao().observeAll()
+    fun observeSessions(): Flow<List<CardioSession>> = db.cardioSessionDao().domain().observeAll()
 
-    fun observeSessionsForDate(date: String): Flow<List<CardioSession>> = db.cardioSessionDao().observeForDate(date)
+    fun observeSessionsForDate(date: String): Flow<List<CardioSession>> = db.cardioSessionDao().domain().observeForDate(date)
 
-    fun observeCaloriesForDate(date: String): Flow<Int> = db.cardioSessionDao().observeCaloriesForDate(date)
+    fun observeCaloriesForDate(date: String): Flow<Int> = db.cardioSessionDao().domain().observeCaloriesForDate(date)
 
-    suspend fun getAll(): List<CardioSession> = db.cardioSessionDao().getAll()
+    suspend fun getAll(): List<CardioSession> = db.cardioSessionDao().domain().getAll()
 
-    suspend fun getForDate(date: String): List<CardioSession> = db.cardioSessionDao().getForDate(date)
+    suspend fun getForDate(date: String): List<CardioSession> = db.cardioSessionDao().domain().getForDate(date)
 
     suspend fun saveManual(
         date: String = LocalDate.now().toString(),
@@ -60,7 +60,7 @@ class CardioRepository(private val db: AppDatabase) {
             createdAt = now,
             updatedAt = now,
         )
-        val id = db.cardioSessionDao().insert(session)
+        val id = db.cardioSessionDao().domain().insert(session)
         return session.copy(id = id)
     }
 
@@ -115,20 +115,20 @@ class CardioRepository(private val db: AppDatabase) {
             createdAt = now,
             updatedAt = now,
         )
-        val id = db.cardioSessionDao().insert(session)
+        val id = db.cardioSessionDao().domain().insert(session)
         return session.copy(id = id)
     }
 
     suspend fun upsertHealthConnect(session: CardioSession): CardioSession {
         val hcUid = session.hcUid
         if (hcUid.isNullOrBlank()) {
-            val id = db.cardioSessionDao().insert(session)
+            val id = db.cardioSessionDao().domain().insert(session)
             return session.copy(id = id)
         }
 
-        val existing = db.cardioSessionDao().getByHealthConnectUid(hcUid)
+        val existing = db.cardioSessionDao().domain().getByHealthConnectUid(hcUid)
         if (existing == null) {
-            val id = db.cardioSessionDao().insert(session)
+            val id = db.cardioSessionDao().domain().insert(session)
             return session.copy(id = id)
         }
 
@@ -153,46 +153,65 @@ class CardioRepository(private val db: AppDatabase) {
             return existing
         }
 
+        val edited = healthConnectEditWins(existing)
+        fun <T> field(saved: T?, incoming: T?): T? = if (edited) saved ?: incoming else incoming ?: saved
+        val stamp = session.hcLastModifiedTime ?: existing.hcLastModifiedTime
         val merged = existing.copy(
-            date = session.date,
-            activityType = session.activityType,
-            activityLabel = session.activityLabel ?: existing.activityLabel,
-            durationSec = session.durationSec ?: existing.durationSec,
-            distanceM = session.distanceM ?: existing.distanceM,
-            calories = session.calories ?: existing.calories,
-            avgHeartRate = session.avgHeartRate ?: existing.avgHeartRate,
-            maxHeartRate = session.maxHeartRate ?: existing.maxHeartRate,
-            avgSpeed = session.avgSpeed ?: existing.avgSpeed,
-            avgInclinePercent = session.avgInclinePercent ?: existing.avgInclinePercent,
-            cadenceRpm = session.cadenceRpm ?: existing.cadenceRpm,
-            resistanceLevel = session.resistanceLevel ?: existing.resistanceLevel,
-            avgPowerWatts = session.avgPowerWatts ?: existing.avgPowerWatts,
-            strokeRateSpm = session.strokeRateSpm ?: existing.strokeRateSpm,
-            paceSecPer500m = session.paceSecPer500m ?: existing.paceSecPer500m,
-            floors = session.floors ?: existing.floors,
-            steps = session.steps ?: existing.steps,
+            date = if (edited) existing.date else session.date,
+            activityType = if (edited) existing.activityType else session.activityType,
+            activityLabel = field(existing.activityLabel, session.activityLabel),
+            durationSec = field(existing.durationSec, session.durationSec),
+            distanceM = field(existing.distanceM, session.distanceM),
+            calories = field(existing.calories, session.calories),
+            avgHeartRate = field(existing.avgHeartRate, session.avgHeartRate),
+            maxHeartRate = field(existing.maxHeartRate, session.maxHeartRate),
+            avgSpeed = field(existing.avgSpeed, session.avgSpeed),
+            avgInclinePercent = field(existing.avgInclinePercent, session.avgInclinePercent),
+            cadenceRpm = field(existing.cadenceRpm, session.cadenceRpm),
+            resistanceLevel = field(existing.resistanceLevel, session.resistanceLevel),
+            avgPowerWatts = field(existing.avgPowerWatts, session.avgPowerWatts),
+            strokeRateSpm = field(existing.strokeRateSpm, session.strokeRateSpm),
+            paceSecPer500m = field(existing.paceSecPer500m, session.paceSecPer500m),
+            floors = field(existing.floors, session.floors),
+            steps = field(existing.steps, session.steps),
             source = CardioSessionSource.HEALTH_CONNECT,
-            hcDataOriginPackage = session.hcDataOriginPackage ?: existing.hcDataOriginPackage,
-            hcLastModifiedTime = session.hcLastModifiedTime ?: existing.hcLastModifiedTime,
-            startTime = session.startTime ?: existing.startTime,
-            endTime = session.endTime ?: existing.endTime,
-            zoneOffsetSeconds = session.zoneOffsetSeconds ?: existing.zoneOffsetSeconds,
-            notes = if (session.notes.isNotBlank()) session.notes else existing.notes,
-            updatedAt = System.currentTimeMillis(),
+            hcDataOriginPackage = field(existing.hcDataOriginPackage, session.hcDataOriginPackage),
+            hcLastModifiedTime = stamp,
+            startTime = field(existing.startTime, session.startTime),
+            endTime = field(existing.endTime, session.endTime),
+            zoneOffsetSeconds = field(existing.zoneOffsetSeconds, session.zoneOffsetSeconds),
+            notes = if (edited) {
+                existing.notes.ifBlank { session.notes }
+            } else if (session.notes.isNotBlank()) {
+                session.notes
+            } else {
+                existing.notes
+            },
+            updatedAt = if (edited) {
+                val floor = if (stamp == null) existing.updatedAt else stamp + 1
+                maxOf(System.currentTimeMillis(), existing.updatedAt, floor)
+            } else {
+                stamp ?: existing.updatedAt
+            },
         )
-        db.cardioSessionDao().update(merged)
+        db.cardioSessionDao().domain().update(merged)
         return merged
     }
 
-    suspend fun getById(id: Long): CardioSession? = db.cardioSessionDao().getById(id)
+    suspend fun getById(id: Long): CardioSession? = db.cardioSessionDao().domain().getById(id)
 
     suspend fun update(session: CardioSession): CardioSession {
         val updated = session.copy(updatedAt = System.currentTimeMillis())
-        db.cardioSessionDao().update(updated)
+        db.cardioSessionDao().domain().update(updated)
         return updated
     }
 
     suspend fun delete(id: Long) {
-        db.cardioSessionDao().deleteById(id)
+        db.cardioSessionDao().domain().deleteById(id)
+    }
+
+    private fun healthConnectEditWins(existing: CardioSession): Boolean {
+        val stamp = existing.hcLastModifiedTime
+        return existing.updatedAt > existing.createdAt && (stamp == null || existing.updatedAt > stamp)
     }
 }

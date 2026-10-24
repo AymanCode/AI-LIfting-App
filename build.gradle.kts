@@ -18,10 +18,11 @@ val hasReleaseSigningConfig =
 
 plugins {
     id("com.android.application") version "9.1.0"
-    kotlin("android") version "2.2.10"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.2.10"
+    kotlin("android") version "2.2.20"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.2.20"
+    // KSP 2.3 is no longer tied to a Kotlin release. 2.3.2 already builds with AGP 9.1.
     id("com.google.devtools.ksp") version "2.3.2"
-    kotlin("plugin.serialization") version "2.0.0"
+    kotlin("plugin.serialization") version "2.2.20"
 }
 
 android {
@@ -49,8 +50,8 @@ android {
         applicationId = "com.ayman.ecolift"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.4"
+        versionCode = 6
+        versionName = "1.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField(
@@ -113,26 +114,30 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
+    implementation(platform("androidx.compose:compose-bom:2025.09.01"))
     implementation("androidx.activity:activity-compose:1.10.1")
-    implementation("androidx.compose.ui:ui:1.7.8")
-    implementation("androidx.compose.ui:ui-tooling-preview:1.7.8")
-    implementation("androidx.compose.material3:material3:1.3.1")
-    implementation("androidx.compose.material:material-icons-extended:1.7.8")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
-    implementation("androidx.navigation:navigation-compose:2.8.9")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.9.4")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
+    implementation("androidx.lifecycle:lifecycle-process:2.9.4")
+    implementation("androidx.navigation:navigation-compose:2.9.4")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
     implementation("androidx.room:room-runtime:2.7.1")
     implementation("androidx.room:room-ktx:2.7.1")
     ksp("androidx.room:room-compiler:2.7.1")
     implementation("androidx.health.connect:connect-client:1.1.0")
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.google.ai.edge.aicore:aicore:0.0.1-exp02")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     testImplementation("junit:junit:4.13.2")
+    testImplementation(kotlin("test"))
     testImplementation("org.json:json:20240303")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testImplementation("org.mockito:mockito-core:5.11.0")
     testImplementation("androidx.arch.core:core-testing:2.2.0")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.4.0")
@@ -142,5 +147,5 @@ dependencies {
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test:rules:1.6.1")
     androidTestImplementation("androidx.room:room-testing:2.7.1")
-    androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
 }

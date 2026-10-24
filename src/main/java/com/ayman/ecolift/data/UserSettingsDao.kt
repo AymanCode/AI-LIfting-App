@@ -4,17 +4,18 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
+import com.ayman.ecolift.data.room.UserSettings as RoomUserSettings
 
 @Dao
 interface UserSettingsDao {
     @Query("SELECT * FROM user_settings WHERE id = 1 LIMIT 1")
-    suspend fun get(): UserSettings?
+    suspend fun get(): RoomUserSettings?
 
     @Query("SELECT * FROM user_settings WHERE id = 1 LIMIT 1")
-    fun observe(): Flow<UserSettings?>
+    fun observe(): Flow<RoomUserSettings?>
 
     @Upsert
-    suspend fun upsert(settings: UserSettings)
+    suspend fun upsert(settings: RoomUserSettings)
 
     @Query("DELETE FROM user_settings")
     suspend fun deleteAll()

@@ -3,7 +3,7 @@ package com.ayman.ecolift.agent.engine
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Stable interface over local on-device LLM inference.
+ * Stable interface over local or remote LLM inference.
  *
  * The agent layer depends only on this interface, so model backends can be
  * swapped without changing routing or orchestration code.
@@ -14,7 +14,7 @@ interface LocalGenAiEngine : AutoCloseable {
     val isReady: Boolean
 
     /**
-     * Load the model weights into memory.
+     * Load the model weights into memory (or verify remote endpoint is reachable).
      * Call from a background coroutine on app start, not on first user interaction.
      * Safe to call multiple times; subsequent calls are no-ops if already ready.
      */
@@ -22,8 +22,7 @@ interface LocalGenAiEngine : AutoCloseable {
 
     /**
      * Stream text tokens as they are generated.
-     * MediaPipe implementation emits the full response as a single item (no true streaming).
-     * Other implementations may emit individual tokens.
+     * May emit the full response as a single item if the backend doesn't support true streaming.
      */
     fun streamText(prompt: String): Flow<String>
 

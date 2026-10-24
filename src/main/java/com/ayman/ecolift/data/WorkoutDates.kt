@@ -1,29 +1,33 @@
 package com.ayman.ecolift.data
 
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
+import com.ayman.ecolift.web.util.DAY_ABBREV
+import com.ayman.ecolift.web.util.MONTH_ABBREV
+import com.ayman.ecolift.web.util.minusDays
+import com.ayman.ecolift.web.util.plusDays
+import com.ayman.ecolift.web.util.todayLocalDate
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.isoDayNumber
 
+// Web port of the Android WorkoutDates (java.time -> kotlinx-datetime).
 object WorkoutDates {
-    private val fullFormatter = DateTimeFormatter.ofPattern("EEE, MMM d")
-    private val shortFormatter = DateTimeFormatter.ofPattern("MMM d")
-
-    fun today(): String = LocalDate.now().toString()
+    fun today(): String = todayLocalDate().toString()
 
     fun addDays(date: String, delta: Long): String =
         LocalDate.parse(date).plusDays(delta).toString()
 
     fun formatHeader(date: String): String {
-        return if (date == today()) {
-            "Today"
-        } else {
-            LocalDate.parse(date).format(fullFormatter)
-        }
+        if (date == today()) return "Today"
+        val ld = LocalDate.parse(date)
+        return "${DAY_ABBREV[ld.dayOfWeek.isoDayNumber - 1]}, ${MONTH_ABBREV[ld.month.ordinal]} ${ld.day}"
     }
 
-    fun formatAxis(date: String): String = LocalDate.parse(date).format(shortFormatter)
+    fun formatAxis(date: String): String {
+        val ld = LocalDate.parse(date)
+        return "${MONTH_ABBREV[ld.month.ordinal]} ${ld.day}"
+    }
 
     fun startOfWeek(date: String): String {
         val ld = LocalDate.parse(date)
-        return ld.minusDays(ld.dayOfWeek.value.toLong() % 7).toString()
+        return ld.minusDays((ld.dayOfWeek.isoDayNumber % 7).toLong()).toString()
     }
 }

@@ -9,13 +9,13 @@ The main engineering choices are:
 - represent assistant writes as typed `DbPatch` values instead of raw database operations
 - validate patches before Room transactions
 - require confirmation for destructive changes
-- record audit rows and inverse patches for undo
+- keep assistant undo in memory until the app restarts
 - keep unresolved user text as a recoverable draft when parsing is unsafe
 - load backup exports into DuckDB for workout and agent telemetry
 
 ## Agent Flow
 
-IronMind routes user text through `IntentRouter`, uses `AgentTools` to ground requests against local data, and produces `DbPatch` objects for write operations. The model layer is optional. If deterministic parsing cannot safely resolve a request, the app either falls back to a model or preserves the original input for review.
+IronMind routes user text through `IntentRouter`, uses `AgentTools` to ground requests against local data, and produces `DbPatch` objects for write operations. The model layer is optional. If deterministic parsing cannot safely resolve a request, the app keeps the original text. Try AI is a separate button. It calls the model only when the engine is ready.
 
 The assistant supports routine logging, dated imports, historical corrections, destructive changes with confirmation, progress questions, similar-exercise lookup, and weight recommendations.
 
@@ -39,7 +39,7 @@ Full reports are written under `build/reports/agent-eval/`.
 
 ## Data and Persistence
 
-Room stores exercises, workout days, workout sets, split and cycle data, pending review rows, audit entries, and agent turn logs. The current schema version is 13, with exported schemas under `schemas/`.
+Room stores exercises, workout days, workout sets, split and cycle data, pending review rows, audit entries, and agent turn logs. The schema version is 21, with exported schemas under `schemas/`.
 
 Backup export/import includes workout history, split data, pending reviews, audit rows, and agent turns. Import creates a pre-import automatic backup and runs the restore inside a Room transaction.
 

@@ -1,14 +1,15 @@
 package com.ayman.ecolift.agent.patches
 
-import androidx.room.withTransaction
 import com.ayman.ecolift.agent.model.AuditEntity
 import com.ayman.ecolift.agent.model.DbPatch
-import com.ayman.ecolift.data.AppDatabase
-import com.ayman.ecolift.data.ExerciseDao
-import com.ayman.ecolift.data.WorkoutDayDao
+import com.ayman.ecolift.agent.model.InMemoryAuditStore
 import com.ayman.ecolift.data.WorkoutSet
-import com.ayman.ecolift.data.WorkoutSetDao
 import com.ayman.ecolift.data.normalizedBodyweightLoad
+import com.ayman.ecolift.web.AppRepos
+import com.ayman.ecolift.web.supabase.ExerciseRenameResult
+import com.ayman.ecolift.web.supabase.sync.orThrow
+import com.ayman.ecolift.web.util.nowMillis
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -27,96 +28,133 @@ interface PatchApplier {
 /**
  * Single entry point for all agent-proposed mutations.
  *
- * Flow: validate -> open transaction -> (read pre-state -> compute inverse -> apply) per patch
- *       -> write audit -> commit. On any exception the transaction rolls back automatically.
- *
- * [transactionRunner] is injectable for testing - production code passes [roomTransactionRunner].
+ * Android repositories commit each batch before publishing its audit and set state.
  */
 class PatchService(
-    private val db: AppDatabase,
+    private val repos: AppRepos,
     private val validator: PatchValidator,
-    private val transactionRunner: TransactionRunner = roomTransactionRunner(db)
+    private val auditStore: InMemoryAuditStore
 ) : PatchApplier {
+    private val generation = repos.dataGeneration
+    private val expectedGeneration = generation?.changes?.value ?: 0L
     private val json = Json { prettyPrint = false }
+    private val atomicRepository = repos.sets as? AtomicPatchRepository
+    private data class UndoStep(val patch: DbPatch, val restore: PatchUndo? = null)
+    private val undoActions = linkedMapOf<Long, List<UndoStep>>()
     private val inverseComputer by lazy {
-        InverseComputer(db.workoutSetDao(), db.exerciseDao())
+        InverseComputer(repos.sets, repos.exercises)
     }
 
     override suspend fun applyPatches(
         requestId: String,
         patches: List<DbPatch>,
         userConfirmed: Boolean
+    ): PatchResult = withGeneration { applyBatch(requestId, patches, userConfirmed) }
+
+    fun clearUndo() {
+        synchronized(undoActions) { undoActions.clear() }
+    }
+
+    private suspend fun withGeneration(block: suspend () -> PatchResult): PatchResult {
+        val owner = generation ?: return block()
+        return owner.withCurrent(expectedGeneration, block) ?: run {
+            clearUndo()
+            PatchResult.Rejected("Workout data was replaced. Send the request again.")
+        }
+    }
+
+    private suspend fun applyBatch(
+        requestId: String,
+        patches: List<DbPatch>,
+        userConfirmed: Boolean,
+        restores: List<UndoStep> = emptyList(),
     ): PatchResult {
-        // 1. Validate all patches up front - no DB access yet
-        val validation = validator.validateAll(patches)
+        val validation = validator.validateAll(patches.filterIndexed { index, _ -> restores.getOrNull(index)?.restore == null })
         if (validation is ValidationResult.Rejected) {
             return PatchResult.Rejected(validation.reason)
         }
 
-        // 2. Gate destructive ops on user confirmation
         if (!userConfirmed && patches.any { DbPatch.isDestructive(it) }) {
             return PatchResult.Rejected("Destructive patches require user confirmation")
         }
 
-        // 3. Apply inside a single transaction
         return try {
-            transactionRunner.run {
-                val inversePatches = mutableListOf<DbPatch>()
-
-                for (patch in patches) {
-                    if (patch is DbPatch.LogSet) {
-                        // LogSet: apply first to get inserted ID, then build inverse
+            var applied: PatchResult.Applied? = null
+            val prepare: suspend () -> (() -> Unit) = {
+                val inverses = mutableListOf<UndoStep>()
+                for ((index, patch) in patches.withIndex()) {
+                    val restore = restores.getOrNull(index)?.restore
+                    if (restore != null) {
+                        inverses.add(UndoStep(patch, restore.restore()))
+                    } else if (patch is DbPatch.LogSet) {
                         val insertedId = applyPatch(patch)
-                        inversePatches.add(inverseComputer.computeInverse(patch, insertedId))
+                        inverses.add(UndoStep(inverseComputer.computeInverse(patch, insertedId)))
                     } else {
-                        // All others: read pre-state for inverse BEFORE applying
                         val inverse = inverseComputer.computeInverse(patch)
-                        applyPatch(patch)
-                        inversePatches.add(inverse)
+                        val action = if (patch is DbPatch.DeleteSet && atomicRepository != null) {
+                            atomicRepository.deleteWithUndo(patch.setId)
+                        } else {
+                            applyPatch(patch)
+                            null
+                        }
+                        inverses.add(UndoStep(inverse, action))
                     }
                 }
-
+                val undo = inverses.reversed()
                 val audit = AuditEntity(
                     requestId = requestId,
-                    timestamp = System.currentTimeMillis(),
+                    timestamp = nowMillis(),
                     serializedPatches = json.encodeToString(patches),
-                    serializedInverse = json.encodeToString(inversePatches),
-                    userConfirmed = userConfirmed
+                    serializedInverse = json.encodeToString(undo.map { it.patch }),
+                    userConfirmed = userConfirmed,
                 )
-                val auditId = db.auditDao().insert(audit)
-                PatchResult.Applied(auditId = auditId, patchCount = patches.size)
+                val commit: () -> Unit = {
+                    val auditId = auditStore.insert(audit)
+                    synchronized(undoActions) {
+                        undoActions[auditId] = undo
+                        while (undoActions.size > 50) undoActions.remove(undoActions.keys.first())
+                    }
+                    applied = PatchResult.Applied(auditId = auditId, patchCount = patches.size)
+                }
+                commit
             }
+            if (atomicRepository != null) atomicRepository.applyAtomically(repos.exercises, prepare) else prepare()()
+            checkNotNull(applied)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             PatchResult.Failed(e.message ?: "Unknown error during patch application")
         }
     }
 
     /** Undo a previously applied set of patches by applying the stored inverse. */
-    override suspend fun undo(auditId: Long): PatchResult {
-        val audit = db.auditDao().getById(auditId)
-            ?: return PatchResult.Failed("Audit entry $auditId not found")
-
-        val inversePatches = json.decodeFromString<List<DbPatch>>(audit.serializedInverse)
-        return applyPatches(
+    override suspend fun undo(auditId: Long): PatchResult = withGeneration {
+        val audit = auditStore.getById(auditId)
+            ?: return@withGeneration PatchResult.Failed("Audit entry $auditId not found")
+        val steps = synchronized(undoActions) { undoActions[auditId] }
+            ?: return@withGeneration PatchResult.Failed("Nothing to undo.")
+        val result = applyBatch(
             requestId = "undo-${audit.requestId}",
-            patches = inversePatches,
-            userConfirmed = true // undo is always user-initiated
+            patches = steps.map { it.patch },
+            userConfirmed = true,
+            restores = steps,
         )
+        if (result is PatchResult.Applied) {
+            synchronized(undoActions) { undoActions.remove(auditId) }
+        }
+        result
     }
 
     // Per-patch application
 
-    /** Applies a single patch via the appropriate DAO. Returns inserted row ID for LogSet, null otherwise. */
+    /** Applies a single patch. Returns inserted row ID for LogSet, null otherwise. */
     private suspend fun applyPatch(patch: DbPatch): Long? {
-        val setDao: WorkoutSetDao = db.workoutSetDao()
-        val dayDao: WorkoutDayDao = db.workoutDayDao()
-        val exerciseDao: ExerciseDao = db.exerciseDao()
-
         return when (patch) {
             is DbPatch.LogSet -> {
-                setDao.insert(
+                val canonicalExerciseId = repos.exercises.canonicalId(patch.exerciseId)
+                val inserted = repos.sets.insert(
                     WorkoutSet(
-                        exerciseId = patch.exerciseId,
+                        exerciseId = canonicalExerciseId,
                         date = patch.date,
                         setNumber = patch.setNumber,
                         weightLbs = if (patch.isBodyweight) normalizedBodyweightLoad(patch.weightLbs) else patch.weightLbs,
@@ -125,59 +163,48 @@ class PatchService(
                         restTimeSeconds = patch.restTimeSeconds,
                         completed = patch.completed,
                     )
-                )
+                ).orThrow()
+                inserted.id
             }
 
             is DbPatch.EditSet -> {
-                val current = setDao.getById(patch.setId)
+                val current = repos.sets.getById(patch.setId)
                     ?: error("WorkoutSet ${patch.setId} not found")
-                setDao.update(
+                repos.sets.update(
                     current.copy(
                         weightLbs = patch.weightLbs ?: current.weightLbs,
                         reps = patch.reps ?: current.reps,
                         restTimeSeconds = patch.restTimeSeconds ?: current.restTimeSeconds
                     )
-                )
+                ).orThrow()
                 null
             }
 
             is DbPatch.DeleteSet -> {
-                setDao.deleteById(patch.setId)
+                repos.sets.delete(patch.setId)
                 null
             }
 
             is DbPatch.MoveWorkoutDay -> {
-                val currentDay = dayDao.getByDate(patch.currentDate)
-                    ?: error("WorkoutDay ${patch.currentDate} not found")
-                dayDao.upsert(currentDay.copy(date = patch.newDate))
-                dayDao.deleteByDate(patch.currentDate)
-                setDao.updateDate(patch.currentDate, patch.newDate)
+                repos.workout.moveWorkoutDay(patch.currentDate, patch.newDate)
+                repos.sets.updateDate(patch.currentDate, patch.newDate)
                 null
             }
 
             is DbPatch.RenameExercise -> {
-                exerciseDao.getById(patch.exerciseId)
+                repos.exercises.getById(patch.exerciseId)
                     ?: error("Exercise ${patch.exerciseId} not found")
-                exerciseDao.updateName(patch.exerciseId, patch.newName)
+                when (val rename = repos.exercises.updateName(patch.exerciseId, patch.newName)) {
+                    is ExerciseRenameResult.Success -> Unit
+                    is ExerciseRenameResult.NameCollision -> error(
+                        "Exercise name collides with ${rename.existing.name}; confirmation is required.",
+                    )
+                }
                 null
             }
         }
     }
 }
 
-// TransactionRunner
-
-/** Abstraction over Room's withTransaction so PatchService is testable without a real DB. */
-interface TransactionRunner {
-    suspend fun <T> run(block: suspend () -> T): T
-}
-
-/** Production runner - delegates to Room's withTransaction for full rollback-on-exception. */
-fun roomTransactionRunner(db: AppDatabase): TransactionRunner = object : TransactionRunner {
-    override suspend fun <T> run(block: suspend () -> T): T = db.withTransaction { block() }
-}
-
-/** Test runner - executes block directly, no transaction wrapper needed for mock DBs. */
-fun noOpTransactionRunner(): TransactionRunner = object : TransactionRunner {
-    override suspend fun <T> run(block: suspend () -> T): T = block()
-}
+/** Test runner - executes block directly, no transaction wrapper needed for mock stores. */
+fun noOpTransactionRunner(): suspend (() -> Unit) -> Unit = { block -> block() }

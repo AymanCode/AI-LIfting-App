@@ -180,12 +180,13 @@ class OrchestratorEdgeCaseTest {
     // ── Exercise not found ───────────────────────────────────────────
 
     @Test
-    fun `unknown exercise in LogSet returns TextResponse`() = runTest {
+    fun `unknown exercise in LogSet preserves the original draft`() = runTest {
         whenever(tools.findExercise(any())).thenReturn(null)
 
         val result = orchestrator.process("xyzzy 135x8")
 
-        assertTrue(result is AgentTurn.TextResponse)
+        assertTrue(result is AgentTurn.RecoverableFailure)
+        assertEquals("xyzzy 135x8", (result as AgentTurn.RecoverableFailure).originalText)
         verify(applier, never()).applyPatches(any(), any(), any())
     }
 

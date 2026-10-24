@@ -29,12 +29,14 @@ class ExerciseEmbeddingIndex {
             .mapNotNull { candidate ->
                 val candidatePattern = ExercisePatternMatcher.classify(candidate.name)
                 val score = similarityScore(queryPattern, candidatePattern)
+                val transferRatioToQuery = TransferRatios.ratio(candidatePattern, queryPattern)
                 if (score > 0.0) {
                     SimilarExercise(
                         exerciseId = candidate.id,
                         name = candidate.name,
                         similarityScore = score,
-                        sharedPattern = candidatePattern.name
+                        sharedPattern = candidatePattern.name,
+                        transferRatioToQuery = transferRatioToQuery,
                     )
                 } else {
                     null
