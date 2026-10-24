@@ -646,31 +646,26 @@ class CardioViewModel(
             }
             return
         }
+        if (cur.editingId != null) {
+            val spec = CardioActivitySpecs.specFor(type)
+            val newValues = mutableMapOf<CardioEntryField, Double>()
+            for (field in spec.fields) {
+                if (field == CardioEntryField.NOTES) continue
+                if (cur.values.containsKey(field)) {
+                    newValues[field] = CardioDraftLogic.displayForMachine(cur, field, type)
+                }
+            }
+            val nextDraft = cur.copy(
+                type = type,
+                values = newValues,
+                invalid = cur.invalid.filter { spec.fields.contains(it) }.toSet(),
+            )
+            _uiState.update { it.copy(draft = nextDraft, expandedField = null, typingField = null) }
+            return
+        }
         draftsByMachine[cur.type] = cur
         val existing = draftsByMachine[type]
-        val nextDraft = if (existing != null) {
-            if (cur.editingId == null) {
-                existing
-            } else {
-                existing.copy(
-                    editingId = cur.editingId,
-                    editingSessionOriginal = cur.editingSessionOriginal,
-                )
-            }
-        } else if (cur.editingId == null) {
-            CardioDraftLogic.newDraft(repository.sessions.value, todayLocalDate()).copy(type = type)
-        } else {
-            val generated = CardioDraftLogic.newDraft(repository.sessions.value, todayLocalDate())
-            val values = generated.values.mapValues { (field, _) ->
-                CardioDraftLogic.displayForMachine(generated, field, type)
-            }
-            generated.copy(
-                type = type,
-                values = values,
-                editingId = cur.editingId,
-                editingSessionOriginal = cur.editingSessionOriginal,
-            )
-        }
+        val nextDraft = existing ?: CardioDraftLogic.newDraft(repository.sessions.value, todayLocalDate()).copy(type = type)
         _uiState.update { it.copy(draft = nextDraft, expandedField = null, typingField = null) }
     }
 
