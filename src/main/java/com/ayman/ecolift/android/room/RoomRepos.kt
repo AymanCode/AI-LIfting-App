@@ -122,14 +122,18 @@ class RoomRepos(
 
     suspend fun <T> replaceDataset(import: suspend () -> T): T {
         stopLearnedSplits()
+        var imported = false
+        var reloaded = false
         try {
-            return generation.replace(reload = { loadAll() }) {
-                import()
+            return generation.replace(reload = { loadAll().also { reloaded = true } }) {
+                import().also { imported = true }
             }
         } finally {
             synchronized(learned) {
-                learnedStarted = true
-                installLearnedSplits(store.settings.value.smartSuggest)
+                // A committed import whose reload failed leaves the cache on the old dataset. The
+                // next successful loadAll starts the learner from the restored rows instead.
+                learnedStarted = !imported || reloaded
+                if (learnedStarted) installLearnedSplits(store.settings.value.smartSuggest)
             }
         }
     }
