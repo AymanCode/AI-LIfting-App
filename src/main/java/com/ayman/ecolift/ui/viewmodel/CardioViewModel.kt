@@ -318,6 +318,26 @@ internal object CardioDraftLogic {
         return draft.values.isNotEmpty() || draft.notes.isNotBlank()
     }
 
+    fun displayForMachine(draft: CardioDraft, field: CardioEntryField, newType: CardioActivityType): Double {
+        val shown = draft.values.getValue(field)
+        val oldType = draft.type
+        if (CardioFieldRules.rule(field, oldType).unit == CardioFieldRules.rule(field, newType).unit) {
+            return shown
+        }
+        val stored = storedForUnitChange(draft.editingSessionOriginal, field)
+        if (stored != null && shown == CardioFieldRules.fromStorage(field, oldType, stored)) {
+            return CardioFieldRules.fromStorage(field, newType, stored)
+        }
+        val converted = CardioFieldRules.toStorage(field, oldType, shown)
+        return CardioFieldRules.fromStorage(field, newType, converted)
+    }
+
+    private fun storedForUnitChange(session: CardioSession?, field: CardioEntryField): Double? = when (field) {
+        CardioEntryField.DISTANCE_MILES -> session?.distanceM
+        CardioEntryField.AVG_SPEED_MPH -> session?.avgSpeed
+        else -> null
+    }
+
     fun toWrite(draft: CardioDraft, today: LocalDate = todayLocalDate()): CardioWrite {
         val orig = draft.editingSessionOriginal
         fun Double.roundToIntOrNull() = round(this).toInt()
@@ -583,7 +603,7 @@ class CardioViewModel(
             for (field in spec.fields) {
                 if (field == CardioEntryField.NOTES) continue
                 if (cur.values.containsKey(field)) {
-                    newValues[field] = cur.values[field]!!
+                    newValues[field] = CardioDraftLogic.displayForMachine(cur, field, type)
                     newReadStates[field] = cur.readStates[field] ?: ReadState.READ
                 } else {
                     newReadStates[field] = ReadState.UNREAD
@@ -628,7 +648,29 @@ class CardioViewModel(
         }
         draftsByMachine[cur.type] = cur
         val existing = draftsByMachine[type]
-        val nextDraft = existing ?: CardioDraftLogic.newDraft(repository.sessions.value, todayLocalDate()).copy(type = type)
+        val nextDraft = if (existing != null) {
+            if (cur.editingId == null) {
+                existing
+            } else {
+                existing.copy(
+                    editingId = cur.editingId,
+                    editingSessionOriginal = cur.editingSessionOriginal,
+                )
+            }
+        } else if (cur.editingId == null) {
+            CardioDraftLogic.newDraft(repository.sessions.value, todayLocalDate()).copy(type = type)
+        } else {
+            val generated = CardioDraftLogic.newDraft(repository.sessions.value, todayLocalDate())
+            val values = generated.values.mapValues { (field, _) ->
+                CardioDraftLogic.displayForMachine(generated, field, type)
+            }
+            generated.copy(
+                type = type,
+                values = values,
+                editingId = cur.editingId,
+                editingSessionOriginal = cur.editingSessionOriginal,
+            )
+        }
         _uiState.update { it.copy(draft = nextDraft, expandedField = null, typingField = null) }
     }
 
