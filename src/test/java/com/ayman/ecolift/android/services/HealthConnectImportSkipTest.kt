@@ -15,24 +15,25 @@ class HealthConnectImportSkipTest {
         rememberDeletedHealthConnectUid("hc-kept", dismissed)
         val rows = mutableListOf(healthSession("hc-kept", durationSec = 100))
         val upserts = mutableListOf<String>()
-        val importer = HealthConnectImport(
-            storedHealthConnectUids = { rows.map { it.hcUid } },
-            dismissedHealthConnectUids = dismissed,
+        val state = ImportState(
+            stored = setOf("hc-kept"),
+            dismissed = dismissed.all(),
+            seen = seenHealthConnectUids(rows.map { it.hcUid }, dismissed),
             upsert = { session ->
                 upserts += session.hcUid.orEmpty()
                 val index = rows.indexOfFirst { it.hcUid == session.hcUid }
                 if (index >= 0) rows[index] = session else rows += session
             },
-            exerciseSessions = {
-                listOf(
-                    healthSession("hc-9", durationSec = 500),
-                    healthSession("hc-kept", durationSec = 999),
-                    healthSession("hc-new", durationSec = 700),
-                )
-            },
         )
 
-        val added = importer.importRecentSessions()
+        val added = importSessions(
+            listOf(
+                healthSession("hc-9", durationSec = 500),
+                healthSession("hc-kept", durationSec = 999),
+                healthSession("hc-new", durationSec = 700),
+            ),
+            state,
+        )
 
         assertFalse(upserts.contains("hc-9"), "dismissed uid with no row was upserted: $upserts")
         assertTrue(upserts.contains("hc-kept"), "stored dismissed uid was not updated: $upserts")

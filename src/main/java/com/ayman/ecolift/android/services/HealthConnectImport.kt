@@ -21,21 +21,18 @@ import java.util.UUID
  * Without [exerciseSessionReadPermission] granted, the count is 0. Today's calorie total is not turned into a session.
  */
 class HealthConnectImport(
-    private val reader: CardioHealthConnectReader? = null,
+    private val reader: CardioHealthConnectReader,
     private val storedHealthConnectUids: suspend () -> Iterable<String?>,
     private val dismissedHealthConnectUids: DismissedHealthConnectUids,
     private val upsert: suspend (CardioSession) -> Unit,
     private val clock: Clock = Clock.systemUTC(),
     private val windowDays: Long = 14,
-    private val exerciseSessions: (suspend () -> List<CardioSession>)? = null,
 ) {
     fun exerciseSessionReadPermission(): String =
         HealthPermission.getReadPermission(ExerciseSessionRecord::class)
 
     suspend fun importRecentSessions(): Int {
-        val fixture = exerciseSessions
-        val source = if (fixture == null) reader ?: return 0 else null
-        if (source != null && !source.isAvailable()) return 0
+        if (!reader.isAvailable()) return 0
         var added = 0
         return try {
             val stored = storedHealthConnectUids()
@@ -43,13 +40,8 @@ class HealthConnectImport(
                 .toSet()
             val dismissed = dismissedHealthConnectUids.all()
             val seen = seenHealthConnectUids(stored, dismissedHealthConnectUids)
-            if (fixture != null) {
-                for (session in fixture()) {
-                    if (importOne(session, stored, dismissed, seen)) added += 1
-                }
-                return added
-            }
-            val client = source!!.client()
+            val state = ImportState(stored, dismissed, seen, upsert)
+            val client = reader.client()
             val granted = client.permissionController.getGrantedPermissions()
             if (exerciseSessionReadPermission() !in granted) return 0
             val end = Instant.now(clock)
@@ -65,10 +57,8 @@ class HealthConnectImport(
                     ),
                 )
                 val now = clock.millis()
-                for (record in page.records) {
-                    val session = sessionFrom(record, now) ?: continue
-                    if (importOne(session, stored, dismissed, seen)) added += 1
-                }
+                val sessions = page.records.mapNotNull { record -> sessionFrom(record, now) }
+                added += importSessions(sessions, state)
                 pageToken = page.pageToken
                 pages += 1
             } while (pageToken != null && pages < MAX_PAGES)
@@ -82,19 +72,6 @@ class HealthConnectImport(
         } catch (error: IllegalStateException) {
             added
         }
-    }
-
-    private suspend fun importOne(
-        session: CardioSession,
-        stored: Set<String>,
-        dismissed: Set<String>,
-        seen: MutableSet<String>,
-    ): Boolean {
-        val uid = session.hcUid
-        if (!uid.isNullOrBlank() && uid in dismissed && uid !in stored) return false
-        val isNew = claimNewHealthConnectUid(seen, uid)
-        upsert(session)
-        return isNew
     }
 
     private fun sessionFrom(record: ExerciseSessionRecord, nowEpochMilli: Long): CardioSession? {
@@ -116,4 +93,23 @@ class HealthConnectImport(
     private companion object {
         const val MAX_PAGES = 20
     }
+}
+
+internal class ImportState(
+    val stored: Set<String>,
+    val dismissed: Set<String>,
+    val seen: MutableSet<String>,
+    val upsert: suspend (CardioSession) -> Unit,
+)
+
+internal suspend fun importSessions(sessions: List<CardioSession>, state: ImportState): Int {
+    var added = 0
+    for (session in sessions) {
+        val uid = session.hcUid
+        if (!uid.isNullOrBlank() && uid in state.dismissed && uid !in state.stored) continue
+        val isNew = claimNewHealthConnectUid(state.seen, uid)
+        state.upsert(session)
+        if (isNew) added += 1
+    }
+    return added
 }
