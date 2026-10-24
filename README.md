@@ -2,19 +2,17 @@
 
 [![Android CI](https://github.com/AymanCode/AI-LIfting-App/actions/workflows/android-ci.yml/badge.svg)](https://github.com/AymanCode/AI-LIfting-App/actions/workflows/android-ci.yml)
 
-EcoLift is a workout tracker for Android, with a web version I now use at the gym. I built
-it because I was still going, but some of the excitement had gone. Logging had turned into
-bookkeeping: the numbers went in and mostly disappeared.
+EcoLift is a workout tracker. I built it because logging had turned into bookkeeping. The
+numbers went in and mostly disappeared. I wanted a set to take seconds to record, old
+workouts to be easy to find, and months of training to add up to a history I could read.
 
-I wanted recording a set to take seconds, previous workouts to be easy to find, and months
-of training to build an encyclopedia of my workout history instead of a pile of rows.
-
-This repository contains the Android app. The web version lives at
-[AymanCode/ecolift-web](https://github.com/AymanCode/ecolift-web).
+This repository is the Android app. It has the same screens as the web app,
+[AymanCode/ecolift-web](https://github.com/AymanCode/ecolift-web), which I use at the gym.
+The Android app keeps everything on the phone in Room, with no account and no sync.
 
 ## Screenshots
 
-Screenshots are from the Android app with demo data.
+These are from the Android app with demo data.
 
 | Workout log | Set card |
 | --- | --- |
@@ -30,97 +28,66 @@ Screenshots are from the Android app with demo data.
 
 ## What it does
 
-The Android app shows the same screens as the web app: Log, Progress, IronMind, Cardio, and
-Split. Room on the device stores the workouts. There is no account, no sync, and no offline
-queue.
-
-- Logs exercises, sets, reps, weights, completion state and rest time.
-- Finds exercises without needing the name to be typed exactly as it was saved.
-- Manages ordered training splits and suggests which session comes next.
-- Has a Smart suggest switch on the Split tab. When it is on, Split shows learned splits.
-  When it is off, Split shows only the splits you made. Edits to a split's lifts, their order
-  and its other options survive restarts and backups.
-- Shows exercise history, strength estimates, trends and previous sets.
-- Saves finished training cycles as snapshots so later routine changes do not rewrite them.
-- Gives each cardio activity its own fields, including incline, cadence, pace, stroke rate
-  and floors.
-- Backs up and restores workout data locally.
-- Imports older notes written as `135x8`, `135 lb x 8`, `135 for 8 8 6` and similar formats.
-- Includes an AI assistant called IronMind for corrections, imports and edits that are slow
-  to do by hand.
-
-## Why I built it this way
-
-Logging should not interrupt the workout. The exercise I am doing gets the screen, the
-buttons I need stay close, and previous weights are easy to reuse. A lot of the commit
-history is small changes to spacing, wording and taps because those are the things I notice
-between sets.
-
-Progress should make small increases feel worth noticing. Five more pounds or one more rep
-can look like nothing on its own. The progress screens connect that set to the rest of the
-exercise history, and finished cycles get a recap instead of another page of loose stats.
-
-I do not want an old workout to change because I edited the split I use now. A finished
-cycle is stored as a snapshot. That choice reaches into migrations, backups and database
-constraints because the history is part of the product, not leftover data.
-
-I wanted AI in the app, but I did not want it in the way. Logging, splits, progress,
-history, cardio, backups and search work without a model. IronMind is there when typing a
-correction or cleaning up old notes would take longer than asking for it.
-
-## How it started
-
-The first version was two experiments at once. I wanted to see whether the small local
-models I could run on my own hardware could build an app I would use, and whether I could
-get an MVP onto my phone quickly. I had the first MVP on my phone after three days, then
-kept changing it as I used it.
-
-I tried Qwen models from roughly 3B to 9B through Aider and Continue. I started with the
-whole project, then cut the scope to one file, one class and eventually one function at a
-time. That helped, but larger models still had to repair too much of the output. The
-local-only rule stopped making sense.
-
-I stopped limiting the project to local models. I cared more about using the app than which
-model made it. AI agents have written most of the code since. I decide what to build, what
-gets kept, and what needs another pass when the app gets in my way during a workout.
+- Logs exercises, sets, reps, weight, completion and rest time.
+- Finds an exercise even when you don't type its saved name exactly.
+- Keeps ordered training splits and suggests the next session. With **Smart suggest** on,
+  Split shows splits learned from your recent sessions. With it off, Split shows only the
+  splits you made.
+- Shows each exercise's history, estimated 1RM, trend and previous sets.
+- Saves a finished training cycle as a snapshot, so editing today's split never rewrites
+  an old workout.
+- Gives each cardio machine its own fields, such as incline, cadence, pace, stroke rate and
+  floors.
+- Backs up to and restores from a local file.
+- Reads old notes written as `135x8`, `135 lb x 8`, `135 for 8 8 6` and similar.
+- Has an assistant, IronMind, for corrections and imports that are slow to do by hand.
 
 ## IronMind
 
-IronMind is the AI assistant in EcoLift. It is for edits that are annoying to do by hand,
-especially older corrections and imports:
+You type the change in plain words:
 
 - `yesterday calf raises 90 for 12 10 8`
 - `for last saturday my deadlift top set should say three fifteen for four not 275`
 - `delete the extra squat set from May 10`
 
-Kotlin code handles each request first, and sending a message does not call a model. Try AI
-on a failed draft calls Groq in a debug build with `GROQ_API_KEY` set, and Gemini Nano on API
-31 and newer otherwise. The model never touches the database.
+Kotlin code parses each request, so sending a message doesn't call a model. If the parser
+can't read a line, it keeps your text as an editable draft instead of guessing. **Try AI** on
+that draft calls Groq in a debug build with `GROQ_API_KEY` set, and Gemini Nano on API 31 and
+newer otherwise. The model never writes to the database.
 
-A delete or a rename waits in the chat with Apply and Cancel, and IronMind writes nothing
-until you tap Apply. IronMind saves other changes right away. The most recent applied change offers Undo
-from the chat, and that Undo is still there after you switch tabs and come back. Restoring a
-backup clears any waiting change and the Undo. Restarting the app clears Undo history.
+Deletes and renames wait in the chat with **Apply** and **Cancel**. Other changes save right
+away, and the latest one offers **Undo** until you restart the app or restore a backup. The
+prompt cases that check this behavior are in `src/test/resources/agent_eval`.
 
-If an imported line or workout log cannot be parsed, EcoLift keeps the original text in an
-editable draft instead of guessing. The prompt cases used to check this behavior live in
-`src/test/resources/agent_eval`.
+## Design choices
 
-## Web version
+Logging shouldn't interrupt a workout. The current exercise gets the screen, the buttons
+stay in reach, and last time's weights are easy to reuse. Much of the commit history is
+small spacing, wording and tap fixes that I noticed between sets.
 
-The web app is a Kotlin/Wasm PWA built with Compose Multiplatform. I went with a PWA so I
-could use EcoLift on iOS without maintaining another native app or putting each update
-behind App Store review.
+An old workout should never change because I edited the split I use now. The app stores a
+finished cycle as a snapshot, and the migrations, backups and database constraints all treat
+that history as product data.
 
-The browser version uses Supabase for sign-in and storage. Workout-set changes update the
-screen first and wait in a per-user browser queue when the connection drops.
+Everything except IronMind works without a model. The assistant is there for edits that
+take longer to type than to ask for.
 
-The web code lives at [AymanCode/ecolift-web](https://github.com/AymanCode/ecolift-web).
-It is the version I use during workouts now.
+## How it started
 
-## Running it
+The first version tested whether small local models could build an app I would use. I ran
+Qwen models from 3B to 9B through Aider and Continue and had an MVP on my phone in three
+days. Even one function at a time, the small models wrote code that a larger model had to
+repair too often, so I dropped the local-only rule. AI agents have written most of the code
+since. I decide what to build, what stays, and what needs another pass when the app gets in
+my way at the gym.
 
-You need Android Studio or the Android SDK, JDK 17, minSdk 26, and compileSdk 36.
+The web app is a Kotlin/Wasm PWA built with Compose Multiplatform, so it also runs on iOS
+without App Store review. It uses Supabase for sign-in and storage.
+
+## Run it
+
+You need the Android SDK or Android Studio, JDK 17, and a device or emulator on API 26 or
+newer.
 
 ```bash
 git clone https://github.com/AymanCode/AI-LIfting-App.git
@@ -128,60 +95,52 @@ cd AI-LIfting-App
 ./gradlew installDebug
 ```
 
-On Windows use `gradlew.bat`. The APK is written to `build/outputs/apk/debug/`.
+On Windows, use `gradlew.bat`. Gradle writes the APK to `build/outputs/apk/debug/`.
 
-A Groq key is only used for debug builds and opt-in assistant evals. `build.gradle.kts`
-reads `GROQ_API_KEY` from a Gradle property or from the environment. It does not open
-`local.properties`. Release builds leave the key blank. Do not commit `local.properties`,
-`.env`, model files or release signing files.
+Only debug builds and opt-in assistant evals use a Groq key. `build.gradle.kts` reads
+`GROQ_API_KEY` from a Gradle property or the environment, never from `local.properties`, and
+release builds leave it blank. Don't commit `local.properties`, `.env`, model files or
+release signing files.
 
-The checked-in `.android/debug.keystore` gives debug and CI builds the same certificate so
-upgrade tests can install one build over another. It is not a release key.
+`.android/debug.keystore` is checked in so debug and CI builds share a certificate. Upgrade
+tests need that to install one build over another. It is not a release key.
 
-## Testing
+## Test it
 
 ```bash
 ./gradlew testDebugUnitTest
 ./gradlew connectedDebugAndroidTest # needs a device or emulator
 ```
 
-CI runs ktlint 1.5.0 over `src/**/*.kt`, then
-`./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest`. That builds the app
-and the instrumentation-test APK. It does not run the instrumentation tests.
-`scripts/ci/verify-apk-signer.sh` checks the debug APK against the pinned signer.
-`scripts/ci/verify-apk-compatibility.sh` requires the same package and signer as an older
-build, and a higher `versionCode`.
+CI runs ktlint 1.5.0 and the unit tests, and builds the app and the instrumented-test APK.
+It doesn't run the instrumented tests. It also checks the debug APK's signer and that a new
+build can install over an older one. [docs/TESTING.md](docs/TESTING.md) has more commands.
 
-More commands are in [docs/TESTING.md](docs/TESTING.md).
-
-## Layout
+## Code layout
 
 ```text
 src/main/java/com/ayman/ecolift
-  agent/       IronMind routing, tools, patches, audit and undo
-  ai/          exercise classification and the Groq client
-  android/     RoomRepos, AndroidAppServices, and platform shims
-  android/platform/  AndroidHost, backup UI, device actions, and backup actions
-  cardio/      cardio fields, parsers, and OCR result types
-  data/        workout models and the calculations the screens use
-  data/room/   Room entities, mapped to the web models
-  ui/          web screens, navigation, theme, and view models
-  web/         AppRepos, repository interfaces, and demo data
+  agent/             IronMind routing, tools, patches, audit and undo
+  ai/                exercise classification and the Groq client
+  android/           RoomRepos, AndroidAppServices and platform shims
+  android/platform/  AndroidHost, backup UI, device actions and backup actions
+  cardio/            cardio fields, parsers and OCR result types
+  data/              workout models and the calculations the screens use
+  data/room/         Room entities, mapped to the web models
+  ui/                web screens, navigation, theme and view models
+  web/               AppRepos, repository interfaces and demo data
 
-analytics/     DuckDB loader for backup exports
-schemas/       exported Room schemas
-docs/          architecture and testing notes
+analytics/  DuckDB loader for backup exports
+schemas/    exported Room schemas
+docs/       architecture and testing notes
 ```
 
-Good places to start are
-[AgentOrchestrator.kt](src/main/java/com/ayman/ecolift/agent/AgentOrchestrator.kt) for an
-IronMind request,
-[Migrations.kt](src/main/java/com/ayman/ecolift/data/Migrations.kt) for schema changes, and
-[LogViewModel.kt](src/main/java/com/ayman/ecolift/ui/viewmodel/LogViewModel.kt) for the log
-screen's state.
-
-More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Start with [AgentOrchestrator.kt](src/main/java/com/ayman/ecolift/agent/AgentOrchestrator.kt)
+for an IronMind request, [Migrations.kt](src/main/java/com/ayman/ecolift/data/Migrations.kt)
+for schema changes, and
+[LogViewModel.kt](src/main/java/com/ayman/ecolift/ui/viewmodel/LogViewModel.kt) for the Log
+screen. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers the rest.
 
 ## License
 
-Licensed under the [MIT License](LICENSE).
+[MIT](LICENSE)
