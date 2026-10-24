@@ -35,7 +35,7 @@ class RepositoryOwner(application: Application) : AndroidViewModel(application) 
         return initialization ?: viewModelScope.async(Dispatchers.IO) {
             loadAppFonts()
             val database = AppDatabase.getInstance(context)
-            val repos = RoomRepos(database, viewModelScope)
+            val repos = RoomRepos(database, viewModelScope, generation)
             graph = repos
             val occupancy = readDemoSeedOccupancy(database)
             if (shouldSeedDemo(BuildConfig.DEBUG, seedRequested, database.workoutSetDao().hasAny(), occupancy)) {
@@ -65,7 +65,7 @@ class RepositoryOwner(application: Application) : AndroidViewModel(application) 
             backups.confirmRestore { source ->
                 val loaded = requireNotNull(initialization).await()
                 val result = withContext(NonCancellable) {
-                    generation.replace(reload = { loaded.repos.loadAll() }) {
+                    requireNotNull(graph).replaceDataset {
                         when (source) {
                             is RestoreSource.Document -> DataBackupManager.importFromUri(context, loaded.database, Uri.parse(source.uri))
                             is RestoreSource.Local -> DataBackupManager.restoreAutomaticBackup(context, loaded.database, source.fileName)

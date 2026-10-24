@@ -273,7 +273,9 @@ object DataBackupManager {
 
             if (snapshot.exercises.isNotEmpty()) db.exerciseDao().insertAll(snapshot.exercises)
             snapshot.cycle?.let { db.cycleDao().upsert(it) }
-            if (snapshot.cycleSlots.isNotEmpty()) db.cycleSlotDao().insertAll(snapshot.cycleSlots)
+            if (snapshot.cycleSlots.isNotEmpty()) {
+                db.cycleSlotDao().insertAll(stampPredatedAnchors(snapshot.cycleSlots))
+            }
             keptSplitBoards(snapshot).forEach { db.splitMemberChoiceDao().upsert(it) }
             if (snapshot.workoutDays.isNotEmpty()) db.workoutDayDao().insertAll(snapshot.workoutDays)
             if (snapshot.exerciseAliases.isNotEmpty()) db.exerciseAliasDao().insertAll(snapshot.exerciseAliases)
@@ -301,6 +303,22 @@ object DataBackupManager {
             snapshot.userSettings?.let { db.userSettingsDao().upsert(it) }
             if (snapshot.cardioSessions.isNotEmpty()) db.cardioSessionDao().insertAll(snapshot.cardioSessions)
             Migrations.backfillLegacyCards(db.openHelper.writableDatabase)
+        }
+    }
+
+    /**
+     * A released-app backup has no learned-split fields. Decoding those slots yields createdAt 0
+     * and a null anchor, the same shape an upgrade used to leave behind. Stamp only that shape.
+     * A slot that already has a created time or an evidence window keeps the value it brought.
+     */
+    private fun stampPredatedAnchors(slots: List<RoomCycleSlot>): List<RoomCycleSlot> {
+        val now = System.currentTimeMillis()
+        return slots.map { slot ->
+            if (slot.createdAt == 0L && slot.anchorUpdatedAt == null) {
+                slot.copy(anchorUpdatedAt = now)
+            } else {
+                slot
+            }
         }
     }
 

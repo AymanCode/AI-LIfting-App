@@ -5,8 +5,10 @@ import com.ayman.ecolift.data.WorkoutCardDisplayMode
 import com.ayman.ecolift.data.WorkoutCardOrigin
 import com.ayman.ecolift.data.WorkoutExerciseCard
 import com.ayman.ecolift.data.WorkoutSet
+import com.ayman.ecolift.data.splits.DayWrite
 import com.ayman.ecolift.data.splits.LearnedModel
 import com.ayman.ecolift.web.AppRepos
+import com.ayman.ecolift.web.DataGeneration
 import com.ayman.ecolift.web.demo.DemoSeedData
 import com.ayman.ecolift.web.supabase.AssistantChangeRepository
 import com.ayman.ecolift.web.supabase.CardioRepository
@@ -39,6 +41,7 @@ import com.ayman.ecolift.data.room.Exercise as RoomExercise
 class RoomRepos(
     db: AppDatabase,
     scope: CoroutineScope,
+    private val generation: DataGeneration = DataGeneration(),
 ) : AppRepos {
     private val workerJob = SupervisorJob(scope.coroutineContext[Job])
     private val workerScope = CoroutineScope(scope.coroutineContext + workerJob + Dispatchers.Default)
@@ -48,6 +51,12 @@ class RoomRepos(
     private val learned = ForwardingLearnedSplits()
     private var learnedJob: Job? = null
     private var learnedStarted = false
+
+    /** Test seam. Runs before a learned slot write, and before any generation check. */
+    var beforeLearnedWrite: suspend () -> Unit = {}
+
+    /** Test seam. Runs after that write attempt returns, including a rejected one. */
+    var afterLearnedWrite: () -> Unit = {}
 
     override val exerciseSwaps: ExerciseSwapRepository = RoomExerciseSwapRepository(store) {
         learned.requestRun()
@@ -98,6 +107,31 @@ class RoomRepos(
         }
     }
 
+    /**
+     * Leave [learnedStarted] set so the reload inside [replaceDataset] does not install a learner
+     * for the generation [DataGeneration.replace] is about to retire.
+     */
+    private suspend fun stopLearnedSplits() {
+        val job = synchronized(learned) {
+            learnedStarted = true
+            learnedJob
+        }
+        job?.cancel()
+        job?.join()
+    }
+
+    suspend fun <T> replaceDataset(import: suspend () -> T): T {
+        stopLearnedSplits()
+        val result = generation.replace(reload = { loadAll() }) {
+            import()
+        }
+        synchronized(learned) {
+            learnedStarted = true
+            installLearnedSplits(store.settings.value.smartSuggest)
+        }
+        return result
+    }
+
     suspend fun installDemoSeed(seed: DemoSeedData) {
         store.write {
             db.exerciseDao().deleteAllExercises()
@@ -138,11 +172,18 @@ class RoomRepos(
         val job = SupervisorJob(parent)
         learnedJob = job
         val child = CoroutineScope(workerScope.coroutineContext + job)
+        val captured = generation.changes.value
         val coordinator = LearnedSplitsCoordinator(
             scope = child,
             sets = setRepository,
             exercises = exerciseRepository,
-            workout = workout,
+            workout = LearnedWriteGuard(
+                inner = workout,
+                generation = generation,
+                captured = captured,
+                beforeWrite = { beforeLearnedWrite() },
+                afterWrite = { afterLearnedWrite() },
+            ),
             persist = true,
             isOnline = { true },
             alternatives = { exerciseSwaps.alternatives.value },
@@ -150,6 +191,41 @@ class RoomRepos(
         )
         learned.bind(child, coordinator)
         coordinator.start(slotsFreshFromBoot = true)
+    }
+}
+
+private class LearnedWriteGuard(
+    private val inner: WorkoutRepository,
+    private val generation: DataGeneration,
+    private val captured: Long,
+    private val beforeWrite: suspend () -> Unit,
+    private val afterWrite: () -> Unit,
+) : WorkoutRepository by inner {
+    override suspend fun upsertLearnedSlot(
+        slotId: Long?,
+        name: String?,
+        learned: Boolean,
+        memberIds: List<Long>,
+        anchorUpdatedAt: Long,
+    ): Long {
+        beforeWrite()
+        val stored = generation.withCurrent(captured) {
+            inner.upsertLearnedSlot(slotId, name, learned, memberIds, anchorUpdatedAt)
+        }
+        afterWrite()
+        return stored ?: (slotId ?: 0L)
+    }
+
+    override suspend fun archiveLearnedSlot(slotId: Long) {
+        generation.withCurrent(captured) {
+            inner.archiveLearnedSlot(slotId)
+        }
+    }
+
+    override suspend fun enqueueLearnedDayWrites(writes: List<DayWrite>) {
+        generation.withCurrent(captured) {
+            inner.enqueueLearnedDayWrites(writes)
+        }
     }
 }
 
